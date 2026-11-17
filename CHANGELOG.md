@@ -157,6 +157,13 @@ default did change, as a fix: an unset `cut` is now 0 rad, where 0.1 drew non-fi
   is accepted (any other non-zero exit still fails: a dead renderer leaves a complete DOM of an error page); both
   departures are printed. An incomplete DOM still fails as before. `tests/test_shoot.py` runs a fake Chrome through all four cases;
   the two "keep" cases were red on the old code with the exact CI messages.
+- The frequent half of the same failure is not the teardown: asked for a screenshot of such a page under
+  `--virtual-time-budget`, Chrome 156/157 on the macOS runners stalled BEFORE taking it in about half of all attempts
+  (every process idle, no PNG, no DOM, until the timeout: 7 of 12 and 8 of 12 in two probes; `sudo sample` stacks of
+  every process show only run loops, and release Chrome carries no symbols), and never stalled in 24 probes without
+  `--screenshot` or without the budget. The cause inside Chrome is not identified. `shoot.py --dom-only` takes no
+  screenshot and returns the DOM alone (png None), and the hostile test uses it; the review shots keep both flags
+  unchanged (their pages are a tenth of the size and have never stalled).
 
 ### Known issues
 

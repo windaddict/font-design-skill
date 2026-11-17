@@ -24,6 +24,14 @@ What a counted shot proves (every item is checked; any failure is reported and t
      expired; recording dump and terminating.", exit 2) and the helpers it leaves behind hold stdout
      open; before this exception shoot.py waited the full timeout (300 s) with both outputs on disk
      and reported the shot as not taken (2026-11-17, the CI hang on PR #2).
+     --dom-only takes no screenshot at all: Chrome prints the DOM and exits, the PNG is never asked
+     for, and the result's png is None. It exists for tests/test_tools_and_templates.py's hostile
+     pages, whose DOM serialises to 96-124 MB of SVG path data: asked for a screenshot of such a page
+     under --virtual-time-budget, Chrome 156/157 on the macOS CI runners stalled before taking it in
+     about half of all attempts (every process idle, no PNG, no DOM, until the timeout; 7 of 12 and
+     8 of 12 in two probes), and never did in 24 probes without --screenshot or without the budget.
+     The cause inside Chrome is not known (release builds carry no symbols); the two outputs of a
+     --dom-only run, the DOM and the served-200 proof, are the only ones that test reads.
   2. The page URL carried a unique token (?shot=<id>) and the server answered THAT request 200.
      With --jobs above 1 several Chromes run at once; the token is what ties a response to a shot.
   3. A sentinel script, injected into every .html response, ran in the page after document.fonts.ready
@@ -650,11 +658,14 @@ def kill_group(p):
 
 
 def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
-          shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None):
+          shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None, dom_only=False):
     """One headless Chrome capture, verified. Returns a dict (png, dom, shot, font, width_face,
     width_fallback, font_status, probe). Raises RuntimeError naming the first failed proof; see the
     module header for the list. `server` is the one from serve(); without it only the Chrome exit
-    and the PNG are checked, and the function says so in the result ("verified": False)."""
+    and the PNG are checked, and the function says so in the result ("verified": False).
+    `dom_only` asks Chrome for the DOM and no screenshot (see --dom-only in the header): png is None
+    in the result, dump_dom is implied, and item 1 is "Chrome exited 0 and printed the DOM"."""
+    dump_dom = dump_dom or dom_only
     if width < MIN_WIDTH:
         raise ValueError(f"width {width} is below Chrome headless's {MIN_WIDTH}px minimum layout width; "
                          f"for a narrower reading shoot scripts/narrow.html with ?url=<page>&width={width}")
@@ -672,13 +683,14 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
     with tempfile.TemporaryDirectory(dir=profile_root) as profile:
         cmd = [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                f"--user-data-dir={profile}", f"--window-size={width},{height}",
-               f"--force-device-scale-factor={scale}", "--virtual-time-budget=5000",
-               f"--screenshot={target}"]
+               f"--force-device-scale-factor={scale}", "--virtual-time-budget=5000"]
+        if not dom_only:
+            cmd.append(f"--screenshot={target}")
         if dump_dom:
             cmd.append("--dump-dom")
         cmd.append(url)
         try:
-            r = run_chrome(cmd, timeout, complete=(lambda tail: target.is_file() and tail.endswith(DOM_END)) if dump_dom else None)
+            r = run_chrome(cmd, timeout, complete=(lambda tail: (dom_only or target.is_file()) and tail.endswith(DOM_END)) if dump_dom else None)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Chrome took over {timeout}s for {url} at {width}@{scale}x") from None
         except OSError as exc:  # not executable, wrong architecture, deleted since discovery
@@ -692,7 +704,7 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
               f"{EXIT_GRACE:g}s after writing the screenshot and the DOM for {url} at {width}@{scale}x"
               f"{' and was killed' if r.killed else ''}; both outputs are complete and are used "
               f"(a teardown hang, not a page fault): {r.stderr[-300:]!r}", file=sys.stderr)
-    elif r.returncode != 0 or not target.is_file():
+    elif r.returncode != 0 or (not dom_only and not target.is_file()):
         raise RuntimeError(f"Chrome exited {r.returncode} and wrote {'a' if target.is_file() else 'no'} screenshot "
                            f"for {url} at {width}@{scale}x: {r.stderr[-400:]}")
     dom_text = None
@@ -701,7 +713,7 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
             raise RuntimeError(f"--dump-dom produced no DOM for {url}; the screenshot is kept but the run is not verified")
         dom_text = r.stdout
         dom_path.write_text(dom_text, encoding="utf-8")
-    result = {"png": str(target), "dom": str(dom_path) if dom_path else None, "shot": shot_id,
+    result = {"png": None if dom_only else str(target), "dom": str(dom_path) if dom_path else None, "shot": shot_id,
               "font": None, "width_face": None, "width_fallback": None, "font_status": None, "probe": None,
               "verified": server is not None}
     if server is None:
@@ -819,6 +831,8 @@ def main(argv=None):
     ap.add_argument("--probe", metavar="SELECTOR", help="with --family: the elements that must be drawn in it "
                     "(default: every visible element whose computed font-family names it first)")
     ap.add_argument("--dump-dom", action="store_true", help="also save the DOM Chrome laid out as <name>.dom.html")
+    ap.add_argument("--dom-only", action="store_true", help="save the DOM and take no screenshot (no PNG): for a test that reads the DOM of a page "
+                    "too large to screenshot reliably; see the header")
     ap.add_argument("--no-sentinel", action="store_true", help="serve .html byte-identical; no beacon, no font proof: a picture, not evidence")
     ap.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help="CSS px captured")
     ap.add_argument("--bands", default=DEFAULT_BANDS, help="crops as name:top:bottom,... in CSS px, or 'none'")
@@ -878,7 +892,7 @@ def main(argv=None):
         url, png, width, scale = job
         try:
             res = shoot(url, png, width, scale, height=args.height, profile_root=out, server=server,
-                        require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome)
+                        require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome, dom_only=args.dom_only)
             return res, scale
         except (RuntimeError, ValueError) as exc:  # one failed page must not end the run; it is reported at the end
             failed.append(str(exc))
@@ -888,10 +902,11 @@ def main(argv=None):
             for res, scale in pool.map(one, jobs):
                 if res:
                     results.append(res)
-                    written.append(res["png"])
+                    if res["png"]:
+                        written.append(res["png"])
+                        written += crop_bands(res["png"], scale, bands)
                     if res["dom"]:
                         written.append(res["dom"])
-                    written += crop_bands(res["png"], scale, bands)
     finally:
         server.shutdown()
     for w in written:

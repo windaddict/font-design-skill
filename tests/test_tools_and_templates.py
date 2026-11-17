@@ -430,7 +430,13 @@ def test_hostile_text_is_inert_in_chrome(template, tmp_path):
     through shoot.py and reads the DOM Chrome built: the page ran and drew glyphs, the hostile strings
     are present as TEXT (the serialised DOM carries them entity-escaped), no element carries an
     onerror handler, no script beyond the template's own two exists, nothing set data-fd-pwned (the
-    fixture's inline script would), and no runtime error was recorded."""
+    fixture's inline script would), and no runtime error was recorded.
+    --dom-only, not --dump-dom: the hostile page's DOM is 96-124 MB of SVG path data (6,106-7,790
+    glyphs at ~1,200 path points each, because the fixture prefixes ~190 hostile characters to all
+    185 strings), and asked to screenshot it under --virtual-time-budget Chrome 156/157 on the macOS
+    CI runners stalled before the screenshot in about half of all attempts ("Chrome took over 300s",
+    10 of 14 macOS jobs on PR #2, 2026-11-17). Without --screenshot it never stalled in 12 probes.
+    Nothing here reads the PNG."""
     chrome = chrome_or_skip()
     adv = json.loads((REPO / "tests" / "fixtures" / "content-adversarial.json").read_text(encoding="utf-8"))
     fixed = json.loads(json.dumps(adv).replace('"img/../x.jpg"', "null"))
@@ -442,11 +448,12 @@ def test_hostile_text_is_inert_in_chrome(template, tmp_path):
     assert r.returncode == 0, r.stderr
     shots = tmp_path / "shots"
     r = subprocess.run([sys.executable, str(REPO / "scripts" / "shoot.py"), str(shots), "--serve", str(pages), "--pages", f"{template}.html",
-                        "--widths", "1280", "--scales", "1", "--dump-dom", "--no-sentinel", "--bands", "none"],
+                        "--widths", "1280", "--scales", "1", "--dom-only", "--no-sentinel", "--bands", "none"],
                        capture_output=True, text=True, cwd=REPO, env={**os.environ, "CHROME": chrome})
     assert r.returncode == 0, r.stderr[-1500:]
     doms = list(shots.glob("*.dom.html"))
     assert len(doms) == 1, doms
+    assert not list(shots.glob("*.png")), "--dom-only must not take a screenshot"
     dom = doms[0].read_text(encoding="utf-8")
     assert int(re.search(r'data-fd-rendered="(\d+)"', dom).group(1)) > 0, "the page did not draw"
     # the hostile TEXT itself contains the attribute name, so the check is on the <html> element

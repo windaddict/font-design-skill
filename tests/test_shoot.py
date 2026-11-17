@@ -867,3 +867,21 @@ def test_shoot_still_fails_a_chrome_that_hangs_or_dies_before_the_dom_is_complet
     monkeypatch.setenv("FAKE_CHROME_THEN", then)
     with pytest.raises(RuntimeError, match=error):
         shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake_chrome(tmp_path), dump_dom=True, timeout=2)
+
+
+def test_shoot_dom_only_asks_chrome_for_no_screenshot_and_keeps_the_dom(tmp_path, monkeypatch):
+    """The other CI failure of 2026-11-17 (PR #2), the frequent one: asked for a screenshot of a hostile
+    concept page (96-124 MB of SVG path data) under --virtual-time-budget, Chrome on the macOS runners
+    stalled before taking it in about half of all attempts, every process idle until the timeout, and
+    never did without --screenshot (12 of 12 clean) or without the budget (12 of 12). dom_only=True
+    drops --screenshot from the command, keeps --dump-dom, requires no PNG, and returns png None. The
+    fake records its arguments. Red before the fix: shoot() had no dom_only parameter."""
+    sh = tmp_path / "fake-chrome"
+    sh.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$(dirname "$0")/args.txt"\n'
+                  'printf \'<!DOCTYPE html>\\n<html><head></head><body data-fake="1"></body></html>\\n\'\n')
+    sh.chmod(0o755)
+    res = shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=str(sh), dom_only=True, timeout=5)
+    args = (tmp_path / "args.txt").read_text().splitlines()
+    assert not any(a.startswith("--screenshot") for a in args) and "--dump-dom" in args, args
+    assert res["png"] is None and 'data-fake="1"' in pathlib.Path(res["dom"]).read_text()
+    assert not (tmp_path / "x.png").exists()
