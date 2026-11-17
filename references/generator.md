@@ -433,6 +433,12 @@ on:
 
 It does **not** throw on an `ends` table missing a letter a skeleton uses; that end draws square.
 
+**Compatibility promise, exactly.** A 0.1 project that copies 0.2's `scripts/` over its own and rebuilds, without touching `concepts.js` or `font.json`, gets
+the same outlines and tables (decoded TTF, export JSON and manifest figures) as 0.1.0 gave. The promise is **per platform and node major version**: the
+generator's floating-point output depends on both, so the digests the repo records (`tests/fixtures/baseline-0.1.0.json`) are keyed `darwin/26`, `linux/22`
+and so on, and a platform that is not recorded has no promise until it is recorded from the 0.1.0 code. The raw woff2 bytes are a separate claim, also
+per brotli version. The branch record is not part of it; it gains tokens (section 12), and only a curl end (`curlsg`) or a set `crotch` writes one.
+
 ## 12. The branch record, and why the exporter refuses masters
 
 Each stroke's record reads like

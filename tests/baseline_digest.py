@@ -27,15 +27,20 @@ The woff2 sha256 of each file is recorded too, together with the brotli version 
 tests/test_backward_compat.py compares them ONLY when the running brotli is the recorded one, and skips naming both versions otherwise.
 None of the three digests above is a claim about woff2 bytes: they prove the outlines, the tables fontTools writes and the manifest figures.
 
-The record is keyed by node major version, because the export digest is V8 arithmetic. A different node
-that produces a different export digest on the UNCHANGED 0.1.0 tree is not a regression: record that
-node's digests with --record after a `build.py --check` on a 0.1.0 checkout under it.
+The record is keyed by PLATFORM AND NODE MAJOR VERSION (`darwin/26`, `linux/22`): the export digest is floating-point arithmetic, which
+depends on V8 and, as the first Linux CI run showed, on the operating system too (the same node major version gave other digests for the
+bract and driftwood fonts on Linux than on macOS). A platform and node that produces a different digest on the UNCHANGED 0.1.0 tree is not a
+regression: record it, from the 0.1.0 code, with the commands below (on Linux, the `record-baseline` workflow does it). The promise
+"a 0.1 project rebuilds to the same fonts" is therefore per platform and node major version.
 
-    .venv/bin/python3 tests/baseline_digest.py --print                  # digests of the working tree, as JSON
-    .venv/bin/python3 tests/baseline_digest.py --record --rev 0fc4314   # add this node's digests to the fixture
+    .venv/bin/python3 tests/baseline_digest.py --print [--out F]        # the working tree's digests, as one entry (no guard)
+    .venv/bin/python3 tests/baseline_digest.py --record --rev 0fc4314   # add this platform/node entry to the fixture
+    .venv/bin/python3 tests/baseline_digest.py --record --rev 0fc4314 --repo PATH --out F   # build a 0.1.0 checkout at PATH, write the entry only
+    .venv/bin/python3 tests/baseline_digest.py --merge F [F ...]        # merge entry files into the fixture
 
---record refuses unless scripts/gen.js, export.js and build.py are byte-identical to REV's copies, so a
-baseline cannot be recorded from modified code (the whole point is that it comes from 0.1.0).
+--record refuses unless scripts/gen.js, export.js and build.py of the tree it builds (this one, or --repo) are byte-identical to REV's copies,
+so a baseline cannot be recorded from modified code (the whole point is that it comes from 0.1.0). --merge refuses an entry recorded at another
+revision.
 
 Copyright 2026 John Knox. MIT licence.
 """
@@ -49,6 +54,9 @@ import sys
 import tempfile
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
+TREE = REPO  # the tree whose scripts and examples are built: this repo, or a 0.1.0 checkout named by --repo
+SCHEMA = "font-design/baseline-digests/v2"
+ENTRY_SCHEMA = "font-design/baseline-entry/v1"
 FIXTURE = REPO / "tests" / "fixtures" / "baseline-0.1.0.json"
 # example -> extra build arguments: the neutral example has a requirements.json, the two precedents do
 # not (smoke.sh step 2 declines the required-character check for them the same way)
@@ -100,12 +108,12 @@ def manifest_digest(manifest):
 def build_example(name, out_dir, keep):
     """Builds one example into out_dir (outside the repo's own out/ folder), keeping each group's export
     JSON under `keep`. Returns the CompletedProcess."""
-    ex = REPO / "examples" / name
-    cmd = [sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(ex / "font.json"), "--out-dir", str(out_dir),
+    ex = TREE / "examples" / name
+    cmd = [sys.executable, str(TREE / "scripts" / "build.py"), "--font", str(ex / "font.json"), "--out-dir", str(out_dir),
            "--keep-masters", str(keep / "export.json"), *EXAMPLES[name]]
     if name == "neutral":
         cmd += ["--requirements", str(ex / "requirements.json")]
-    return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
+    return subprocess.run(cmd, cwd=TREE, capture_output=True, text=True)
 
 
 def compute(work):
@@ -144,49 +152,115 @@ def node_major():
     return r.stdout.strip().lstrip("v").split(".")[0]
 
 
+def platform_key():
+    """`darwin/26`, `linux/22`: the platform and the node major version the digests are keyed by."""
+    return f"{sys.platform}/{node_major()}"
+
+
 def load_fixture():
     """The recorded baseline. A missing or malformed file raises: the compat test must FAIL, never skip."""
     data = json.loads(FIXTURE.read_text())
-    assert data.get("schema") == "font-design/baseline-digests/v1", f"{FIXTURE.name}: unexpected schema {data.get('schema')!r}"
-    assert isinstance(data.get("by_node_major"), dict) and data["by_node_major"], f"{FIXTURE.name}: no digests recorded"
+    assert data.get("schema") == SCHEMA, f"{FIXTURE.name}: unexpected schema {data.get('schema')!r}"
+    assert isinstance(data.get("by_platform_node"), dict) and data["by_platform_node"], f"{FIXTURE.name}: no digests recorded"
     return data
 
 
-def record(rev):
-    for f in ("gen.js", "export.js", "build.py"):
-        old = subprocess.run(["git", "show", f"{rev}:scripts/{f}"], cwd=REPO, capture_output=True)
-        if old.returncode != 0:
-            sys.exit(f"baseline_digest: git show {rev}:scripts/{f} failed: {old.stderr.decode()[:200]}")
-        if (REPO / "scripts" / f).read_bytes() != old.stdout:
-            sys.exit(f"baseline_digest: scripts/{f} differs from {rev}; a baseline is recorded from the unmodified 0.1.0 code only")
-    with tempfile.TemporaryDirectory() as tmp:
-        got = compute(tmp)
-    data = json.loads(FIXTURE.read_text()) if FIXTURE.is_file() else {
-        "schema": "font-design/baseline-digests/v1", "baseline_rev": rev, "by_node_major": {}}
-    if data["baseline_rev"] != rev:
-        sys.exit(f"baseline_digest: the fixture was recorded at {data['baseline_rev']}, not {rev}")
+def record_instructions(data, key):
+    return (f"no digests recorded for {key} (recorded: {sorted(data['by_platform_node'])}). If this platform or node differs from the recorded ones only in "
+            f"floating-point arithmetic, it is not a regression: record it from the 0.1.0 code. On Linux run the `record-baseline` workflow "
+            f"(.github/workflows/record-baseline.yml) and merge its artifact with `python tests/baseline_digest.py --merge ENTRY.json`; elsewhere, in a "
+            f"checkout of {data['baseline_rev']}, `python tests/baseline_digest.py --record --rev {data['baseline_rev']} --out ENTRY.json --repo .` "
+            f"then `--merge ENTRY.json` here")
+
+
+def judge(data, key, got):
+    """Compares freshly computed digests (`got`, {group: {export_sha256, ttf_sha256, manifest_sha256}}) with the record for `key`. Returns
+    ("unrecorded", instructions), ("differs", the differing group/digest lines) or ("ok", ""). Pure, so the keying is tested without a build."""
+    rec = data["by_platform_node"].get(key)
+    if rec is None:
+        return "unrecorded", record_instructions(data, key)
+    want = rec["digests"]
+    if set(got) != set(want):
+        return "differs", f"groups built {sorted(got)}, recorded {sorted(want)}"
+    bad = [f"{g}: {k} is {got[g][k][:12]}, recorded {want[g][k][:12]}" for g in sorted(want) for k in sorted(want[g]) if got[g][k] != want[g][k]]
+    return ("differs", "\n  ".join(bad)) if bad else ("ok", "")
+
+
+def entry(got, rev):
+    """One platform/node record as a file of its own, for merging: {schema, key, baseline_rev, record}."""
+    got = dict(got)
     got["brotli"] = brotli_version()
-    data["by_node_major"][node_major()] = got
+    return {"schema": ENTRY_SCHEMA, "key": platform_key(), "baseline_rev": rev, "node": node_version(), "record": got}
+
+
+def node_version():
+    return subprocess.run(["node", "--version"], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def guard(rev):
+    for f in ("gen.js", "export.js", "build.py"):
+        old = subprocess.run(["git", "-C", str(TREE), "show", f"{rev}:scripts/{f}"], capture_output=True)
+        if old.returncode != 0:
+            sys.exit(f"baseline_digest: git show {rev}:scripts/{f} failed in {TREE}: {old.stderr.decode()[:200]}")
+        if (TREE / "scripts" / f).read_bytes() != old.stdout:
+            sys.exit(f"baseline_digest: scripts/{f} in {TREE} differs from {rev}; a baseline is recorded from the unmodified 0.1.0 code only")
+
+
+def merge_entries(paths):
+    data = json.loads(FIXTURE.read_text()) if FIXTURE.is_file() else {"schema": SCHEMA, "baseline_rev": None, "by_platform_node": {}}
+    for p in paths:
+        e = json.loads(pathlib.Path(p).read_text())
+        if e.get("schema") != ENTRY_SCHEMA or e.get("baseline_rev") is None:
+            sys.exit(f"baseline_digest: {p} is not a recorded entry (an entry from --print carries no baseline revision and is never merged)")
+        if data["baseline_rev"] not in (None, e["baseline_rev"]):
+            sys.exit(f"baseline_digest: the fixture was recorded at {data['baseline_rev']}, {p} at {e['baseline_rev']}")
+        data["baseline_rev"] = e["baseline_rev"]
+        data["by_platform_node"][e["key"]] = e["record"]
+        print(f"merged {e['key']} ({e.get('node')}) from {p}")
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
-    print(f"recorded node {node_major()} digests for {len(got['digests'])} groups at {rev} -> {FIXTURE.relative_to(REPO)}")
+
+
+def record(rev, out=None):
+    guard(rev)
+    with tempfile.TemporaryDirectory() as tmp:
+        e = entry(compute(tmp), rev)
+    if out:
+        pathlib.Path(out).write_text(json.dumps(e, indent=2, sort_keys=True) + "\n")
+        print(f"wrote the {e['key']} entry at {rev} -> {out}")
+        return
+    tmp_entry = pathlib.Path(tempfile.mkdtemp()) / "entry.json"
+    tmp_entry.write_text(json.dumps(e))
+    merge_entries([tmp_entry])
 
 
 def main(argv=None):
+    global TREE
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--print", action="store_true", dest="show", help="print the working tree's digests as JSON")
-    ap.add_argument("--record", action="store_true", help="add this node's digests to the fixture (needs --rev)")
+    ap.add_argument("--print", action="store_true", dest="show", help="print the working tree's digests as one entry (no guard, no baseline revision)")
+    ap.add_argument("--record", action="store_true", help="record this platform/node's digests from the 0.1.0 code (needs --rev)")
+    ap.add_argument("--merge", nargs="+", metavar="ENTRY", help="merge entry files written by --record --out into the fixture")
     ap.add_argument("--rev", help="the 0.1.0 commit the scripts must equal, for --record")
+    ap.add_argument("--repo", help="the tree to build (default: this repo); for --record, a checkout of the baseline revision")
+    ap.add_argument("--out", help="write the entry to this file instead of the fixture (--record) or stdout (--print)")
     args = ap.parse_args(argv)
-    if args.record:
+    if args.repo:
+        TREE = pathlib.Path(args.repo).resolve()
+    if args.merge:
+        merge_entries(args.merge)
+    elif args.record:
         if not args.rev:
             ap.error("--record needs --rev")
-        record(args.rev)
+        record(args.rev, args.out)
     elif args.show:
         with tempfile.TemporaryDirectory() as tmp:
-            print(json.dumps(compute(tmp), indent=2, sort_keys=True))
+            text = json.dumps(entry(compute(tmp), None), indent=2, sort_keys=True) + "\n"
+        if args.out:
+            pathlib.Path(args.out).write_text(text)
+        else:
+            print(text, end="")
     else:
-        ap.error("pass --print or --record")
+        ap.error("pass --print, --record or --merge")
 
 
 if __name__ == "__main__":

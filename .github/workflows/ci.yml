@@ -41,8 +41,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # scripts/diff.py (smoke step 2b) needs Pillow's raqm layout engine. The Pillow wheel carries raqm and loads libfribidi at run time; a macOS
+      # runner has none, and Homebrew's `libraqm` is not what supplies it (this repo's author's Mac has fribidi and no libraqm, and raqm works).
+      - name: install libfribidi (macOS; Pillow's raqm loads it at run time)
+        if: runner.os == 'macOS'
+        run: brew install fribidi
       - name: install
         run: pip install -r requirements-dev.txt
+      - name: Pillow must report the raqm layout engine (diff.py refuses without it)
+        run: |
+          python -c "from PIL import features; assert features.check('raqm'), 'this Pillow has no raqm (macOS: brew install fribidi; Debian/Ubuntu: apt install libfribidi0)'"
       - name: lint
         run: |
           ruff check scripts/ tests/

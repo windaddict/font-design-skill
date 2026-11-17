@@ -126,6 +126,19 @@ default did change, as a fix: an unset `cut` is now 0 rad, where 0.1 drew non-fi
   (mult 1.25) the reviewed page showed, added after the review from a generator whose mult 1 and 1.5 digests match
   the review-time record.
 
+### Fixed, found by the first CI run
+
+- The compatibility fixture was keyed by Node major only. On Linux the neutral digests matched and the Bract and
+  Driftwood ones recorded on macOS under the same Node did not: the generator's floating-point output depends on the
+  operating system as well as on V8. The fixture is now keyed by platform and Node major (`darwin/26`, `linux/22`);
+  an unrecorded one fails with the instructions to record it, and the promise that a 0.1 project rebuilds to the same
+  fonts is stated per platform and Node major. The `record-baseline` workflow records the 0.1.0 code on Linux (Node
+  20 and 22) beside the branch's own digests, by hand or on a pull request that changes the generator, and
+  `tests/baseline_digest.py --merge` merges an entry and refuses one without a baseline revision.
+- The macOS CI job lacked libfribidi, which Pillow's raqm layout engine loads at run time, so `diff.py` refused. CI
+  installs it before pip and asserts `features.check('raqm')`; `check-env.py` reports raqm as a required piece with
+  the fix per OS (`brew install fribidi`, `apt install libfribidi0`).
+
 ### Known issues
 
 - Butt-ended curves draw a hooked flag with a notch at the top terminal of `a` and on `f r j y`, and the

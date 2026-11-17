@@ -407,7 +407,7 @@ Added 2026-11-16 with the optical corrections (0.2 item 3); the findings are abo
   now gives round extremes the half width of a fully weighted curve, and the test asserts the `o` spans
   -10 to 510 in every variant. `optical-overshoot-round` (the old half width) was watched red on that
   assertion (-12.50 to 512.50).
-- **Digests differ by node major.** Recorded from a clone at 0fc4314 under node 20, 22 and 26: node 20 and
+- **Digests differ by node major and by platform.** (Section 8's Linux note below supersedes the node-only keying.) Recorded from a clone at 0fc4314 on macOS under node 20, 22 and 26: node 20 and
   22 give identical digests; node 26 differs in the export and TTF digests of 4 of 5 groups and in the
   manifest digest of all 5 (V8 arithmetic, not a regression). The test accepts only a recorded major.
 
@@ -464,7 +464,7 @@ Added after the Impasse review of the finished 0.2 diff (2026-11-16):
 - **G3: the round fit is exact for a ring and not for an open curve.** Documented with its bound and measured; the first version of the open-curve
   assertion could not fail on a fit that was too weak, so `optical-fit-overcorrect` (weight 2) is the mutation that proves it.
 - **G4: `test_backward_compat` never proved woff2 bytes.** It proves outlines, the TTF fontTools writes from the woff2, and the manifest figures.
-  `test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli` adds the bytes, keyed by node major AND brotli version (1.2.1 recorded), and
+  `test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli` adds the bytes, keyed by platform, node major AND brotli version (1.2.1 recorded, macOS), and
   skips naming both versions when this brotli differs. It is RED under the same `Math.round(g.adv) + 1` mutation.
 - **G6, G7:** the refusal test now carries its own case list (every knob times null, string, NaN, boolean, below, above, bounds), and the joints
   test also runs the shipped `"": "disk"` mapping (`optical-null-accepted` and `joints-keep-disk` are RED).
@@ -478,3 +478,27 @@ Added after the Impasse re-review (2026-11-16):
   refused for a knob it never set. It is written only when `crotch` > 0; `test_an_unset_crotch_leaves_the_0_1_branch_record` matches every record of
   the project's masters against the 0.1 grammar (`crotch-token-always` is RED). The crotch test now reads the acute ends from the crotch 0.3 build.
 - **R3: the open-curve bound had the wrong sign and omitted `hzThin`.** At `hzThin` 1.4 the measured shift (4.49) exceeds the old bound (3.75).
+
+Added after the first CI run (2026-11-17):
+
+- **The byte-identity promise is per platform AND node major version.** The first Linux CI run matched the neutral digests and not the bract and
+  driftwood ones recorded on macOS under the same node major version (export, TTF and manifest digests of `bract/roman` and `driftwood/roman`, the
+  manifest digest of `driftwood/italic`): the generator's floating-point output depends on the operating system as well as on V8, and integer
+  rounding in the TTF then flips. We did not know whether 0.1.0 itself differs on Linux or whether 0.2 introduced it. The fixture
+  (`tests/fixtures/baseline-0.1.0.json`, schema `font-design/baseline-digests/v2`) is therefore keyed `darwin/26`, `linux/22` and so on, a platform that is
+  not recorded FAILS with the recording instructions (it never skips), and the `record-baseline` workflow
+  (`.github/workflows/record-baseline.yml`, manual) records the 0.1.0 code on Linux for node 20 and 22 and, beside it, the current branch's digests on the
+  same machine, so the two can be compared: equal means 0.2 changed nothing on Linux; different means it did. Entries are merged with
+  `.venv/bin/python3 tests/baseline_digest.py --merge entry-baseline.json`, and `--merge` refuses an entry without a baseline revision (the branch's own digests).
+  Guards: `test_an_unrecorded_platform_fails_with_the_recording_instructions` (RED under a lookup that ignores the platform),
+  `test_a_recorded_platform_whose_digest_differs_fails_naming_it` (RED under a comparison that skips the manifest digest),
+  `test_merging_adds_one_platform_entry_and_refuses_a_head_entry` (RED under a merge that accepts a null revision, which needed a second case with no
+  fixture yet: the first version of the test had two guards covering one fixture, and the revision check against the existing record refused the entry
+  first), `tests/test_ci_workflow.py` for the workflow text. The genre record in `tests/test_genres.py` rounds to 0.01 and passed on Linux.
+- **The macOS CI job lacked libfribidi, not libraqm.** `diff.py` refused because Pillow reported no raqm. On the author's Mac there is no libraqm
+  anywhere (`find /opt/homebrew -name 'libraqm*'` is empty) and raqm works: the Pillow wheel carries the engine and loads libfribidi at run time
+  (`strings` on its `_imagingft` module names `libfribidi.dylib`), and Homebrew's `fribidi` is installed. So `ci.yml` runs `brew install fribidi`
+  before the pip install on macOS and asserts `features.check('raqm')` after it, and `check-env.py` reports raqm as a REQUIRED piece (the review loop
+  runs `diff.py` from round 2, so a machine without it fails in the middle of phase 8) with the fix per OS. Guards: `tests/test_check_env.py`
+  (RED under a `check_raqm` that always passes) and `tests/test_ci_workflow.py` (RED under each of: the brew step removed, moved after pip, its macOS
+  condition removed, the assertion turned into a print, a workflow that is not valid YAML).

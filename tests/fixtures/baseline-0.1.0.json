@@ -1,7 +1,7 @@
 {
   "baseline_rev": "0fc4314",
-  "by_node_major": {
-    "20": {
+  "by_platform_node": {
+    "darwin/20": {
       "brotli": "1.2.1",
       "digests": {
         "bract/roman": {
@@ -38,7 +38,7 @@
         "neutral/roman": "daf03f163b5c991862538291515e4ace0e836113fccff89216b914e715ee0bb4"
       }
     },
-    "22": {
+    "darwin/22": {
       "brotli": "1.2.1",
       "digests": {
         "bract/roman": {
@@ -75,7 +75,7 @@
         "neutral/roman": "daf03f163b5c991862538291515e4ace0e836113fccff89216b914e715ee0bb4"
       }
     },
-    "26": {
+    "darwin/26": {
       "brotli": "1.2.1",
       "digests": {
         "bract/roman": {
@@ -113,5 +113,5 @@
       }
     }
   },
-  "schema": "font-design/baseline-digests/v1"
+  "schema": "font-design/baseline-digests/v2"
 }

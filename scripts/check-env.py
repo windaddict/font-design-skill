@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Reports which pieces of the toolchain this machine has, each with the exact command that fixes a missing one.
 
-WHAT IT'S FOR: the skill needs five things the operator's machine may lack: a Python of 3.10 or newer with the
-packages in requirements.txt (the builder and the review tools), Node 20 or newer (the generator and the
-exporter), Chrome or Chromium (every screenshot), and bash (smoke.sh). Without them a run fails somewhere in
+WHAT IT'S FOR: the skill needs six things the operator's machine may lack: a Python of 3.10 or newer with the
+packages in requirements.txt (the builder and the review tools), a Pillow with the raqm text layout engine
+(the per-round visual diff, scripts/diff.py), Node 20 or newer (the generator and the exporter), Chrome or
+Chromium (every screenshot), and bash (smoke.sh). Without them a run fails somewhere in
 the middle of a phase with a traceback. This prints one line per piece, found or missing, and for each
 missing piece the command to run; it exits 1 when any required piece is missing. Run it first, on the
 interpreter the skill will use:
@@ -146,6 +147,29 @@ def check_packages():
     return out
 
 
+def check_raqm():
+    """Pillow's raqm layout engine, which scripts/diff.py needs so that GPOS kerning applies and a kern change shows in the diff. REQUIRED, not
+    optional: the review loop runs diff.py from round 2 of every design review, so a machine without raqm fails in the middle of phase 8 with the
+    same refusal this reports up front. The Pillow wheels carry raqm themselves and load libfribidi at run time, so the missing piece is
+    libfribidi, not a Pillow rebuild (found on the first macOS CI run, whose runner had none)."""
+    try:
+        from PIL import features
+        have = features.check("raqm")
+    except ImportError:
+        return False, "raqm: Pillow is not importable, so its raqm layout engine cannot be checked", venv_fix()
+    except Exception as exc:
+        return False, f"raqm: asking Pillow failed ({type(exc).__name__}: {exc})", venv_fix()
+    if have:
+        return True, "raqm (Pillow's layout engine, for diff.py)", None
+    if sys.platform == "darwin":
+        fix = "brew install fribidi   (the Pillow wheel carries raqm and loads libfribidi at run time; `brew install libraqm` brings it too)"
+    elif sys.platform.startswith("linux"):
+        fix = "apt install libfribidi0   (Debian/Ubuntu; the Pillow wheel carries raqm and loads libfribidi at run time)"
+    else:
+        fix = "install libfribidi for this platform; the Pillow wheel carries raqm and loads libfribidi at run time"
+    return False, "raqm: this Pillow lacks the raqm layout engine, which scripts/diff.py needs (usually libfribidi is not installed)", fix
+
+
 def check_node():
     node = shutil.which("node")
     if not node:
@@ -203,7 +227,7 @@ def check_fontbakery():
 
 
 def main():
-    results = [check_platform(), check_python(), *check_packages(), check_node(), check_chrome(), check_bash()]
+    results = [check_platform(), check_python(), *check_packages(), check_raqm(), check_node(), check_chrome(), check_bash()]
     missing = 0
     for found, what, fix in results:
         if found:
