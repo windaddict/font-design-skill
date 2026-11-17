@@ -1,0 +1,11 @@
+{
+  "name": "font-design-skill",
+  "version": "0.1.0",
+  "description": "Claude Code skill: design, build and ship a custom display typeface as a self-hosted variable web font. No npm dependencies; this file documents the Node requirement.",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "check": "node --check scripts/gen.js && node --check scripts/export.js && node --check scripts/render.js && node --check scripts/bounds.js && node --check scripts/concepts/build-page.js"
+  }
+}

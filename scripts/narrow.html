@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Narrow-width reading</title>
+<!-- WHAT IT'S FOR: the phone reading that headless Chrome cannot take directly. Chrome headless lays
+     out at no less than 500 CSS px, so shoot.py refuses narrower widths (a 360px request would render
+     at 500 and crop, which reads as horizontal overflow). This page stays at least 500 px wide itself
+     and puts the page under review in an iframe of the requested width; after the inner page has
+     loaded and its fonts are ready it reads the inner document's scrollWidth against its clientWidth
+     (same origin: shoot.py serves both) and writes the result on its own <html> as
+     data-fd-scroll-width, data-fd-client-width and data-fd-overflow ("true" / "false"), which a
+     `shoot.py --dump-dom` run saves beside the screenshot. The screenshot shows the narrow page in
+     the frame; the attributes are the measurement. It is taken twice: at the inner load event, and
+     again at the first 16 ms poll (setTimeout, from the load event on) at which the inner document's
+     fonts have settled (document.fonts.status is "loaded": no face still in flight). Reading
+     scrollWidth forces a layout, so the second reading reflects the loaded faces without waiting
+     for a rendered frame. data-fd-narrow-stage says which reading is on <html> ("load" or "fonts")
+     and data-fd-narrow-polls how many polls it took. Exact guarantee: a "fonts" reading is the inner
+     document's scrollWidth against its clientWidth, laid out after every face had loaded or failed;
+     a "load" reading was taken before web fonts settled and can miss a title that only overflows in
+     the custom face, so shoot.narrow_verdict() and smoke.sh step 10 count only ("false", "fonts")
+     as a pass. If Chrome dumps the DOM before the fonts settle (the virtual-time budget ran out with
+     a face still pending) the stage stays "load" and the check fails rather than passing on the
+     early reading. Not requestAnimationFrame: under Chrome's virtual-time budget a frame is produced
+     only when something is dirty, and a callback waiting for one never ran (seen on a page whose
+     web font was still loading at the load event); timers advance with virtual time regardless.
+
+     Open through shoot.py as  --pages __fd/narrow.html --query url=/<page>.html --query width=360 --query family=<Family> --dump-dom
+     (the inner URL is root-relative; this page appends shot=<outer token>.inner to it so the inner
+     page's own sentinel beacon is recorded under a derived token, and the outer page carries this
+     shot's token and beacon).
+
+     What a "fonts" reading of "false" does NOT prove on its own, and what this page checks instead
+     (independent re-review, code-b F005): document.fonts.status is "loaded" for a 404 page that asked
+     for no font and for a page whose face FAILED to load, and both lay out narrow. So before the
+     fonts-stage reading is written this page (1) asks the server for the inner URL's status with a
+     HEAD request and records it as data-fd-narrow-inner-http, (2) counts the inner document's faces
+     whose status is "error" as data-fd-narrow-fonts-failed, and (3) with ?family=NAME, records
+     data-fd-narrow-family as "loaded" when a loaded FontFace of that family is in the inner
+     document.fonts and "missing" otherwise. A status other than 200, a failed face, or a missing
+     family writes data-fd-overflow="error" with the reason in #verdict, so the pair can never read
+     ("false", "fonts"). Without ?family= the family check is not made and data-fd-narrow-family
+     says "not asked"; the review-loop command passes the family.
+
+     Exact guarantee: data-fd-overflow is Chrome's layout verdict for a viewport of that width with
+     this machine's fonts, for an inner page served 200 whose faces all loaded. Something that
+     overflows only in Safari or only with a reader's larger default type is not seen here; run again
+     with ?root=150 on the inner url for the second case.
+     Copyright 2026 John Knox. MIT licence. -->
+<style>
+  html, body { margin: 0; background: #e6e2da; color: #222; font: 13px/1.4 system-ui, sans-serif; }
+  body { min-width: 500px; padding: 12px; }
+  .cap { margin: 0 0 8px; }
+  .cap code { background: #fff; padding: 1px 4px; }
+  iframe { display: block; border: 1px solid #999; background: #fff; }
+  #verdict { margin-top: 8px; font-weight: 600; }
+</style>
+</head>
+<body>
+<p class="cap" id="cap"></p>
+<iframe id="frame" title="The page under review at the requested width"></iframe>
+<p id="verdict">measuring...</p>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var url = q.get("url") || "/index.html", width = parseInt(q.get("width") || "360", 10), height = parseInt(q.get("height") || "2000", 10);
+  var family = q.get("family") || "";
+  var h = document.documentElement, frame = document.getElementById("frame"), cap = document.getElementById("cap"), verdict = document.getElementById("verdict");
+  if (!(width > 0) || !(height > 0)) { verdict.textContent = "width and height must be positive integers"; h.setAttribute("data-fd-overflow", "error"); return; }
+  if (!/^\/[^\s]*$/.test(url)) { verdict.textContent = "url must be root-relative (start with /)"; h.setAttribute("data-fd-overflow", "error"); return; }
+  frame.width = width; frame.height = height;
+  cap.textContent = ""; var c = document.createElement("code"); c.textContent = url; cap.appendChild(c); cap.appendChild(document.createTextNode(" at " + width + " CSS px wide"));
+  h.setAttribute("data-fd-narrow-url", url); h.setAttribute("data-fd-narrow-width", String(width));
+  h.setAttribute("data-fd-narrow-family", family ? "pending" : "not asked");
+  // the inner URL's HTTP status, asked with HEAD (no body, no sentinel, no cookie) before the fonts-stage reading
+  var innerHttp = null;
+  var innerUrl = url;
+  fetch(url, { method: "HEAD", cache: "no-store" }).then(function (r) { innerHttp = String(r.status); }, function () { innerHttp = "fetch failed"; });
+  function first(ff) { return String(ff || "").split(",")[0].trim().replace(/^["']|["']$/g, "").toLowerCase(); }
+  function fontProblems(doc) {
+    // [failed face count, family verdict]: faces whose load failed, and whether a loaded face of ?family= is present
+    var failed = 0, loaded = false;
+    if (doc.fonts) {
+      try { doc.fonts.forEach(function (f) { if (f.status === "error") failed++; if (f.status === "loaded" && family && first(f.family) === family.toLowerCase()) loaded = true; }); } catch (e) {}
+    }
+    return [failed, family ? (loaded ? "loaded" : "missing") : "not asked"];
+  }
+  function measure(stage) {
+    var doc;
+    try { doc = frame.contentDocument; } catch (e) { doc = null; }
+    if (!doc || !doc.documentElement) { verdict.textContent = "cannot read the inner document (not same-origin?)"; h.setAttribute("data-fd-overflow", "error"); return; }
+    var root = doc.documentElement, sw = Math.max(root.scrollWidth, doc.body ? doc.body.scrollWidth : 0), cw = root.clientWidth;
+    var over = sw > cw, problem = "";
+    h.setAttribute("data-fd-scroll-width", String(sw)); h.setAttribute("data-fd-client-width", String(cw));
+    h.setAttribute("data-fd-narrow-stage", stage);
+    if (stage === "fonts") {
+      var fp = fontProblems(doc);
+      h.setAttribute("data-fd-narrow-inner-http", innerHttp === null ? "unknown" : innerHttp);
+      h.setAttribute("data-fd-narrow-fonts-failed", String(fp[0])); h.setAttribute("data-fd-narrow-family", fp[1]);
+      if (innerHttp !== "200") problem = "the inner page " + innerUrl + " answered " + (innerHttp === null ? "no status in time" : innerHttp) + ", not 200";
+      else if (fp[0]) problem = fp[0] + " face(s) in the inner page failed to load";
+      else if (fp[1] === "missing") problem = "no loaded FontFace of " + family + " in the inner page";
+    }
+    h.setAttribute("data-fd-overflow", problem ? "error" : (over ? "true" : "false"));
+    verdict.textContent = problem ? "ERROR: " + problem + " (scrollWidth " + sw + " vs clientWidth " + cw + ")"
+      : (over ? "OVERFLOW: " : "fits: ") + "scrollWidth " + sw + " vs clientWidth " + cw + " (measured at " + stage + ")";
+  }
+  // measured twice: at the inner load event (always lands, even when the inner page's fonts never
+  // settle under Chrome's virtual time budget), then at the first 16 ms poll at which the inner
+  // document's fonts have settled; data-fd-narrow-stage says which reading is on <html>. A timer
+  // poll rather than fonts.ready.then() or requestAnimationFrame: a promise reaction scheduled under
+  // virtual time did not always run before the DOM was dumped, and a rAF callback waits for a frame
+  // that virtual time never produces when nothing is dirty; both left the "load" reading to pass as
+  // the verdict (independent review, C11).
+  function settled() {
+    var doc = null;
+    try { doc = frame.contentDocument; } catch (e) { return true; }
+    if (!doc || !doc.fonts) return true;  // no Font Loading API: nothing more to wait for
+    return doc.fonts.status === "loaded";  // "loading" while any face is still in flight
+  }
+  frame.addEventListener("load", function () {
+    measure("load");
+    var polls = 0;
+    function tick() {
+      polls++;
+      h.setAttribute("data-fd-narrow-polls", String(polls));
+      // the HEAD status must be in too; after 600 polls (about ten seconds of timer time) it is given up as unknown
+      if (settled() && (innerHttp !== null || polls > 600)) { measure("fonts"); return; }
+      setTimeout(tick, 16);
+    }
+    setTimeout(tick, 0);
+  });
+  // the inner page gets its own sentinel from shoot.py; give it a derived token so its beacon is
+  // recorded under <shot>.inner rather than reported as a beacon without a token
+  var outer = q.get("shot");
+  frame.src = outer ? url + (url.indexOf("?") < 0 ? "?" : "&") + "shot=" + encodeURIComponent(outer + ".inner") : url;
+})();
+</script>
+</body>
+</html>

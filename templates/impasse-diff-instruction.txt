@@ -1,0 +1,17 @@
+== First review ==
+
+You are reviewing a finished code change to a static website before it is committed: the output of `git diff --cached` with the whole change staged, so the NEW files (the tool folder, the font, the manifest, the tests, the record) are in it, not only edits to tracked files; nothing in it has been committed yet, and the commit of the whole change follows this review, its fixes and one re-review. The record, the tool README and the project notes were written before this review and are in the diff. The change adds a custom display typeface, "{{Family}}", built as a variable web font by a JavaScript glyph generator ({{tools/<face>/gen.js, export.js}}) and a Python fontTools builder ({{tools/<face>/build.py}}), replaces the previous display face ({{old face}}) in the stylesheet and templates, adds tests ({{tests/test_<face>_font.py}}), a screenshot review tool, {{any CSS or content fixes}}, and documentation ({{the record, the tool README, the project notes, the plan}}). Regenerated HTML pages are excluded except {{N}} samples; the plan inside the diff states the design intent and an earlier independent review's findings ({{its section}}).
+
+Question: is this change correct and safe to commit? Look for:
+- bugs in the generator, exporter and builder (interpolation compatibility, decimation, the fold-pinning fix, cmap, metrics, kerning, avar/fvar, reproducibility, self-checks that cannot fail or always fail);
+- tests that would pass under the defect they are named for, cannot fail, cannot pass, or are coupled to the code they test so a defect cancels out; missing tests;
+- stylesheet and template regressions (font-face, optical sizing, weights, preload, {{any media query touched}});
+- documentation claims that do not match the code (numbers, guarantees stated more strongly than the checks support, planned things described as built);
+- errors that are swallowed rather than surfaced.
+Anchor every finding to a file and line (or a quoted diff hunk) plus a concrete observation. Say plainly when you are uncertain.
+
+== Re-review (after the first review's findings are fixed) ==
+
+This is a RE-REVIEW of a finished, still uncommitted change (`git diff --cached`, the whole change staged, new files included) to a static website that adds a custom variable display font, "{{Family}}" (JS generator {{tools/<face>/gen.js}} + export.js, Python fontTools builder {{tools/<face>/build.py}}, tests, stylesheet and templates, docs). A previous independent review raised {{N}} findings, all accepted and fixed:
+{{F001 one line each, in the reviewer's own terms, without the host's fix: e.g. "F001 the opening double quote's advance ignored its second mark's shift; F002 the fold guard measured pre-decimation polygons only and skipped each edge's first segment; …"}}
+Questions: (1) Is each of those {{N}} actually fixed in this diff, and does each new or changed guard test the property rather than the implementation? (2) Did the fixes introduce new defects? (3) Anything else that should block the commit (bugs, tests that cannot fail, docs that overstate guarantees, swallowed errors)? Anchor every finding to a file and a quoted hunk plus a concrete observation; say when uncertain.

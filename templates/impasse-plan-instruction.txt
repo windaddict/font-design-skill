@@ -1,0 +1,9 @@
+You are reviewing an implementation PLAN (the first file in the artifact) for building a website's custom display typeface as a variable web font, before any code is written. The remaining files are the existing code the plan makes claims about: the JavaScript glyph generator it uses, the exporter and the fontTools builder it adapts, the site's stylesheet, and the static-serving configuration. {{Add any other file in the artifact and what it is.}}
+
+Question: Is this plan correct and complete enough to implement safely? Specifically check its claims against the included code, and look for:
+- technical errors in the variable-font approach (interpolation compatibility, overlapping contours, decimation with shared indices, sparse or missing masters, avar mapping, optical-size semantics in browsers, GPOS/kern merging in varLib, woff2, reproducibility);
+- places where the plan's description of the generator or pipeline does not match the code;
+- stylesheet and template changes that would break or regress the site (font-weight, optical sizing, preload, fallbacks, line-height clipping);
+- tests that cannot fail, cannot pass, or would pass under the defect they are named for; missing tests;
+- risks the plan misses or understates, and steps in the wrong order.
+Anchor every finding to a location in the artifact plus a concrete observation. Say plainly when something is uncertain.

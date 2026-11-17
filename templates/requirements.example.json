@@ -1,0 +1,48 @@
+{
+  "$comment": "requirements.example.json: the REVIEWED expectations for the fictional 'Example' build in templates/font.example.json (review finding F002). Write this file at the guideline phase and change it only with the operator. scripts/tests/test_font.py compares the built fonts against THIS file, never against font.json, so a font.json edit that lowers a floor, drops an axis or drops a character goes red here. Every key is explained in references/variable-font-build.md ('requirements.json, key by key').",
+  "family": "Example",
+  "groups": {
+    "roman": {
+      "axes": { "wght": [400, 400, 700], "opsz": [40, 40, 80] },
+      "avar": { "wght": [[0.333, 0.6]] },
+      "masters": { "TextRegular": { "wght": 400, "opsz": 40 }, "TextBold": { "wght": 700, "opsz": 40 }, "DisplayRegular": { "wght": 400, "opsz": 80 }, "DisplayBold": { "wght": 700, "opsz": 80 } },
+      "instances": { "Regular": { "wght": 400, "opsz": 40 }, "Medium": { "wght": 500, "opsz": 40 }, "Bold": { "wght": 700, "opsz": 40 }, "Display": { "wght": 400, "opsz": 80 }, "Display Bold": { "wght": 700, "opsz": 80 } },
+      "hairline_floors": { "TextRegular": 41, "TextBold": 50, "DisplayRegular": 32, "DisplayBold": 40 },
+      "vertical_metrics": { "ascender": 975, "descender": -254, "line_gap": 0 },
+      "interpolated_check": { "location": { "wght": 500, "opsz": 40 }, "between": ["TextRegular", "TextBold"], "t": 0.6 },
+      "word_space": { "TextRegular": 239, "TextBold": 253, "DisplayRegular": 221, "DisplayBold": 237 },
+      "display_masters_tighter_than": { "DisplayRegular": "TextRegular", "DisplayBold": "TextBold" }
+    },
+    "italic": {
+      "axes": { "wght": [400, 400, 700] },
+      "avar": { "wght": [[0.333, 0.6]] },
+      "masters": { "Regular": { "wght": 400 }, "Bold": { "wght": 700 } },
+      "instances": { "Italic": { "wght": 400 }, "Medium Italic": { "wght": 500 }, "Bold Italic": { "wght": 700 } },
+      "hairline_floors": { "Regular": 41, "Bold": 50 },
+      "vertical_metrics": { "ascender": 978, "descender": -254, "line_gap": 0 },
+      "interpolated_check": { "location": { "wght": 500 }, "between": ["Regular", "Bold"], "t": 0.6 },
+      "word_space": { "Regular": 239, "Bold": 253 },
+      "italic_angle": 10
+    }
+  },
+  "$comment_word_space": "word_space pins the word-space advance per master, in units, as the operator reviewed it (review finding C9); the test holds the built font AND a fresh export to it, so the exporter's own figure is never its own expectation. These are the values export.js lays for this example's concepts (210 + 0.3 W + 2 track), read once from the export.",
+  "$comment_cmap": "cmap is EXACTLY the set of characters the built font maps: every glyph key the generator draws (gen.js G, which includes the standing symbols copyright, bullet and trade mark) plus the builder's quote and space glyphs. It is therefore a superset of required_characters, which lists only what the site's titles need; the three symbols are mapped because the generator draws them for every project, not because this example's titles use them.",
+  "cmap": " !\"#$%&'()*+,-./0123456789:;?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz ©ÀÁÂÄÇÈÉÊËÍÏÑÓÔÖÚÜàáâäçèéêëìíîïñòóôöùúûüāš–—‘’“”•…™",
+  "required_characters": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&#+*%$\"“”‘’  ",
+  "hand_kerns": { "L|V": -60, "L|Y": -60, "A|I": -30, "r|.": -50, " |A": -45 },
+  "titles": ["Twelve Lanterns on the Quay", "A Short Walk to the Weir", "Ledger of the Winter Fair #2", "Harriet's Second Kitchen", "WHAT THE TIDE LEFT", "Salt, Smoke & Sunday Bread"],
+  "size_budget_bytes": 102400,
+  "fold_units": { "raw": 4, "decimated": 10 },
+  "names": { "family": "Example", "copyright": "Copyright 2026 Example Operator", "manufacturer": "Example Press", "designer": "Example Operator", "vendor_id": "EXMP", "vendor_url": "https://example.com/", "licence_contains": "example.com only", "fs_type": 0 },
+  "gasp": { "65535": 15 },
+  "$comment_tables": "tables pins the font-table decisions build.py makes by default. prep_hex is the smart-dropout program (PUSHW 0x01FF, SCANCTRL, PUSHB 4, SCANTYPE) that pairs with the gasp above; code_page_range1 is OS/2 ulCodePageRange1 (bit 0, Latin 1); mac_names false means the name table has no Macintosh (platform 1) records. names.fs_type is the embedding permission and is the operator's decision: 0 installable (an open face), 4 Preview & Print (the usual setting for a proprietary face), 2 Restricted (some tools refuse the font); browsers ignore it for web fonts. vertical_metrics (per group) is the reviewed line height: hhea and OS/2 typo carry these numbers with a line gap of 0, win covers every glyph; read them from the first build's `vertical metrics written` self-check line and review them, because they decide `line-height: normal`.",
+  "tables": { "code_page_range1": 1, "prep_hex": "B801FF85B0048D", "mac_names": false },
+  "$comment_qa": "accepted_qa_findings: every FontBakery FAIL or ERROR the project accepts, each with its reason (scripts/fontbakery-gate.py). Start with [] and add an entry only after reading the finding; `codes` (optional) limits the accepted FontBakery message codes, so a new kind of failure of the same check blocks; without it the match is the check id alone and the reason names what was seen. A deliberate non-zero fsType is accepted under the vendor profiles' check id, googlefonts/fstype, with the licence as the reason. The generator draws lowercase ì î ò ù û ā š with no uppercase counterpart, which FontBakery's case_mapping fails; the example accepts it:",
+  "accepted_qa_findings": [
+    { "id": "case_mapping", "codes": ["missing-case-counterparts"], "reason": "the generator's glyph set has the lowercase ì î ò ù û ā š and not Ì Î Ò Ù Û Ā Š (seven pairs, listed in FontBakery's message); a capital is a new skeleton, which is a generator change" },
+    { "id": "opentype/STAT/ital_axis", "codes": ["missing-ital-axis"], "reason": "the roman and the italic file carry no `ital` axis in STAT (FontBakery wants ital 0, elidable and linked to 1, in the roman and ital 1 in the italic, so a font picker can pair the two files); the build does not write it because the roman's STAT would then depend on whether an italic group exists, and browsers do not read STAT; a later change to build.py" },
+    { "id": "opentype/varfont/family_axis_ranges", "codes": ["axis-range-mismatch"], "reason": "the example's italic is a one-axis group (wght) beside a two-axis roman (wght and opsz), which is the shape it exists to exercise; FontBakery expects every file of a family to carry the same axes" },
+    { "id": "varfont/consistent_axes", "codes": ["missing-axis"], "reason": "the same fact as family_axis_ranges: the italic file has no opsz axis (FontBakery: lacks a 'opsz' variation axis)" },
+    { "id": "family/vertical_metrics", "codes": ["sTypoAscender-mismatch", "usWinAscent-mismatch", "ascent-mismatch"], "reason": "each group measures its own glyph extent (the roman 957, the italic 956 units), and the two files are built one at a time, so build.py cannot give both the family's maximum; typo_metrics would equalise hhea and typo but not the measured win metrics; a later change to build.py" }
+  ]
+}

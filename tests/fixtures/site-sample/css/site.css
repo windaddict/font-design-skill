@@ -1,0 +1,17 @@
+/* WHAT IT'S FOR: the stylesheet half of the mine-sizes.py fixture. Display rules in the three
+   forms the tool must read (clamp(), rem, px, and an em it only notes), a rule with a selector
+   list, a rule that is not a font-size at all, and a body rule that must be ignored. Invented. */
+:root { --paper: #f4efe6; --ink: #22201c; }
+html { font-size: 100%; }
+body { font: 1.125rem/1.6 Georgia, serif; color: var(--ink); background: var(--paper); }
+h1 { font-size: clamp(2rem, 4.5vw, 3rem); font-weight: 400; line-height: 1.05; }
+h2 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
+h3, .plate-title { font-size: 1.05rem; font-weight: 500; line-height: 1.25; }
+.frontis-title { font-size: clamp(3rem, 7.5vw, 5rem); line-height: .95; }
+.wordmark { font-size: 22px; text-transform: uppercase; letter-spacing: .06em; }
+.chapters .num { font-size: 0.95rem; color: #9d6c22; }
+.lede { font-size: 1.05em; max-width: 30rem; }
+.desc { color: #6e6052; }
+@media (max-width: 700px) {
+  h2 { font-size: 1.5rem; }
+}

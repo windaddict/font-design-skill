@@ -1,0 +1,71 @@
+{
+  "$comment": "The Bract example parameters: hopsafari.com's display face (2026-11-15) as a font.json for this skill, one roman group, two axes, four masters. Parameters and configuration only, MIT like the rest of the repo; the shipped font is not here. The name table is neutral: the family is 'Bract Example' and the owner strings are placeholders, because the name Bract identifies the site's face and is not licensed for reuse as a font name (NOTICE.md). names.fs_type is 4 (Preview & Print), the usual setting for a proprietary face: the site this configuration came from licenses its font to that site only. typo_metrics is the precedent's override (hhea and typo both carry 760/-240, line gap 0).",
+  "family": "Bract Example",
+  "version": "1.000",
+  "concepts": "concepts.js",
+  "out_dir": "out",
+  "groups": {
+    "roman": {
+      "italic": false,
+      "axes": [
+        { "tag": "wght", "name": "Weight", "min": 400, "default": 400, "max": 700, "map": [[400, 400], [500, 580], [700, 700]] },
+        { "tag": "opsz", "name": "Optical size", "min": 40, "default": 40, "max": 80 }
+      ],
+      "masters": {
+        "TextRegular": { "concept": "text", "mult": 1, "location": { "wght": 400, "opsz": 40 } },
+        "TextBold": { "concept": "text", "mult": 1.5, "location": { "wght": 700, "opsz": 40 } },
+        "DisplayRegular": { "concept": "display", "mult": 1, "location": { "wght": 400, "opsz": 80 } },
+        "DisplayBold": { "concept": "display", "mult": 1.5, "location": { "wght": 700, "opsz": 80 } }
+      },
+      "instances": [
+        { "name": "Regular", "location": { "wght": 400, "opsz": 40 } },
+        { "name": "Medium", "location": { "wght": 500, "opsz": 40 } },
+        { "name": "Bold", "location": { "wght": 700, "opsz": 40 } },
+        { "name": "Display", "location": { "wght": 400, "opsz": 80 } },
+        { "name": "Display Bold", "location": { "wght": 700, "opsz": 80 } }
+      ],
+      "hairline_floors": { "TextRegular": 41, "TextBold": 50, "DisplayRegular": 32, "DisplayBold": 40 }
+    }
+  },
+  "charset": {
+    "required": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&#+*%$\"“”‘’ ",
+    "nbsp_to_space": true,
+    "ascii_apostrophe_curly": true
+  },
+  "kerning": {
+    "set": "^[A-Za-z0-9.,':;!?\\-–—…()\\[\\]/&#+*%$]$",
+    "threshold": 12,
+    "hand": { "A|I": -30, "I|A": -30, "L|T": -25, "L|V": -60, "L|Y": -60, "L|W": -45, "r|.": -50, "r|,": -50, "f|f": 0 },
+    "space": [[" ", "A", -45], [" ", "T", -20], [" ", "V", -35], [" ", "W", -30], [" ", "Y", -30],
+              ["A", " ", -30], ["V", " ", -30], ["W", " ", -25], ["Y", " ", -25], ["r", " ", -25]]
+  },
+  "titles": ["The Dessert Project #4", "A Taste of Ethiopia", "Journey to the Beast's Castle", "Hop Safari", "WHAT TO DRINK AT GABF"],
+  "size_budget_bytes": 102400,
+  "raster": { "budget": { "decimation": 48, "union": 48, "seam": 24 }, "sizes": [16, 40, 80] },
+  "fold_units": { "raw": 4, "decimated": 10 },
+  "decimation_eps": 1,
+  "typo_metrics": { "ascender": 760, "descender": -240 },
+  "names": {
+    "fs_type": 4,
+    "copyright": "Copyright {{year}} {{operator}}",
+    "manufacturer": "{{operator}}",
+    "designer": "{{operator}}",
+    "vendor_id": "EXMP",
+    "vendor_url": "https://example.com/",
+    "licence": "{{licence the operator chose}}",
+    "licence_url": "https://example.com/",
+    "description": "The Bract example parameters built with the font-design skill; not the hopsafari.com font. An engraved-caption serif generated from centre-line skeletons, with bracketed wedge serifs, beaks and teardrop terminals, in a text cut and a display cut on one optical-size axis."
+  },
+  "source_date_epoch": 1794700800,
+  "review": {
+    "sizes": [15.2, 16.8, 17.6, 20.8, 24, 28, 35.2, 40, 48, 64, 80],
+    "medium_below_px": 17,
+    "surfaces": [
+      { "name": "paper", "background": "#ece2d0", "foreground": "#241f19" },
+      { "name": "plate", "background": "#fdfaf3", "foreground": "#241f19" },
+      { "name": "cloth", "background": "#14301c", "foreground": "#f6f0df" }
+    ],
+    "comparison_faces": [{ "name": "Georgia", "family": "Georgia" }],
+    "body_face": "Georgia"
+  }
+}

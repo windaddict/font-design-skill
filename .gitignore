@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Build output: fonts are never tracked in this repo (see NOTICE.md)
+out/
+*.woff2
+*.ttf
+*.otf
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Local review runs and Impasse run records
+/runs/
+/.impasse-runs/
+*.jsonl
+
+# OS
+.DS_Store

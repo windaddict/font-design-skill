@@ -1,0 +1,540 @@
+"""Guards the SITE's wiring of a display face built with the font-design skill: the stylesheet, the
+files it names, the leftovers of the face it replaced, the preload, and the CSS rules the axes rely on.
+
+WHAT IT'S FOR: this is a TEMPLATE. Fill every double-brace slot below and copy the file into the site repo's
+test directory; the font file itself is covered by scripts/tests/test_font.py, this file covers the
+page around it. Each guard covers one way the wiring could break while every page still looks
+plausible, because a fallback face sits behind the custom one in every stack: a stylesheet pointing at
+a file that is not there or not tracked; a stack that still names the old face; a title using a
+character the font lacks, which then renders that one character in the fallback; a fluid size that
+leaves the opsz axis; a small title that lost its Medium; a letter-spacing that doubles the display
+cut's own track; a page without the preload, so the first paint is the fallback.
+
+Slots, each written in the code below as the name between double braces (all strings unless noted),
+with the Bract values as the worked example:
+  family             the CSS family name, e.g. Bract
+  static_root        repo-relative directory the site serves as its web root, e.g. static-pages
+  css_path           repo-relative stylesheet, e.g. static-pages/css/site.css
+  templates_glob     repo-relative glob of the page templates, e.g. templates/*.html
+  built_pages_glob   repo-relative glob of the built pages, e.g. static-pages/**/*.html
+  font_url           the root-relative URL of the variable woff2, e.g. /fonts/bract/Bract-VF.woff2
+  italic_font_url    the italic group's woff2 URL, or empty when no italic group is built
+  preload_tag        the exact preload tag every template carries (crossorigin included)
+  stylesheet_tag     the exact stylesheet link tag the preload must precede
+  static_config      repo-relative static-serving config (app.yaml, nginx conf, _headers), e.g. app.yaml;
+                     empty when the host serves every file type without an allowlist, which skips (f) with
+                     the reason printed. NOT the stylesheet: it names woff2 in its url(), so (f) would pass
+                     for nothing, and the test refuses it by name (second dry run, finding 9)
+  old_family_pattern regex for the replaced face's names, e.g. Bodoni|Didot; empty when the old face
+                     stays in use elsewhere (a system font also used for body text), which skips (c)
+  old_files_glob     glob under static_root for the replaced face's files, e.g. fonts/bodoni-*.woff2;
+                     empty when there are none to remove, which skips (d)
+  display_selectors  Python list of the selectors set in the DISPLAY cut (at or above the opsz start, whose
+                     advances carry the display concept's track), e.g. [".prose h1", ".frontispiece-title"]. A
+                     selector set in the face below the opsz start is in the text cut, whose track is 0, so a
+                     tracked caps wordmark at 22 px keeps its letter-spacing and goes in text_cut_selectors
+                     instead; guard (g) still covers it, because (g) reads the stylesheet
+  text_cut_selectors Python list of the selectors set in the face in the TEXT cut (below the opsz start), e.g.
+                     [".wordmark"], or [] when there are none. Guard (s) requires every selector whose stylesheet
+                     rule sets the family to be in one of the two lists, so a display rule added later cannot
+                     stay out of guards (p) and (r) unnoticed (independent re-review, code-b F008)
+  medium_selectors   Python list of the small-title selectors that must be weight 500, e.g. [".plate-title"]
+  opsz_max_px        number: the largest display size in CSS px, which must equal the opsz axis maximum, e.g. 80
+  fallback_family    OPTIONAL guard (t). The family name of the fallback @font-face with metric overrides, e.g. "Bract Fallback":
+                     a `local()` face with size-adjust and the three metric overrides, listed right after the display
+                     family in every display stack, so the first paint in the fallback takes the same room as the
+                     font. Empty skips (t) with the reason printed. `scripts/fallback-metrics.py` prints the values
+  balance_selectors  OPTIONAL guard (u). Python list of the display selectors that must carry `text-wrap: balance`
+                     (no widow on a wrapped headline without a hand-placed no-break space), e.g. [".prose h1"];
+                     [] skips (u) with the reason printed. LIMIT: the cascade is not computed; it reads only the `text-wrap`
+                     declared on these selectors, so `.hero { text-wrap: wrap }` on `<h1 class="hero">` is not seen
+  font_synthesis     "adopted" when the site declares font-synthesis: none on its display rules and (r) must
+                     hold, "declined" when the operator declined it, which skips (r) with the reason printed;
+                     any other value fails (r) naming the two words, so the decision is recorded in the slot
+
+How the stylesheet is read (dry-run finding W12: the first template read one quote style, one selector
+per rule and clamp() sizes only, and refused a stylesheet written any other way): comments are
+stripped, then every `selector-list { declarations }` block is collected, the blocks nested in an
+at-rule (@media, @supports) included; a rule whose selector list names several selectors
+(`h3, .plate-title { ... }`) counts for each of them; a family name is read with single quotes, double
+quotes or none; a font-size is a clamp() (its third argument), a rem, a px or an em value. Exact
+guarantees: declarations are read as `property: value` pairs, so the `font` shorthand is not expanded
+and a display rule must set `font-family` and `font-size` as longhands; an em size is taken at the
+16 px root; a vw-only size is refused by name; display_selectors() reads tags, classes, tag.class
+compounds and descendant chains of those (a child combinator `>` is read as a descendant: over-inclusive,
+which can only make the coverage test stricter) and raises on anything else rather than guessing. The
+static-config test is a presence check for the font's extension, not a proof of routing: a site with
+its own reachability test should keep that one instead.
+
+Every test was watched failing under its named mutation when the template was derived (Bract, 2026-11-15)
+and again when it was rewritten for W12 against the skill's fixture site (tests/test_site_wiring_template.py
+in the skill repo); re-run the mutations in the site after filling the slots (see references/testing.md).
+
+Copyright 2026 John Knox. MIT licence.
+"""
+import pathlib
+import re
+import shutil
+import subprocess
+from html.parser import HTMLParser
+
+import pytest
+from fontTools.ttLib import TTFont
+
+REPO = pathlib.Path(__file__).resolve().parents[1]  # this file lives one directory below the site root (tests/)
+FAMILY = "{{ family }}"
+STATIC = REPO / "{{ static_root }}"
+CSS = REPO / "{{ css_path }}"
+TEMPLATES = sorted(REPO.glob("{{ templates_glob }}"))
+BUILT_PAGES_GLOB = "{{ built_pages_glob }}"
+FONT_URL = "{{ font_url }}"
+ITALIC_FONT_URL = "{{ italic_font_url }}"
+WOFF2 = STATIC / FONT_URL.lstrip("/")
+PRELOAD = '{{ preload_tag }}'
+STYLESHEET_TAG = '{{ stylesheet_tag }}'
+STATIC_CONFIG = REPO / "{{ static_config }}"
+OLD_FAMILY_PATTERN = r"{{ old_family_pattern }}"
+OLD_FILES_GLOB = "{{ old_files_glob }}"
+DISPLAY_SELECTORS = {{ display_selectors }}
+TEXT_CUT_SELECTORS = {{ text_cut_selectors }}
+MEDIUM_SELECTORS = {{ medium_selectors }}
+OPSZ_MAX_PX = {{ opsz_max_px }}
+FONT_SYNTHESIS = "{{ font_synthesis }}"
+FALLBACK_FAMILY = "{{ fallback_family }}"
+BALANCE_SELECTORS = {{ balance_selectors }}
+URL_IN_CSS = re.compile(r"""url\(\s*['"]?([^'")]+?)['"]?\s*\)""")
+FONT_EXT = re.compile(r"\.(?:woff2|woff|ttf|otf)$")
+
+
+def bare(url):
+    """A url() without its query string or fragment: `/fonts/x.woff2?v=3` names the file `/fonts/x.woff2`."""
+    return re.split(r"[?#]", url, maxsplit=1)[0]
+
+
+def css():
+    return CSS.read_text()
+
+
+def css_blocks():
+    """[(selector list, declarations)] for every rule of the stylesheet in source order, with comments
+    stripped. A block nested inside an at-rule that holds rules (@media, @supports) is listed as its own
+    rule; an at-rule that holds declarations (@font-face) is listed under its own name."""
+    text = re.sub(r"/\*.*?\*/", "", css(), flags=re.S)
+    out = []
+
+    def walk(s):
+        i = 0
+        while True:
+            j = s.find("{", i)
+            if j < 0:
+                return
+            head = s[i:j].rsplit(";", 1)[-1].strip()  # drop a preceding statement such as @import ...;
+            depth, k = 1, j + 1
+            while k < len(s) and depth:
+                depth += {"{": 1, "}": -1}.get(s[k], 0)
+                k += 1
+            body = s[j + 1:k - 1]
+            if head.startswith("@") and "{" in body:
+                walk(body)
+            else:
+                out.append((head, body))
+            i = k
+    walk(text)
+    return out
+
+
+def norm(selector):
+    return re.sub(r"\s+", " ", selector.strip())
+
+
+def selectors_of(head):
+    return [norm(s) for s in head.split(",") if s.strip()]
+
+
+def declarations(body):
+    """{property: value} of one block, the last value winning when a property repeats."""
+    out = {}
+    for decl in body.split(";"):
+        prop, sep, value = decl.partition(":")
+        if sep:
+            out[prop.strip().lower()] = value.strip()
+    return out
+
+
+def first_family(value):
+    """The first family of a font-family value, without its quotes."""
+    return value.split(",")[0].strip().strip("'\"")
+
+
+def rules_for(selector):
+    """The declaration blocks whose selector list contains `selector` (whitespace-normalised), in source
+    order; a rule written for a list of selectors counts for each of them."""
+    want = norm(selector)
+    found = [body for head, body in css_blocks() if want in selectors_of(head)]
+    assert found, f"no rule for {selector!r} in {CSS.name} (a selector list such as `h3, {selector}` counts; a selector spelled differently does not)"
+    return found
+
+
+def declared(selector, prop):
+    """Every value of `prop` declared for `selector`, across all its blocks, in source order."""
+    return [d[prop] for d in (declarations(b) for b in rules_for(selector)) if prop in d]
+
+
+def size_max_px(value, selector):
+    """The largest CSS px a font-size value can reach: clamp()'s third argument, else the value itself;
+    rem and em at the 16 px root, px as written. Anything else (vw alone, calc(), a keyword) is refused."""
+    m = re.fullmatch(r"clamp\(\s*[^,]+,\s*[^,]+,\s*([^)]+)\)", value.strip(), re.I)
+    v = (m.group(1) if m else value).strip()
+    m = re.fullmatch(r"([\d.]+)(rem|em|px)", v, re.I)
+    assert m, f"{selector}: cannot read the largest size from font-size: {value!r} (a clamp() max, rem, em or px is expected)"
+    return float(m.group(1)) * (16 if m.group(2).lower() in ("rem", "em") else 1)
+
+
+def built_pages():
+    pages = sorted(REPO.glob(BUILT_PAGES_GLOB))
+    assert pages, f"no built pages match {BUILT_PAGES_GLOB}; build the site first"
+    return pages
+
+
+@pytest.fixture(scope="module")
+def font():
+    assert WOFF2.is_file(), f"{WOFF2} does not exist"
+    return TTFont(WOFF2)
+
+
+# --- a-f: the stylesheet, the files, the leftovers ---------------------------------------------------
+def test_the_stylesheet_declares_one_variable_face_per_style(font):
+    """(a) One @font-face per style carries every weight. It must declare the weight RANGE the fvar axis
+    spans, or the weights between fall back; the range is read from the shipped font, not typed here.
+    The roman's src is FONT_URL; an italic group (ITALIC_FONT_URL set) is a second face, font-style italic."""
+    faces = [declarations(body) for head, body in css_blocks() if head == "@font-face"]
+    mine = [f for f in faces if first_family(f.get("font-family", "")) == FAMILY]
+    by_style = {}
+    for f in mine:
+        by_style.setdefault(f.get("font-style", "normal").lower(), []).append(f)
+    want = {"normal": FONT_URL} | ({"italic": ITALIC_FONT_URL} if ITALIC_FONT_URL else {})
+    assert set(by_style) == set(want), f"@font-face styles for {FAMILY}: {sorted(by_style)}, expected {sorted(want)} (one variable file per style)"
+    wght = next((a for a in font["fvar"].axes if a.axisTag == "wght"), None)
+    assert wght, "the font has no wght axis"
+    lo, hi = int(wght.minValue), int(wght.maxValue)
+    for style, url in want.items():
+        assert len(by_style[style]) == 1, f"{len(by_style[style])} @font-face rules for {FAMILY} {style}: the variable file carries every weight, so one is enough"
+        f = by_style[style][0]
+        assert f.get("font-weight", "").split() == [str(lo), str(hi)], f"the {style} face must declare the weight RANGE {lo} {hi}, or intermediate weights fall back (has {f.get('font-weight')!r})"
+        assert f.get("font-display") == "swap", f"the {style} face must set font-display: swap"
+        assert [bare(u) for u in URL_IN_CSS.findall(f.get("src", ""))] == [url], f"the {style} face's src must be url({url}), has {f.get('src')!r}"
+
+
+def test_each_declared_face_file_carries_the_style_it_is_declared_for():
+    """(a2) The file behind the italic @font-face must BE an italic font (post.italicAngle set, the fsSelection
+    ITALIC bit, head.macStyle italic) and the roman's an upright one: (a) checks the declaration and (b) that a
+    file exists, so the roman woff2 named as the italic src passed both (independent re-review, code-b F009),
+    and the browser then slants the roman itself. The three bits are the ones scripts/build.py sets per group."""
+    want = {"normal": FONT_URL} | ({"italic": ITALIC_FONT_URL} if ITALIC_FONT_URL else {})
+    for style, url in want.items():
+        path = STATIC / url.lstrip("/")
+        assert path.is_file(), f"{url} does not exist"
+        f = TTFont(path)
+        italic = style == "italic"
+        got = {"post.italicAngle": f["post"].italicAngle, "fsSelection ITALIC": bool(f["OS/2"].fsSelection & 0x01), "macStyle italic": bool(f["head"].macStyle & 0x02)}
+        assert (got["post.italicAngle"] != 0) == italic and got["fsSelection ITALIC"] == italic and got["macStyle italic"] == italic, \
+            f"{url} is declared as the {style} face but its tables say {got}"
+
+
+def test_every_font_url_in_the_stylesheet_has_a_file():
+    """(b) A url() with no file behind it is a 404 the browser hides behind the fallback face."""
+    urls = sorted({bare(u) for u in URL_IN_CSS.findall(css()) if FONT_EXT.search(bare(u))})
+    assert FONT_URL in urls, f"{CSS.name} does not reference {FONT_URL}"
+    for url in urls:
+        assert url.startswith("/"), f"{url} is not root-relative; this test resolves font URLs under {STATIC.name}"
+        assert (STATIC / url.lstrip("/")).is_file(), f"{url} is referenced by {CSS.name} and does not exist"
+
+
+def test_nothing_names_the_old_face_any_more():
+    """(c) A stack that still names the replaced face serves it where it is installed and the
+    fallback where it is not: two renderings of one page."""
+    if not OLD_FAMILY_PATTERN:
+        pytest.skip("old_family_pattern is empty: the replaced face stays in use elsewhere, so its name is allowed (decision recorded in the slot)")
+    old = re.compile(OLD_FAMILY_PATTERN)
+    offenders = [p for p in [CSS, *TEMPLATES, *built_pages()] if old.search(p.read_text())]
+    assert not offenders, f"still name the old display face: {[str(p.relative_to(REPO)) for p in offenders[:5]]}"
+
+
+def test_the_old_font_files_are_gone():
+    """(d) Files nothing references still ship; the old face's files must be removed, not left behind."""
+    if not OLD_FILES_GLOB:
+        pytest.skip("old_files_glob is empty: the replaced face shipped no files of its own (decision recorded in the slot)")
+    left = sorted(STATIC.glob(OLD_FILES_GLOB))
+    assert not left, f"the replaced face's files are still in the web root: {[str(p.relative_to(REPO)) for p in left]}"
+
+
+def test_shipped_fonts_are_tracked():
+    """(e) The web root uploads wholesale and nothing regenerates a font during deploy, so an untracked
+    font vanishes on a fresh clone and a tracked-but-deleted one ships a 404. The claim is about git, so
+    outside a git work tree (or without git) the test SKIPS saying so, and the site records how its fonts
+    are kept instead; it does not pass."""
+    font_dir = (STATIC / FONT_URL.lstrip("/")).parent
+    on_disk = sorted(str(p.relative_to(REPO)) for p in font_dir.rglob("*.woff2"))
+    git = shutil.which("git")
+    inside = git and subprocess.run([git, "rev-parse", "--is-inside-work-tree"], cwd=REPO, capture_output=True, text=True)
+    if not git or inside.returncode != 0 or inside.stdout.strip() != "true":
+        pytest.skip("not a git work tree (or no git on PATH): the tracked-fonts guard cannot run here; record how the fonts are kept")
+    r = subprocess.run([git, "ls-files", str(font_dir.relative_to(REPO))], cwd=REPO, capture_output=True, text=True)
+    assert r.returncode == 0, f"git ls-files failed in {REPO}: {r.stderr.strip()}"
+    tracked = r.stdout.split()
+    assert on_disk == sorted(t for t in tracked if t.endswith(".woff2")), f"woff2 on disk and in git differ under {font_dir.relative_to(REPO)}"
+
+
+def test_the_static_config_serves_the_font_extension():
+    """(f) A static-serving allowlist that omits woff2 works on every dev server and 404s in production.
+    Presence check only: the extension must appear in the config. A site with a reachability test
+    (every built file matched by a handler) should keep that one instead of this. An empty slot skips
+    with the reason; the stylesheet is refused as the config, because its url() names woff2 whatever
+    the host serves (second dry run, finding 9)."""
+    if not "{{ static_config }}".strip():
+        pytest.skip("static_config is empty: the host serves every file type without an allowlist (decision recorded in the slot)")
+    assert STATIC_CONFIG.resolve() != CSS.resolve(), \
+        f"static_config names the stylesheet {CSS.name}, whose url() mentions woff2 whatever the host serves; name the serving config, or leave the slot empty"
+    text = STATIC_CONFIG.read_text()
+    assert "woff2" in text, f"{STATIC_CONFIG.name} never mentions woff2; the font would 404 in production"
+
+
+# --- g: coverage ---------------------------------------------------------------------------------------
+COMPOUND = re.compile(r"^(h[1-6]|[a-z][a-z0-9-]*)?((?:\.[\w-]+)*)$")
+
+
+def parse_chain(selector):
+    """A selector as a list of (tag or None, {classes}) compounds, outermost first; raises on anything
+    display_selectors() does not read. `a > b` is read as `a b`."""
+    chain = []
+    for part in norm(selector).replace(">", " ").split():
+        m = COMPOUND.match(part)
+        if not m or part == "":
+            raise AssertionError(f"display selector {selector!r} is not a chain of tags, classes and tag.class compounds; teach display_selectors() to read it")
+        chain.append((m.group(1), set(c for c in m.group(2).split(".") if c)))
+    assert chain, f"empty display selector {selector!r}"
+    return chain
+
+
+def display_selectors():
+    """The selector chains whose CSS rule sets the display face, read from the stylesheet so a new
+    display-set class is covered without being listed here."""
+    chains = []
+    for head, body in css_blocks():
+        if head.startswith("@"):
+            continue
+        d = declarations(body)
+        if "font-family" not in d or first_family(d["font-family"]) != FAMILY:
+            continue
+        chains += [parse_chain(s) for s in selectors_of(head)]
+    assert chains, f"no rule in {CSS.name} sets font-family: {FAMILY}"
+    return chains
+
+
+class DisplayText(HTMLParser):
+    """Collects the text a page sets in the display face: every element matched by a display selector
+    chain (the last compound on the element, the earlier ones on its ancestors in order), with its
+    descendants. Exact guarantee: elements made display-face by any OTHER route (inline style, a
+    selector display_selectors() does not read) are not seen; including too much can only make the
+    test stricter."""
+
+    def __init__(self, chains):
+        super().__init__()
+        self.chains, self.stack, self.chars = chains, [], {}
+
+    @staticmethod
+    def fits(compound, node):
+        tag, classes = compound
+        return (tag is None or tag == node[0]) and classes <= node[1]
+
+    def matched(self, node):
+        for chain in self.chains:
+            if not self.fits(chain[-1], node):
+                continue
+            ancestors, ok = list(reversed(self.stack)), True
+            for compound in reversed(chain[:-1]):
+                while ancestors and not self.fits(compound, ancestors[0][:2]):
+                    ancestors.pop(0)
+                if not ancestors:
+                    ok = False
+                    break
+                ancestors.pop(0)
+            if ok:
+                return True
+        return False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("br", "img", "hr", "meta", "link", "input"):
+            return
+        node = (tag, set((dict(attrs).get("class") or "").split()))
+        mine = self.matched(node) or (bool(self.stack) and self.stack[-1][2])
+        self.stack.append((node[0], node[1], mine))
+
+    def handle_endtag(self, tag):
+        if tag not in (t for t, _, _ in self.stack):
+            return
+        while self.stack:
+            t, _, _ = self.stack.pop()
+            if t == tag:
+                break
+
+    def handle_data(self, data):
+        if self.stack and self.stack[-1][2]:
+            for c in data:
+                if not c.isspace() or c == " ":
+                    self.chars.setdefault(c, None)
+
+
+def family_selectors():
+    """The selector texts (whitespace-normalised) of every stylesheet rule that sets the family first."""
+    out = []
+    for head, body in css_blocks():
+        if head.startswith("@"):
+            continue
+        d = declarations(body)
+        if "font-family" in d and first_family(d["font-family"]) == FAMILY:
+            out += [s for s in selectors_of(head) if s not in out]
+    return out
+
+
+def test_every_selector_set_in_the_face_is_listed_as_display_or_text_cut():
+    """(s) Guards (p) and (r) run over the display_selectors slot, a hand-filled list, so a rule that sets the
+    family on a new selector was outside both until it was added by hand (independent re-review, code-b F008).
+    Every selector whose rule sets the family must be in display_selectors or text_cut_selectors, and the
+    display list must not be empty, or (p) runs over nothing and (r)'s adopted branch passes on nothing."""
+    assert DISPLAY_SELECTORS, "display_selectors is empty: guards (p) and (r) would check no rule"
+    listed = {norm(s) for s in DISPLAY_SELECTORS} | {norm(s) for s in TEXT_CUT_SELECTORS}
+    both = {norm(s) for s in DISPLAY_SELECTORS} & {norm(s) for s in TEXT_CUT_SELECTORS}
+    assert not both, f"in both display_selectors and text_cut_selectors: {sorted(both)}"
+    unlisted = [s for s in family_selectors() if s not in listed]
+    assert not unlisted, f"set in {FAMILY} by {CSS.name} but in neither display_selectors nor text_cut_selectors: {unlisted}; " \
+                         f"add each to the list for its cut so guards (p) and (r) cover it"
+    unknown = sorted(listed - set(family_selectors()))
+    assert not unknown, f"listed as display or text-cut selectors but no rule in {CSS.name} sets {FAMILY} on them: {unknown}"
+
+
+def test_the_font_covers_every_character_the_display_face_sets(font):
+    """(g) A character the pages set in the display face that the font lacks renders in the fallback,
+    one letter at a time; the page looks fine from across the room."""
+    chains = display_selectors()
+    used = {}
+    for page in built_pages():
+        p = DisplayText(chains)
+        p.feed(page.read_text())
+        for c in p.chars:
+            used.setdefault(c, page.relative_to(REPO).as_posix())
+    assert used, "no display-face text found in any built page"
+    cmap = font.getBestCmap()
+    missing = {c: used[c] for c in used if ord(c) not in cmap}
+    assert not missing, f"{FAMILY} lacks {missing} (character: first page using it); each would render in the fallback face"
+
+
+# --- n-r: the CSS the axes depend on ---------------------------------------------------------------------
+def test_fluid_sizes_stay_inside_the_opsz_axis(font):
+    """(n) Above the axis maximum the display cut is clamped, not extended; the largest title must sit
+    on the axis end exactly so the review's reading at that size is what ships. The largest size each
+    display selector can reach is read across all its rules, a nested @media rule included."""
+    opsz = next((a for a in font["fvar"].axes if a.axisTag == "opsz"), None)
+    if opsz is None:
+        pytest.skip("the font has no opsz axis; decision recorded in font.json (one-axis group)")
+    sizes = {s: [size_max_px(v, s) for v in declared(s, "font-size")] for s in DISPLAY_SELECTORS}
+    assert any(sizes.values()), f"no display selector declares a font-size: {DISPLAY_SELECTORS}"
+    biggest = max(px for v in sizes.values() for px in v)
+    assert biggest == opsz.maxValue == OPSZ_MAX_PX, f"largest display size {biggest}px vs opsz max {opsz.maxValue} vs expected {OPSZ_MAX_PX}"
+
+
+@pytest.mark.parametrize("selector", MEDIUM_SELECTORS)
+def test_small_titles_and_numerals_are_medium(selector):
+    """(o) The display elements under the Medium threshold take weight 500 so their hairlines stay above
+    the floor on a 1x screen; Regular there was Bract's first readability finding. Every weight declared
+    for the selector must be 500: a narrow-width @media rule that drops it back to 400 fails too."""
+    weights = declared(selector, "font-weight")
+    assert weights and all(w == "500" for w in weights), f"{selector} must set font-weight: 500 in every rule that sets a weight (has {weights})"
+
+
+@pytest.mark.parametrize("selector", DISPLAY_SELECTORS)
+def test_display_rules_carry_no_letter_spacing(selector):
+    """(p) A display cut carries its own track in its advances (review finding F005), so a CSS
+    letter-spacing on the same rule doubles it (trap 27)."""
+    assert not declared(selector, "letter-spacing"), f"{selector} sets letter-spacing"
+
+
+def test_every_template_preloads_the_font():
+    """(q) font-display: swap means the first paint uses the fallback unless the font arrives first;
+    the preload starts the fetch before the stylesheet is parsed. crossorigin is required for fonts
+    even same-origin, or the preload is a second, wasted request (trap 29)."""
+    assert TEMPLATES, "no templates matched"
+    for t in TEMPLATES:
+        text = t.read_text()
+        assert PRELOAD in text, f"{t.name} has no font preload"
+        assert STYLESHEET_TAG in text, f"{t.name} has no stylesheet tag {STYLESHEET_TAG!r}"
+        assert text.index(PRELOAD) < text.index(STYLESHEET_TAG), f"{t.name}: preload must precede the stylesheet"
+    missing = [p for p in built_pages() if PRELOAD not in p.read_text()]
+    assert not missing, f"built pages without the preload (rebuild): {[str(p.relative_to(REPO)) for p in missing[:5]]}"
+
+
+def test_display_rules_forbid_synthesised_styles():
+    """(r) Recommendation, not a precedent: `font-synthesis: none` on the display rules stops the
+    browser faux-bolding or faux-slanting a weight or style the file does not carry (trap 28). Bract
+    does not use it. The font_synthesis slot records the decision: "adopted" runs the guard, "declined"
+    skips it with the reason printed, anything else fails here naming both words (the first template
+    shipped this as a pytest marker that failed as shipped and warned PytestUnknownMarkWarning; second
+    dry run, finding 9). The declaration may sit in any rule that names the selector, a shared
+    `h1, h2, .plate-title { font-synthesis: none }` included."""
+    if FONT_SYNTHESIS == "declined":
+        pytest.skip("font_synthesis is declined: the operator declined font-synthesis: none (decision recorded in the slot)")
+    assert FONT_SYNTHESIS == "adopted", f"font_synthesis slot is {FONT_SYNTHESIS!r}; write adopted or declined"
+    for selector in DISPLAY_SELECTORS:
+        values = declared(selector, "font-synthesis")
+        assert values and all(v == "none" for v in values), f"{selector} does not set font-synthesis: none (has {values})"
+
+
+# --- t-u: optional guards for what happens before the font arrives and where a headline breaks ------------------------
+def percent(value, what):
+    m = re.fullmatch(r"([\d.]+)%", value.strip())
+    assert m, f"{what}: expected a percentage, has {value!r}"
+    return float(m.group(1))
+
+
+def test_the_fallback_face_is_metric_matched_to_the_font(font):
+    """(t) With font-display: swap the first paint is set in the fallback and then re-laid out in the font; a
+    fallback of other metrics makes every headline jump (layout shift). A `local()` @font-face of the fallback
+    with size-adjust and ascent-, descent- and line-gap-override removes most of it. This holds the DECLARATION to
+    the shipped font: the face exists, names no url(), carries all four properties, its overrides agree with
+    the font's hhea metrics (override x size-adjust = the font's own ascent, descent and line gap as a share of the
+    em, within 0.5 points: a font rebuilt with other metrics fails here until the overrides are recomputed with
+    scripts/fallback-metrics.py), and every display stack lists the family and then this fallback. NOT held: that
+    size-adjust matches the fallback's real widths, which needs the fallback's file (the script computes it).
+    Skips with its reason when the fallback_family slot is empty."""
+    if not FALLBACK_FAMILY:
+        pytest.skip("fallback_family is empty: the operator declined (or has not yet written) a fallback face with metric overrides")
+    faces = [declarations(body) for head, body in css_blocks() if head == "@font-face" and first_family(declarations(body).get("font-family", "")) == FALLBACK_FAMILY]
+    assert len(faces) == 1, f"{len(faces)} @font-face rules for {FALLBACK_FAMILY}; exactly one is expected"
+    f = faces[0]
+    src = f.get("src", "")
+    assert "local(" in src and not URL_IN_CSS.findall(src), f"the fallback face must be a local() face with no url(), has src {src!r}"
+    for prop in ("size-adjust", "ascent-override", "descent-override", "line-gap-override"):
+        assert prop in f, f"the fallback face lacks {prop}"
+    size = percent(f["size-adjust"], "size-adjust")
+    em = font["head"].unitsPerEm
+    for prop, own in (("ascent-override", font["hhea"].ascent), ("descent-override", -font["hhea"].descent), ("line-gap-override", font["hhea"].lineGap)):
+        got = percent(f[prop], prop) * size / 100
+        assert abs(got - 100 * own / em) <= 0.5, \
+            f"{prop} {f[prop]} x size-adjust {f['size-adjust']} = {got:.1f}% of the em, but the font's {prop.split('-')[0]} is {100 * own / em:.1f}%; recompute the values with scripts/fallback-metrics.py"
+    for selector in DISPLAY_SELECTORS:
+        stacks = [[x.strip().strip("'\"") for x in v.split(",")] for v in declared(selector, "font-family")]
+        assert stacks, f"{selector} sets no font-family"
+        assert all(st[:2] == [FAMILY, FALLBACK_FAMILY] for st in stacks), f"{selector}: the stack must start {FAMILY}, {FALLBACK_FAMILY} (has {stacks})"
+
+
+def test_display_headings_balance_their_lines():
+    """(u) `text-wrap: balance` spreads a wrapped headline over equal lines, so a last line of one short word
+    (a widow) needs no hand-placed no-break space in the content. Every `text-wrap` value declared for each
+    listed selector must be balance. LIMIT, stated so nobody reads more into a pass: declarations on the listed selectors
+    only; the cascade is not computed (no browser path here), so `.hero { text-wrap: wrap }` overriding `h1` on
+    `<h1 class="hero">` passes. Skips with its reason when the balance_selectors slot is []."""
+    if not BALANCE_SELECTORS:
+        pytest.skip("balance_selectors is empty: the operator declined text-wrap: balance (hand-placed no-break spaces keep widows off)")
+    for selector in BALANCE_SELECTORS:
+        values = declared(selector, "text-wrap")
+        assert values and all(v == "balance" for v in values), f"{selector} must set text-wrap: balance in every rule that sets text-wrap (has {values})"

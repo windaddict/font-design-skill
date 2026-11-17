@@ -1,0 +1,7 @@
+# The repo's own tests and CI, on top of requirements.txt.
+-r requirements.txt
+pytest
+ruff==0.17.5
+jsonschema
+# FontBakery, pinned to the release the neutral example's accepted findings were recorded against (scripts/fontbakery-gate.py).
+fontbakery==1.1.0

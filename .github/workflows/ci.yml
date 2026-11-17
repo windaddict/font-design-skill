@@ -1,0 +1,97 @@
+name: ci
+
+# WHAT IT'S FOR: proves the skill's scripts run on a machine that is not the author's. Two jobs:
+#   test   - the matrix, two operating systems because the raster self-checks depend on the FreeType
+#            build inside the Pillow wheel, and a difference should be visible, not hidden. No browser.
+#            It runs scripts/smoke.sh steps 1-7: every group of the three fixtures exported and built
+#            (the Bract and Driftwood configurations included), the reproducibility check, the font suite
+#            and EVERY mutation of scripts/tests/mutate.py on the neutral example, the FontBakery gate (step 4b;
+#            fontbakery comes from requirements-dev.txt), the concept pages, the repo tests. The first version built the neutral fixture alone and never ran the mutation
+#            harness in CI (independent re-review, code-b F010); tests/test_ci_workflow.py reads this
+#            file for the smoke line.
+#   chrome - one Linux job with a stable Chrome, running the browser steps of scripts/smoke.sh (the
+#            three concept rounds shot and face-switched with the font-load and element probes, the
+#            specimen with its italic probe, the 360 px overflow check) and the repo tests that need a
+#            browser (named "chrome", they skip loudly elsewhere). Added after the independent review
+#            (C12): the shot evidence is about the reviewer's own renderer, but the TOOL that produces
+#            it was never executed off the author's Mac, and a Linux Chrome is a third rasteriser that
+#            catches a tool regression even though nobody reads its PNGs for design. They are uploaded
+#            as an artifact for the case where someone does.
+# This workflow has not been executed by its author on GitHub; it was validated by a careful read and
+# the first push will be its first run.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: pip install -r requirements-dev.txt
+      - name: lint
+        run: |
+          ruff check scripts/ tests/
+          npm run check
+      - name: smoke.sh steps 1-7 - export and build the three fixtures (statics for the neutral one), --check, the font suite, every mutation, the concept pages, the repo tests
+        run: FD_PY="$(command -v python)" bash scripts/smoke.sh --out out/smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neutral-manifest-${{ matrix.os }}-node${{ matrix.node }}
+          path: examples/neutral/out/manifest.json
+
+  chrome:
+    name: ubuntu / chrome (the browser steps of smoke.sh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: pip install -r requirements-dev.txt
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+      - name: point shoot.py at that Chrome
+        run: echo "CHROME=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+      - name: let a downloaded Chrome use its sandbox (Ubuntu 24.04 restricts unprivileged user namespaces; the key is absent on older kernels)
+        run: |
+          if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: the Chrome shoot.py will run
+        run: '"$CHROME" --version'
+      - name: build the neutral font (both groups; smoke.sh step 8 serves the roman, step 9 both)
+        run: python scripts/build.py --font examples/neutral/font.json
+      - name: smoke.sh from step 6 - concept pages, repo tests (with Chrome), the three rounds shot at 500 and 1280 with the face switch, the specimen with the italic probe, the 360 px overflow check
+        run: bash scripts/smoke.sh --full --from 6 --out out/smoke
+      - name: the repo tests that need a browser, by name (they skip loudly without Chrome; here each must run)
+        run: python -m pytest tests/ -q -k chrome -rs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chrome-shots
+          path: |
+            out/smoke/shots*/
+            out/smoke/opsz/
+          if-no-files-found: warn

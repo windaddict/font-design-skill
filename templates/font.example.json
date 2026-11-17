@@ -1,0 +1,91 @@
+{
+  "$comment": "font.example.json: a complete, valid font.json for a fictional 'Example' family, to copy and edit. The schema is templates/font.schema.json and forbids unknown keys, so the key-by-key explanation lives in references/variable-font-build.md ('font.json, key by key'). Paths are relative to this file; with templates/concepts.example.js beside it, this file EXPORTS as it stands (node scripts/export.js --font templates/font.example.json --group roman OUT.json), and BUILDS with the reviewed requirements named: build.py needs a requirements.json beside font.json or --requirements (here --requirements templates/requirements.example.json, whose required characters this generator draws), or an explicit --no-requirements, which the manifest records. Reviewed expectations (floors, axes, characters, titles) are written separately in requirements.json: see templates/requirements.example.json. names.fs_type is required and has no default: 0 (installable) here because the example is built from MIT parameters; use 4 (Preview & Print) for a proprietary face, 0 for an open one; 2 (Restricted) makes some tools refuse the font; browsers ignore the field for web fonts. typo_metrics is an optional override and is left out here: hhea and OS/2 typo then both carry the measured glyph extent with a line gap of 0.",
+  "family": "Example",
+  "version": "0.1.0",
+  "concepts": "concepts.example.js",
+  "out_dir": "out",
+  "groups": {
+    "roman": {
+      "italic": false,
+      "axes": [
+        { "tag": "wght", "name": "Weight", "min": 400, "default": 400, "max": 700, "map": [[400, 400], [500, 580], [700, 700]] },
+        { "tag": "opsz", "name": "Optical size", "min": 40, "default": 40, "max": 80 }
+      ],
+      "masters": {
+        "TextRegular": { "concept": "quill", "mult": 1, "location": { "wght": 400, "opsz": 40 } },
+        "TextBold": { "concept": "quill", "mult": 1.5, "location": { "wght": 700, "opsz": 40 } },
+        "DisplayRegular": { "concept": "quill-display", "mult": 1, "location": { "wght": 400, "opsz": 80 } },
+        "DisplayBold": { "concept": "quill-display", "mult": 1.5, "location": { "wght": 700, "opsz": 80 } }
+      },
+      "instances": [
+        { "name": "Regular", "location": { "wght": 400, "opsz": 40 } },
+        { "name": "Medium", "location": { "wght": 500, "opsz": 40 } },
+        { "name": "Bold", "location": { "wght": 700, "opsz": 40 } },
+        { "name": "Display", "location": { "wght": 400, "opsz": 80 } },
+        { "name": "Display Bold", "location": { "wght": 700, "opsz": 80 } }
+      ],
+      "hairline_floors": { "TextRegular": 41, "TextBold": 50, "DisplayRegular": 32, "DisplayBold": 40 }
+    },
+    "italic": {
+      "italic": true,
+      "italic_angle": 10,
+      "file": "out/Example-Italic-VF.woff2",
+      "axes": [
+        { "tag": "wght", "name": "Weight", "min": 400, "default": 400, "max": 700, "map": [[400, 400], [500, 580], [700, 700]] }
+      ],
+      "masters": {
+        "Regular": { "concept": "quill", "mult": 1, "location": { "wght": 400 } },
+        "Bold": { "concept": "quill", "mult": 1.5, "location": { "wght": 700 } }
+      },
+      "instances": [
+        { "name": "Italic", "location": { "wght": 400 } },
+        { "name": "Medium Italic", "location": { "wght": 500 } },
+        { "name": "Bold Italic", "location": { "wght": 700 } }
+      ],
+      "hairline_floors": { "Regular": 41, "Bold": 50 }
+    }
+  },
+  "charset": {
+    "required": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&#+*%$\"“”‘’  ",
+    "nbsp_to_space": true,
+    "ascii_apostrophe_curly": true
+  },
+  "kerning": {
+    "set": "^[A-Za-z0-9.,':;!?\\-–—…()\\[\\]/&#+*%$]$",
+    "threshold": 12,
+    "hand": { "A|I": -30, "I|A": -30, "L|T": -25, "L|V": -60, "L|Y": -60, "L|W": -45, "r|.": -50, "r|,": -50, "f|f": 0 },
+    "space": [[" ", "A", -45], [" ", "T", -20], [" ", "V", -35], [" ", "W", -30], [" ", "Y", -30],
+              ["A", " ", -30], ["V", " ", -30], ["W", " ", -25], ["Y", " ", -25], ["r", " ", -25]],
+    "italic_hand": { "I|P": -45, "I|D": -35, "I|B": -35, "I|E": -35, "I|R": -35, "I|N": -30, "I|M": -30, "I|m": -25, "I|n": -25, "P|I": -20, "A|I": -40, "T|h": -100, "T|w": -130, "T|r": -130, "K|e": -120, "A|t": -30 },
+    "italic_space": [["f", " ", -20], ["I", " ", -25], [" ", "I", -20]]
+  },
+  "titles": ["Twelve Lanterns on the Quay", "A Short Walk to the Weir", "Ledger of the Winter Fair #2", "Harriet's Second Kitchen", "WHAT THE TIDE LEFT", "Salt, Smoke & Sunday Bread"],
+  "size_budget_bytes": 102400,
+  "raster": { "budget": { "decimation": 48, "union": 48, "seam": 24 }, "sizes": [16, 40, 80] },
+  "fold_units": { "raw": 4, "decimated": 10 },
+  "decimation_eps": 1,
+  "names": {
+    "fs_type": 0,
+    "copyright": "Copyright 2026 Example Operator",
+    "manufacturer": "Example Press",
+    "designer": "Example Operator",
+    "vendor_id": "EXMP",
+    "vendor_url": "https://example.com/",
+    "licence": "Licensed for use on example.com only. Not for redistribution.",
+    "licence_url": "https://example.com/fonts/",
+    "description": "Example, the display face of example.com: a transitional serif generated from centre-line skeletons, with bracketed wedge serifs, beaks and teardrop terminals, in a text cut and a display cut joined by an optical-size axis."
+  },
+  "source_date_epoch": 1794700800,
+  "review": {
+    "sizes": [15.2, 16.8, 20.8, 24, 28, 35.2, 40, 48, 64, 80],
+    "medium_below_px": 17,
+    "surfaces": [
+      { "name": "paper", "background": "#f3ede2", "foreground": "#221f1b" },
+      { "name": "cloth", "background": "#1f2f3f", "foreground": "#f2ecdf" }
+    ],
+    "comparison_faces": [
+      { "name": "Georgia", "family": "Georgia" }
+    ],
+    "body_face": "Georgia"
+  }
+}

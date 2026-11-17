@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>opsz measurement</title>
+<!-- WHAT IT'S FOR: opsz.py's instrument. Row 0 renders a title with font-optical-sizing: auto; row 1
+     with optical sizing off (the axis default); every further row renders the same title with an
+     explicit "opsz" N for N from lo to hi in steps. opsz.py screenshots the page at a given CSS font
+     size and finds the N whose pixels equal row 0's, which is the opsz value Chrome applied for that
+     size. Rows are a fixed integer height so every row's glyphs sit at the same sub-pixel position and
+     a pixel comparison is exact.
+
+     Query: ?px=64&family=Sampler&url=/fonts/Sampler-VF.woff2&title=...&weight=400&lo=20&hi=96&step=2
+     The @font-face is declared here from `url` (served by shoot.py from the --serve directory), so
+     the page needs no site stylesheet. All DOM is built with createElement/textContent; the query
+     values never become markup. Served by shoot.py at /__fd/opsz.html.
+
+     Exact guarantee: the mapping is Chrome's on this machine today. Safari and Firefox are not
+     measured. Copyright 2026 John Knox. MIT licence. From the Bract review tools (2026-11-15). -->
+<style>
+  html, body { margin: 0; background: #fff; color: #000; }
+  .row { height: 100px; line-height: 100px; white-space: nowrap; overflow: hidden; padding-left: 10px;
+         font-kerning: normal; font-synthesis: none; }
+  .auto { font-optical-sizing: auto; font-variation-settings: normal; }
+  .none { font-optical-sizing: none; font-variation-settings: normal; }
+</style>
+</head>
+<body>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var px = parseFloat(q.get("px") || "64"), family = q.get("family") || "", url = q.get("url") || "";
+  var title = q.get("title") || "Harbour Review at Dawn 48", weight = parseInt(q.get("weight") || "400", 10);
+  var lo = parseInt(q.get("lo") || "28", 10), hi = parseInt(q.get("hi") || "90", 10), step = parseInt(q.get("step") || "2", 10);
+  var h = document.documentElement;
+  function cssString(s) { return "\"" + String(s).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, " ") + "\""; }
+  if (!family || !url || !(px > 0) || !(step > 0) || !(hi >= lo)) {
+    var err = document.createElement("p"); err.textContent = "opsz.html needs ?family=&url=&px= (and lo <= hi, step > 0)";
+    document.body.appendChild(err); h.setAttribute("data-fd-opsz", "error"); return;
+  }
+  var style = document.createElement("style");
+  style.textContent = "@font-face { font-family: " + cssString(family) + "; font-weight: 100 900; src: url(" + cssString(url) + ") format(\"woff2\"); }\n" +
+    ".row { font-family: " + cssString(family) + ", serif; font-weight: " + weight + "; font-size: " + px + "px; }";
+  document.head.appendChild(style);
+  function row(cls, opsz) {
+    var d = document.createElement("div"); d.className = "row" + (cls ? " " + cls : "");
+    if (opsz !== undefined) { d.style.fontOpticalSizing = "none"; d.style.fontVariationSettings = "\"opsz\" " + opsz; d.setAttribute("data-opsz", String(opsz)); }
+    d.textContent = title; document.body.appendChild(d);
+  }
+  row("auto"); row("none");
+  var count = 0;
+  for (var n = lo; n <= hi; n += step) { row("", n); count++; }
+  h.setAttribute("data-fd-opsz-rows", String(count + 2)); h.setAttribute("data-fd-opsz-range", lo + ":" + hi + ":" + step);
+})();
+</script>
+</body>
+</html>

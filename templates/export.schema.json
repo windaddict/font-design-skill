@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "font-design/export/v1",
+  "title": "export.js output: one group's masters, drawn, checked and decimated",
+  "description": "The contract between scripts/export.js and scripts/build.py. One file per group (roman or italic). build.py re-checks what matters (branch records, point structure, the fold measure) rather than trusting the figures here.",
+  "type": "object",
+  "required": ["schema", "family", "group", "italic", "italicAngle", "eps", "foldUnits", "masters"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "font-design/export/v1" },
+    "family": { "type": "string", "minLength": 1 },
+    "group": { "type": "string", "minLength": 1 },
+    "italic": { "type": "boolean" },
+    "italicAngle": { "type": "number", "minimum": 0, "maximum": 30 },
+    "eps": { "type": "number", "minimum": 0 },
+    "foldUnits": { "$ref": "#/$defs/foldUnits" },
+    "masters": {
+      "type": "object",
+      "minProperties": 2,
+      "additionalProperties": { "$ref": "#/$defs/master" }
+    }
+  },
+  "$defs": {
+    "point": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+    "polygon": { "type": "array", "items": { "$ref": "#/$defs/point" }, "minItems": 3 },
+    "run": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
+    "foldUnits": {
+      "type": "object", "required": ["raw", "decimated"], "additionalProperties": false,
+      "properties": { "raw": { "type": "number", "exclusiveMinimum": 0 }, "decimated": { "type": "number", "exclusiveMinimum": 0 } }
+    },
+    "excursion": {
+      "type": "object", "required": ["raw", "decimated"],
+      "properties": { "raw": { "type": "number", "minimum": 0 }, "decimated": { "type": "number", "minimum": 0 } }
+    },
+    "glyph": {
+      "type": "object",
+      "required": ["adv", "polys", "raw", "runs", "keptIdx", "sig", "minw", "minwStroke"],
+      "additionalProperties": false,
+      "properties": {
+        "adv": { "type": "integer", "minimum": 0 },
+        "polys": { "type": "array", "items": { "$ref": "#/$defs/polygon" }, "description": "decimated contours that ship" },
+        "raw": { "type": "array", "items": { "$ref": "#/$defs/polygon" }, "description": "undecimated contours, for the before/after raster check" },
+        "runs": { "type": "array", "items": { "type": "array", "items": { "$ref": "#/$defs/run" }, "minItems": 1 }, "description": "per raw contour: index ranges that are one continuous edge" },
+        "keptIdx": { "type": "array", "items": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 3 }, "description": "per contour: the raw index of each decimated point" },
+        "sig": { "type": "array", "items": { "type": "string" }, "description": "branch record per stroke" },
+        "minw": { "type": ["number", "null"], "description": "minimum interior stroke width in units; null when the glyph has no interior sample (dots only), since Infinity has no JSON form" },
+        "minwStroke": { "type": ["integer", "null"] }
+      }
+    },
+    "kern": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "prefixItems": [{ "type": "string", "minLength": 1 }, { "type": "string", "minLength": 1 }, { "type": "integer" }]
+    },
+    "master": {
+      "type": "object",
+      "required": ["concept", "mult", "location", "W", "thin", "track", "space", "minStrokeWidth", "minStrokeAt", "foldedEdges", "maxBackwardExcursion", "worstFoldAt", "glyphs", "kerns", "titles"],
+      "additionalProperties": false,
+      "properties": {
+        "concept": { "type": "string" },
+        "mult": { "type": "number", "exclusiveMinimum": 0 },
+        "location": { "type": "object", "additionalProperties": { "type": "number" }, "minProperties": 1 },
+        "W": { "type": "number", "exclusiveMinimum": 0 },
+        "thin": { "type": "number", "exclusiveMinimum": 0 },
+        "track": { "type": "number" },
+        "space": { "type": "integer" },
+        "minStrokeWidth": { "type": "number" },
+        "minStrokeAt": { "type": ["string", "null"] },
+        "foldedEdges": { "type": "integer", "minimum": 0 },
+        "maxBackwardExcursion": { "$ref": "#/$defs/excursion" },
+        "worstFoldAt": { "type": "object", "properties": { "raw": { "type": ["string", "null"] }, "decimated": { "type": ["string", "null"] } } },
+        "glyphs": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/glyph" } },
+        "kerns": { "type": "array", "items": { "$ref": "#/$defs/kern" } },
+        "titles": { "type": "object", "additionalProperties": { "type": "integer" } }
+      }
+    }
+  }
+}

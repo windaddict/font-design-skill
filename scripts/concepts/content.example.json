@@ -1,0 +1,639 @@
+{
+  "_doc": "Content for the concept pages (rounds 1 to 3). One file drives all three rounds; build-page.js validates the keys each round reads and drops every key that begins with '_'. All text is shown as text (createElement/textContent), never parsed as markup. Images: null draws a placeholder box; otherwise 'img/<name>.(jpg|jpeg|png|webp)', a file beside the page. Colours: #hex or rgb()/rgba(). This example is the Sampler/Harbour Review content; replace every value for your site.",
+  "site": {
+    "name": "Harbour Review",
+    "wordmark": "Harbour Review",
+    "lede": "Photographs and notes from the quay: boats, weather, the café tables and the people who keep them, kept since 2019.",
+    "nav": [
+      "Essays",
+      "Guides",
+      "About",
+      "Feed"
+    ],
+    "kicker": "Harbour Review · display face",
+    "_doc": "The site being redesigned: name, wordmark (set in capitals and as the large title), lede (under the wordmark), nav (labels in the mock spine), kicker (the small line over the page title)."
+  },
+  "round": {
+    "title": "Two headline concepts for Harbour Review",
+    "intro": [
+      "Georgia is the display face today. These are generated replacements, set by the same generator that will build the font, on the site's own colours, at the sizes the site uses, with real titles.",
+      "They are sketches, not fonts. Spacing, kerning and terminals are first-pass. Judge the voice, not the polish."
+    ],
+    "_doc": "The page header: title and intro paragraphs. Write a new title per round."
+  },
+  "colours": {
+    "paper": "#f4efe6",
+    "plate": "#fdfaf5",
+    "ink": "#22201c",
+    "pencil": "#6b655c",
+    "accent": "#2d6a7a",
+    "accent-lift": "#3d8294",
+    "cloth": "#1d2a3a",
+    "cloth-deep": "#121b27",
+    "cloth-ink": "#f1ebdd",
+    "stamp": "#c9c0a8",
+    "desk": "#e4ddd0",
+    "rule": "rgba(34, 32, 28, 0.16)",
+    "placeholder": "#9aa5ad",
+    "_doc": "CSS variables for every surface: paper and plate (light page and sheet), ink and pencil (text, muted text), accent and accent-lift (links, picker), cloth, cloth-deep and cloth-ink (dark surfaces and their text), stamp (the wordmark on cloth), desk (round 2/3 page background), rule (hairlines), placeholder (image stand-ins)."
+  },
+  "fonts": {
+    "body": "Georgia, 'Times New Roman', serif",
+    "label": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "_doc": "CSS family lists for the page's own body copy and small labels (not the faces being judged). No '<', ';', '{' or '}'."
+  },
+  "comparison": {
+    "name": "Sampler (built)",
+    "family": "Sampler",
+    "font_url": "fonts/Sampler-VF.woff2",
+    "weights": [
+      400,
+      700
+    ],
+    "note": "The built Sampler variable font, for comparison with the sketches. When the file is not beside the page, this row falls back to the system serif.",
+    "_doc": "The face to compare against: name (picker label), family (CSS family), ONE of font_url (a relative .woff2 beside the page, e.g. the built font or the current display face) or css_url (an https stylesheet), weights available, note (shown under the picker). When the file is missing the page falls back to serif and sets data-fd-font='missing'."
+  },
+  "weights": [
+    {
+      "label": "Regular",
+      "mult": 1,
+      "_doc": "Options for the round-1 lineup weight select: label and the multiplier passed to params(concept, mult)."
+    },
+    {
+      "label": "Medium",
+      "mult": 1.25,
+      "_doc": "Options for the round-1 lineup weight select: label and the multiplier passed to params(concept, mult)."
+    },
+    {
+      "label": "Bold",
+      "mult": 1.5,
+      "_doc": "Options for the round-1 lineup weight select: label and the multiplier passed to params(concept, mult)."
+    }
+  ],
+  "bold_mult": 1.5,
+  "medium_mult": 1.25,
+  "storage_key": "harbour-review-face",
+  "lineup_text": "Bracket's Last Stand at the Third Floor",
+  "titles": [
+    "The Quiet Harbour at Dawn",
+    "A Field Guide to Wet Stone",
+    "Notes from the Third Floor #4",
+    "Bracket's Last Stand",
+    "SIX WAYS OUT",
+    "Offline, Afloat & Adrift"
+  ],
+  "audit_intro": "The site was reviewed at 500, 1280 and 1600px before any letters were drawn. Each finding says what it changes for the font. The items marked first are the ones to fix before the face is chosen.",
+  "audit": [
+    {
+      "first": true,
+      "finding": "Small capital labels repeat the heading under them.",
+      "fix": "“Latest” sits over “What came in this week”; “Chapters” over “Four ways in”. Keep a label only where it adds a fact.",
+      "font_effect": "Large. With the labels gone, each heading stands alone, so the display face carries section identity by itself at 25 to 35px."
+    },
+    {
+      "first": true,
+      "finding": "Boxed cards that lift on hover.",
+      "fix": "The four chapter cards rise with a shadow. Use photo, numeral, name and count, with no box.",
+      "font_effect": "The chapter names become the only structure, so the Bold at 18px matters."
+    },
+    {
+      "first": false,
+      "finding": "Georgia cannot hold the 16.8px plate titles.",
+      "fix": "The plate titles look lighter than the body text beside them.",
+      "font_effect": "The hardest constraint: at 16.8px one screen pixel is 60 font units, so the Regular's thinnest stroke needs about 45 units."
+    },
+    {
+      "first": false,
+      "finding": "Two date formats.",
+      "fix": "The home page says “3 March 2026”; the grid says “2026-03-03”. Use one spelled-out date.",
+      "font_effect": "None, if dates move to the body face."
+    }
+  ],
+  "guidelines": [
+    {
+      "lead": "Differ from the body face in at least two ways",
+      "text": "out of contrast, stress angle, serif shape and width. Georgia is a sturdy text serif; a similar face looks like a mistake beside it."
+    },
+    {
+      "lead": "Work from 15px to 80px:",
+      "text": "15px chapter numerals, 16.8px titles in a grid, 25 to 35px section headings, 32 to 48px essay titles, an 80px title on cloth, and the wordmark in spaced capitals at 22 to 26px."
+    },
+    {
+      "lead": "Two weights,",
+      "text": "Regular and a clearly heavier Bold. The lowercase matters most: titles are Title Case, and only the wordmark is set in capitals."
+    },
+    {
+      "lead": "Two character traps from the real titles:",
+      "text": "most titles hold a no-break space before the last word, and some type the apostrophe as a straight ' which must draw as a curly one."
+    }
+  ],
+  "concepts": {
+    "text": {
+      "pick": true,
+      "cost": "Low",
+      "desc": "An upright, low-contrast bracketed serif with flared terminals: a text cut meant to hold the 16.8px plate titles with even colour.",
+      "risk": "It is the closest to Georgia and is distinct from it by its flared ends and tighter fit. It is here as the control."
+    },
+    "display": {
+      "pick": true,
+      "cost": "Low",
+      "desc": "The same drawing cut for large sizes: thinner hairlines, longer serifs and tighter spacing, so the 48 to 80px titles gain presence.",
+      "risk": "Below 24px its hairlines fall under a pixel; it only works as the large half of a two-cut face."
+    },
+    "_doc": "Round 1: per concept id (must exist in concepts.js): desc, cost (build cost), risk, pick (true marks it 'Shortlist')."
+  },
+  "specimen": {
+    "heading": "Chapters",
+    "chapters": [
+      {
+        "num": "I",
+        "name": "Tide",
+        "blurb": "Weather, water and the things it leaves."
+      },
+      {
+        "num": "II",
+        "name": "Tables",
+        "blurb": "The cafés, the counters and the people behind them."
+      },
+      {
+        "num": "III",
+        "name": "Boats",
+        "blurb": null
+      },
+      {
+        "num": "IV",
+        "name": "Streets",
+        "blurb": null
+      }
+    ],
+    "essay": {
+      "title": "Offline, Afloat & Adrift: a Note on the Eighty-Seventh Mooring",
+      "date": "3 March 2026",
+      "paragraph": "The tide came in under the pier while the kettle boiled, and by the time the cups were out the boats had turned to face the other way. Nobody mentioned it; it happens twice a day.",
+      "_doc": "The essay title drawn at the fitted size with its date and first paragraph in the body face."
+    },
+    "plateline": "Plate 7 · 2 September 2019",
+    "tiles": [
+      {
+        "title": "The Quiet Harbour at Dawn",
+        "date": "14 October 2025",
+        "colour": "#8fa3b1"
+      },
+      {
+        "title": "A Field Guide to Wet Stone",
+        "date": "29 September 2024",
+        "colour": "#6f7d72"
+      },
+      {
+        "title": "Notes from the Third Floor #4",
+        "date": "28 September 2024",
+        "colour": "#9b7b5a"
+      },
+      {
+        "title": "Bracket's Last Stand",
+        "date": "18 March 2024",
+        "colour": "#b8b2a4"
+      },
+      {
+        "title": "SIX WAYS OUT",
+        "date": "30 May 2023",
+        "colour": "#7a6f4e"
+      },
+      {
+        "title": "Offline, Afloat & Adrift",
+        "date": "7 January 2022",
+        "colour": "#c0a27c"
+      }
+    ],
+    "tiles_note": "Swatches stand in for each plate's photograph. Titles are set at the grid's real 16.8px. Six tiles fill the grid's rows at 500px (two columns) and at 1280 and 1600px (six columns).",
+    "chars": "ABCDEFGHIJKLM NOPQRSTUVWXYZ abcdefghijklm nopqrstuvwxyz 0123456789 & ( ) ' : ? . - ! ,",
+    "_doc": "Round 1: what each concept's full specimen shows. chapters (num, name, blurb or null), essay (title, date, paragraph), plateline (under the frontispiece), tiles (title, date, colour; a multiple of 6 so the grid has no orphan at 500, 1280 or 1600px), tiles_note, chars (the character row)."
+  },
+  "recommendation": {
+    "heading": "Recommendation",
+    "paragraphs": [
+      "Take both cuts to a second round as one face: the text cut for everything under 40px and the display cut above. Neither is a candidate on its own.",
+      "The lineup text box and the weight select above redraw every concept; the specimens below are fixed."
+    ],
+    "_doc": "Round 1 footer: heading and paragraphs. Paste the reviewer's own shortlist text here."
+  },
+  "shortlist": [
+    "text",
+    "display"
+  ],
+  "notes": {
+    "text": "The text cut: an upright, low-contrast bracketed serif with flared terminals, drawn to hold the 16.8px plate titles.",
+    "display": "The display cut: thinner hairlines, longer serifs and tighter spacing for the 48 to 80px titles.",
+    "sampler-two-cuts": "Sampler in two optical sizes: the text cut below 40px and the display cut from 40px up, which is how the variable font will be built.",
+    "comparison": "The built Sampler variable font, for comparison. When the file is missing beside the page this is the system serif.",
+    "_doc": "Rounds 2/3: one line per face id (concept, two-cut face or 'comparison') shown under the picker and on the glance card."
+  },
+  "glance_titles": [
+    "The Quiet Harbour at Dawn",
+    "Notes from the Third Floor #4",
+    "Bracket's Last Stand"
+  ],
+  "pages": {
+    "home": {
+      "caption": "Home page: frontispiece, latest plate, chapters, selection, guides, colophon",
+      "sizes": "Headline sizes 15 to 80px",
+      "fore_read": "24 plates since September 2019",
+      "strip": [
+        "#8fa3b1",
+        "#6f7d72",
+        "#9b7b5a",
+        "#b8b2a4",
+        "#7a6f4e",
+        "#c0a27c",
+        "#5e6b7a",
+        "#a89f8f",
+        "#7c8a92",
+        "#b59a6a",
+        "#4f5d55",
+        "#c8c1b2"
+      ],
+      "years": [
+        [
+          5,
+          "2019"
+        ],
+        [
+          6,
+          "2020"
+        ],
+        [
+          4,
+          "2022"
+        ],
+        [
+          5,
+          "2024"
+        ],
+        [
+          4,
+          "2025"
+        ]
+      ],
+      "front": {
+        "image": null,
+        "alt": "A placeholder stands in for the frontispiece photograph.",
+        "caption": "Plate 7 · The Quay at Six · 2 September 2019",
+        "volume": "24 plates · 118 photographs",
+        "since": "Since September 2019",
+        "buttons": [
+          "Open the contents",
+          "Open at random"
+        ],
+        "_doc": "The frontispiece: image or null, alt, caption, the volume lines and two button labels."
+      },
+      "latest": {
+        "heading": "Latest",
+        "title": "The Quiet Harbour at Dawn",
+        "image": null,
+        "alt": "Placeholder",
+        "plateline": "Plate 24 · 14 October 2025",
+        "desc": "A cold morning on the quay, the first boat out and the last light on, and why it pays to be early.",
+        "go": "Read this plate",
+        "_doc": "The latest-plate block: heading, title, image, alt, plateline, desc, go (link label)."
+      },
+      "chapters_heading": "Chapters",
+      "more": "All twenty-four plates, in order",
+      "chapters": [
+        {
+          "image": null,
+          "alt": "Placeholder",
+          "num": "I",
+          "name": "Tide",
+          "blurb": "Weather, water and the things it leaves.",
+          "count": "9 plates"
+        },
+        {
+          "image": null,
+          "alt": "Placeholder",
+          "num": "II",
+          "name": "Tables",
+          "blurb": "The cafés, the counters and the people behind them.",
+          "count": "11 plates"
+        },
+        {
+          "image": null,
+          "alt": "Placeholder",
+          "num": "III",
+          "name": "Boats",
+          "blurb": "Hulls, ropes and the hands that mend them.",
+          "count": "7 plates"
+        },
+        {
+          "image": null,
+          "alt": "Placeholder",
+          "num": "IV",
+          "name": "Streets",
+          "blurb": "The town behind the harbour, mostly in rain.",
+          "count": "8 plates"
+        }
+      ],
+      "selection_heading": "A selection",
+      "selection": [
+        {
+          "no": 23,
+          "title": "A Field Guide to Wet Stone",
+          "date": "29 September 2024",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 19,
+          "title": "Notes from the Third Floor #4",
+          "date": "28 September 2024",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 14,
+          "title": "Bracket's Last Stand",
+          "date": "18 March 2024",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 11,
+          "title": "SIX WAYS OUT",
+          "date": "30 May 2023",
+          "image": null,
+          "alt": "Placeholder"
+        }
+      ],
+      "guides_heading": "Guides",
+      "guides": [
+        {
+          "title": "A Guide to the Quay Cafés",
+          "blurb": "Where to sit, what to order, and when the tables fill."
+        },
+        {
+          "title": "Walking the Sea Wall",
+          "blurb": "Four miles, two gates and one place to turn back."
+        }
+      ],
+      "colophon": {
+        "heading": "About this volume",
+        "text": "Harbour Review is written and photographed in one small town, with detours along the coast in both directions. New plates are added when there are new plates worth adding.",
+        "facts": [
+          [
+            "Begun",
+            "September 2019"
+          ],
+          [
+            "Extent so far",
+            "24 plates · 118 photographs"
+          ],
+          [
+            "Latest",
+            "Plate 24 · 14 October 2025"
+          ]
+        ],
+        "_doc": "The dark colophon band: heading, text, facts as [term, value] pairs."
+      },
+      "_doc": "The home page mock: caption and sizes (the line over the mock), fore_read, strip (colour slivers), years ([weight, label]), front (wordmark area: image, alt, caption, volume, since, buttons), latest, chapters_heading, more, chapters (2 or 4), selection_heading, selection (a multiple of 4), guides_heading, guides (even), colophon."
+    },
+    "article": {
+      "caption": "An essay: plate 14, title, a section heading, and the Read next list",
+      "sizes": "Headline sizes 17 to 48px",
+      "title": "Bracket's Last Stand",
+      "date": "18 March 2024",
+      "image": null,
+      "alt": "Placeholder",
+      "paragraphs": [
+        "The bracket in question held a shelf in the harbourmaster's office for sixty years, and the shelf held the tide tables. When it gave way on a Tuesday the tables went into the sink and the harbourmaster went to the café.",
+        "This is the story of the afternoon it took to find another, which is also the story of every shop on the front, in the order you would walk them."
+      ],
+      "heading": "Three shops and a shed",
+      "paragraph_after": "The chandlery had brackets but only in pairs; the hardware shop had one, bent; the shed at the end of the wall had six, in a biscuit tin, and would not sell them.",
+      "read_next": [
+        {
+          "title": "Notes from the Third Floor #4",
+          "sub": "The stairwell, the window and the view of the slip, in the fourth of an occasional series."
+        },
+        {
+          "title": "A Field Guide to Wet Stone",
+          "sub": "Granite, slate and the concrete that pretends to be either, after rain."
+        },
+        {
+          "title": "SIX WAYS OUT",
+          "sub": "Every road, lane and footpath that leaves the harbour, and what each one is for."
+        }
+      ],
+      "_doc": "The article mock: title, date, image, alt, paragraphs, a section heading, paragraph_after, read_next (title and sub per item)."
+    },
+    "contents": {
+      "caption": "The contents: the essays index, first eight plates",
+      "sizes": "Plate titles at the real 16.8px",
+      "title": "Essays",
+      "blurb": "Every plate in the volume, newest first. Photographs and notes from the quay.",
+      "chips": [
+        {
+          "label": "All",
+          "count": "24",
+          "on": true
+        },
+        {
+          "label": "Tide",
+          "count": "9",
+          "on": false
+        },
+        {
+          "label": "Tables",
+          "count": "11",
+          "on": false
+        },
+        {
+          "label": "Boats",
+          "count": "7",
+          "on": false
+        },
+        {
+          "label": "Streets",
+          "count": "8",
+          "on": false
+        }
+      ],
+      "plates": [
+        {
+          "no": 24,
+          "title": "The Quiet Harbour at Dawn",
+          "date": "14 October 2025",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 23,
+          "title": "A Field Guide to Wet Stone",
+          "date": "29 September 2024",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 19,
+          "title": "Notes from the Third Floor #4",
+          "date": "28 September 2024",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 14,
+          "title": "Bracket's Last Stand",
+          "date": "18 March 2024",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 11,
+          "title": "SIX WAYS OUT",
+          "date": "30 May 2023",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 9,
+          "title": "Offline, Afloat & Adrift",
+          "date": "7 January 2022",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 6,
+          "title": "The Café at the End of the Wall",
+          "date": "2 June 2020",
+          "image": null,
+          "alt": "Placeholder"
+        },
+        {
+          "no": 3,
+          "title": "Ropework",
+          "date": "11 November 2019",
+          "image": null,
+          "alt": "Placeholder"
+        }
+      ],
+      "_doc": "The contents mock: title, blurb, chips (label, count, on), plates (no, title, date, image, alt; a multiple of 4)."
+    },
+    "_doc": "Rounds 2/3: the three mock pages. Every headline slot's text comes from here."
+  },
+  "slot_sizes": {
+    "_doc": "Required for rounds 2 and 3. The headline slots of the three mock pages and their sizes in CSS px, overriding the defaults in the templates (which are hop-safari's redesigned sizes). Fill size (and min, fit, lh where the slot fits to width) from mine-sizes.py so the mocks are set at the site's own sizes; a slot left out keeps its default and build-page.js names it on stderr; a name not in this list fails the build. size: the CSS px; min: the smallest px the slot shrinks to when the title does not fit the width; fit: the characters per line the slot aims for; lh: the line height in 1/1000 em. The mock STRUCTURE is fixed; the real pages are judged in phase 8.",
+    "front_wordmark": {
+      "size": 80,
+      "min": 48,
+      "fit": 5.6
+    },
+    "spine_wordmark": {
+      "size": 22
+    },
+    "section_heading": {
+      "size": 35,
+      "min": 26,
+      "fit": 12
+    },
+    "latest_title": {
+      "size": 27,
+      "min": 21
+    },
+    "chapter_num": {
+      "size": 15.2
+    },
+    "chapter_name": {
+      "size": 18
+    },
+    "guide_title": {
+      "size": 18.4
+    },
+    "colophon_heading": {
+      "size": 21
+    },
+    "article_title": {
+      "size": 48,
+      "min": 32,
+      "fit": 13,
+      "lh": 1100
+    },
+    "article_heading": {
+      "size": 28
+    },
+    "read_next_title": {
+      "size": 16.8,
+      "lh": 1250
+    },
+    "contents_title": {
+      "size": 64,
+      "min": 38,
+      "fit": 9
+    },
+    "plate_title": {
+      "size": 16.8,
+      "lh": 1250
+    },
+    "glance_wordmark_small": {
+      "size": 18
+    },
+    "glance_wordmark": {
+      "size": 64,
+      "min": 40,
+      "fit": 5.4
+    },
+    "glance_heading": {
+      "size": 30,
+      "min": 24,
+      "fit": 10
+    },
+    "glance_title": {
+      "size": 16.8,
+      "lh": 1250
+    }
+  },
+  "choosing": {
+    "heading": "Choosing",
+    "paragraphs": [
+      "The tests for the choice: the face should differ from Georgia on at least two of contrast, stress, serif shape and width; it has to hold the 16.8px plate titles; and the Bold must be a clear step above the Regular at 18px.",
+      "Round 3 takes the finalists into the real font build, reviewed at each step."
+    ],
+    "_doc": "Rounds 2/3 footer: heading and paragraphs on how to choose."
+  },
+  "faces": [
+    {
+      "id": "sampler-two-cuts",
+      "name": "Sampler, two cuts",
+      "from": "Text cut below 40px, display cut above",
+      "cuts": {
+        "text": "text",
+        "display": "display",
+        "from": 40
+      }
+    }
+  ],
+  "verdict": {
+    "_doc": "Round 3 only: the reviewer's verdict box. headline, summary, items (face id + text), ranking (face ids, best first), next (what the build should do), source (where the verdict came from). PLACEHOLDER TEXT HERE MUST BE REPLACED by the reviewer's own words from its run.",
+    "headline": "What the reviewer says: (placeholder, replace with the reviewer's headline)",
+    "summary": "(placeholder) One paragraph on which face wins and why, in the reviewer's words.",
+    "items": [
+      {
+        "face": "sampler-two-cuts",
+        "text": "(placeholder) What this face does best and worst."
+      },
+      {
+        "face": "text",
+        "text": "(placeholder)"
+      },
+      {
+        "face": "display",
+        "text": "(placeholder)"
+      }
+    ],
+    "ranking": [
+      "sampler-two-cuts",
+      "text",
+      "display"
+    ],
+    "next": "(placeholder) What the build should do first.",
+    "source": "(placeholder) Which run, which screenshots, which widths; what was not checked."
+  },
+  "_doc_scalars": "bold_mult and medium_mult: the W multipliers used for Bold and Medium slots (params(concept, mult)); storage_key: the localStorage key that remembers the picked face; lineup_text: the round-1 lineup default (?text= overrides it); titles: the site's real titles, for the record; audit_intro and audit (round 1, optional): findings from the site audit, each with finding, fix, font_effect and first (true = fix before the font); guidelines (round 1): lead + text per item; shortlist (rounds 2/3): concept ids in the picker; glance_titles (rounds 2/3): three small titles per glance card; faces (round 3): two-cut faces, each id, name, from, cuts {text: concept id below `from` px, display: concept id from there up, from: px}."
+}

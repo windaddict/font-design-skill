@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>$TITLE</title>
+<!-- WHAT IT'S FOR: the review loop's specimen, rendered by scripts/specimen.py from a project's
+     font.json (its `review` block and `titles`). Real titles at every size the site uses, with the
+     weights the site uses, on each surface; the face beside its comparison faces; the opsz crossing;
+     intermediate instances; a kerning row; an NBSP wrap row; the quote and symbol glyphs; the spacing
+     control strings and the legibility row. Serve the
+     output with scripts/shoot.py from a directory that also holds the font at the --font-url path.
+     The italic rows carry the data-fd-probe marker, set to italic, for shoot.py's element probe; labels inside a
+     surface section carry that surface's foreground colour. $NOTES holds the charset-check notes
+     (empty when the shown text was checked against the font file and nothing was missing).
+     Every value below was HTML-escaped by specimen.py; this file is a string.Template, not a page.
+     Copyright 2026 John Knox. MIT licence. From the Bract review specimen (2026-11-15). -->
+<style>
+$FONT_FACES
+  :root { --paper: $PAPER_BG; --ink: $PAPER_FG; --pencil: $PENCIL; }
+  html, body { margin: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: $BODY_FACE; font-synthesis: none; }
+  section { padding: 18px 24px; }
+  .lbl { font: 500 11px/1.3 system-ui, -apple-system, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--pencil); margin: 14px 0 6px; opacity: .85; }
+  .f { font-family: $FAMILY_STACK; font-optical-sizing: auto; font-synthesis: none; font-kerning: normal; margin: 0; }
+  .fi { font-style: italic; }
+  .cmp { margin: 0; font-synthesis: none; }
+  .body { font-family: $BODY_FACE; max-width: 38rem; font-size: 18px; line-height: 1.7; margin: .3rem 0 0; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: baseline; }
+  .cols { display: grid; grid-template-columns: repeat($CMP_COLS, minmax(0, 1fr)); gap: 16px; align-items: baseline; }
+  .cap { text-transform: uppercase; letter-spacing: .06em; }
+  .narrow { width: 320px; outline: 1px dashed currentColor; outline-offset: 2px; opacity: .95; }
+  .wrapmax { max-width: 14em; }
+  p.lbl { opacity: .7; }
+</style>
+</head>
+<body>
+$SECTIONS
+<section>
+  <p class="lbl">Rendered by specimen.py from $SOURCE. A screenshot of this page shows this machine's Chrome and text stack only; it says nothing about Safari, Firefox, Windows or Android.</p>
+$NOTES</section>
+<script>
+/* Records where the proof rows end (CSS px from the top of the page) on <html>, so a shot's dumped DOM can prove they lie inside
+   the captured height. Read again once the fonts have settled, because a late font changes the wrapping. */
+(function () {
+  function mark() {
+    var els = document.querySelectorAll("[data-fd-spacing], [data-fd-legibility]"), bottom = 0;
+    for (var i = 0; i < els.length; i++) bottom = Math.max(bottom, els[i].getBoundingClientRect().bottom + window.scrollY);
+    document.documentElement.setAttribute("data-fd-proof-count", String(els.length));
+    document.documentElement.setAttribute("data-fd-proof-bottom", String(Math.ceil(bottom)));
+  }
+  mark();
+  window.addEventListener("load", mark);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(mark);
+})();
+</script>
+</body>
+</html>

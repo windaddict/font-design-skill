@@ -1,0 +1,494 @@
+<!-- fd-round: round2 -->
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headline concepts, round 2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- WHAT IT'S FOR: round 2 of the concept pipeline, the shortlist on mock pages. A sticky face picker
+     sits over three full-width mock-ups built from the content JSON (a home page, an article, the
+     contents), preceded by a glance card per shortlisted face. Choosing a face redraws every headline
+     slot: a slot is an element with class "r" carrying data-t (text), data-size (max px), data-w
+     (weight multiplier), data-min and data-fit (fluid size: width / fit, clamped to min..size),
+     data-lh (line height in 1/1000 em) and data-caps. Slots with data-face are fixed to one face
+     (the glance cards); the rest follow the picker. The pick is remembered in localStorage under
+     content.storage_key. Images come from img/ beside the page or, when null, a placeholder box.
+
+     Every element is made with createElement, textContent and setAttribute; no string is ever
+     parsed as markup, so a hostile title stays text. Colours are CSS variables set from
+     content.colours with style.setProperty. Slots are drawn after the whole page is in the document,
+     because render() wraps to the element's measured width.
+
+     ?face=<id> selects that face on load (over the stored one); after drawing, <html> carries
+     data-fd-round, data-fd-face (the current id), data-fd-rendered (glyphs drawn by render()) and
+     data-fd-font (the comparison face: loaded / missing) for the smoke run's dumped DOM.
+
+     Grids: chapters, selection and plates use fixed column counts (4, or 2 under 880px), guides 2
+     (1 under 700px), so the builder requires a multiple of 4 plates and selection items, 2 or 4
+     chapters and an even number of guides. The glance grid is 2 columns (1 under 760px); an odd
+     last card spans both columns, so any count fills its rows.
+     Copyright 2026 John Knox. MIT licence. From the Bract round-2 page (2026-11-15), neutralised. -->
+<style>
+:root {
+  color-scheme: light;
+  --cloth: #1d2a3a; --cloth-deep: #121b27; --cloth-ink: #f1ebdd; --stamp: #c9c0a8;
+  --paper: #f4efe6; --plate: #fdfaf5; --ink: #22201c; --pencil: #6b655c;
+  --accent: #2d6a7a; --accent-lift: #3d8294; --rule: rgba(34, 32, 28, .16);
+  --desk: #e4ddd0; --placeholder: #9aa5ad;
+  --body: Georgia, serif;
+  --label: system-ui, sans-serif;
+  --compare: serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--desk); color: var(--ink); font-family: var(--body); font-size: 1.05rem; line-height: 1.55; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--desk); }
+.col { max-width: 74rem; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+p { margin: 0; }
+h1, h2, h3 { margin: 0; font-weight: 600; line-height: 1.15; text-wrap: balance; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.r { min-width: 0; }
+.r svg { display: block; }
+.css-face { font-family: var(--compare); line-height: 1.12; text-wrap: balance; font-synthesis: none; }
+.ph { background: var(--placeholder); display: block; width: 100%; }
+
+/* the page's own frame */
+.intro { padding-block: 2.6rem 1.6rem; display: grid; gap: .9rem; max-width: 46rem; }
+.intro h1 { font-size: clamp(1.9rem, 4vw, 2.6rem); }
+.kicker { font-family: var(--label); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--pencil); }
+.verdict { display: grid; gap: .7rem; background: var(--paper); padding: 1.2rem 1.4rem; margin-top: .6rem; }
+.verdict[hidden] { display: none; }
+.verdict h2 { font-size: 1.25rem; }
+.verdict ul { margin: 0; padding-left: 1.2rem; display: grid; gap: .45rem; }
+.verdict .src { font-size: .9rem; color: var(--pencil); }
+.glance { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; padding-bottom: 2.4rem; }
+.glance > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (max-width: 760px) { .glance { grid-template-columns: 1fr; } }
+.g-card { background: var(--paper); display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.g-cloth { background: var(--cloth); color: var(--cloth-ink); padding: 1.1rem 1.3rem 1.3rem; display: grid; gap: .5rem; border-bottom: 3px solid var(--accent); }
+.g-cloth .wm { color: var(--stamp); }
+.g-body { padding: 1.1rem 1.3rem 1.3rem; display: grid; gap: .8rem; align-content: start; }
+.g-name { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.g-name h2 { font-size: 1.25rem; }
+.g-name button { font-family: var(--label); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); background: none; border: 0; border-bottom: 1px solid var(--accent); padding: 0 0 1px; cursor: pointer; }
+.g-desc { font-size: .95rem; color: var(--pencil); }
+.g-titles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; }
+
+.switch { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--cloth-deep); color: var(--cloth-ink); }
+.switch .col { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.2rem; padding-block: .7rem; }
+.switch legend { font-family: var(--label); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--stamp); padding: 0; float: left; margin-right: 1rem; line-height: 2.2rem; }
+.switch fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-width: 0; }
+.switch label { position: relative; }
+.switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.switch span { display: inline-block; padding: .35rem .8rem; border: 1px solid rgba(255, 255, 255, .3); font-size: .98rem; cursor: pointer; }
+.switch input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.switch input:focus-visible + span { outline: 2px solid var(--accent-lift); outline-offset: 2px; }
+.switch .now { font-size: .9rem; opacity: .75; flex: 1 1 16rem; }
+
+.mock-wrap { padding-block: 2rem 1rem; display: grid; gap: .6rem; }
+.mock-cap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font-size: .92rem; color: var(--pencil); }
+.mock-cap b { color: var(--ink); font-weight: 600; }
+.mock { background: var(--paper); box-shadow: 0 1px 0 rgba(0, 0, 0, .08); overflow: hidden; }
+
+/* ---- the mock site ---- */
+.m-in { max-width: 64rem; margin: 0 auto; padding-inline: clamp(1rem, 3vw, 1.25rem); }
+.m-spine { background: var(--cloth); border-bottom: 3px solid var(--accent); }
+.m-spine .m-in { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding-block: 1rem; }
+.m-spine .wm { color: var(--stamp); }
+.m-nav { display: flex; gap: 1.4rem; flex-wrap: wrap; font-family: var(--label); font-size: .74rem; text-transform: uppercase; letter-spacing: .13em; color: var(--cloth-ink); opacity: .9; }
+.m-fore { background: var(--cloth-deep); padding-block: .6rem .5rem; color: var(--cloth-ink); }
+.m-fore-read { font-family: var(--label); font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; opacity: .65; text-align: right; margin-bottom: .35rem; }
+.m-strip { display: flex; height: 1.3rem; gap: 1px; }
+.m-strip i { flex: 1 1 0; background: #3b4a3e; }
+.m-years { display: flex; font-family: var(--label); font-size: .58rem; opacity: .5; margin-top: .25rem; }
+.m-years span { border-left: 1px solid currentColor; padding-left: .25rem; overflow: hidden; white-space: nowrap; }
+.m-front { background: var(--cloth); color: var(--cloth-ink); padding-block: clamp(2rem, 5vw, 3.4rem); }
+.m-front .m-in { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: clamp(1.4rem, 4vw, 2.6rem); align-items: center; }
+@media (max-width: 780px) { .m-front .m-in { grid-template-columns: 1fr; } }
+.m-front-text { display: grid; gap: 1rem; min-width: 0; }
+.m-rule { height: 1px; background: var(--accent); }
+.m-lede { opacity: .86; max-width: 26rem; }
+.m-vol { font-family: var(--label); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; opacity: .65; line-height: 1.8; }
+.m-btns { display: flex; gap: .7rem; flex-wrap: wrap; }
+.m-btn { font-family: var(--label); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; padding: .6rem 1rem; border: 1px solid var(--accent); color: var(--cloth-ink); }
+.m-btn.solid { background: var(--accent); }
+.m-front figure { margin: 0; min-width: 0; }
+.m-front figure img, .m-front figure .ph { width: 100%; height: auto; display: block; border: 4px solid var(--cloth-ink); aspect-ratio: 3 / 2; object-fit: cover; }
+.m-front figcaption { font-family: var(--label); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; opacity: .6; margin-top: .6rem; }
+.m-main { padding-block: 1rem 2.5rem; }
+.m-sec { padding-top: clamp(2rem, 5vw, 3rem); display: grid; gap: 1.2rem; }
+.m-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.m-head .r { flex: 1 1 12rem; }
+.m-more { font-family: var(--label); font-size: .7rem; letter-spacing: .11em; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--accent); }
+.m-latest { display: grid; grid-template-columns: 1.25fr 1fr; gap: clamp(1.1rem, 2.5vw, 1.8rem); align-items: center; }
+@media (max-width: 780px) { .m-latest { grid-template-columns: 1fr; } }
+.m-latest img, .m-latest .ph { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.m-latest-body { display: grid; gap: .5rem; min-width: 0; }
+.m-plateline { font-family: var(--label); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.m-desc { color: var(--pencil); font-size: .95rem; }
+.m-go { font-family: var(--label); font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--accent); justify-self: start; margin-top: .4rem; }
+.m-chapters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.1rem; }
+@media (max-width: 880px) { .m-chapters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.m-chapter { display: grid; gap: .3rem; align-content: start; min-width: 0; }
+.m-chapter img, .m-chapter .ph { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; margin-bottom: .4rem; }
+.m-chapter .num { color: var(--accent); }
+.m-chapter p { font-size: .86rem; color: var(--pencil); line-height: 1.45; }
+.m-count { font-family: var(--label); font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--pencil); margin-top: .2rem; }
+.m-sel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.05rem; list-style: none; margin: 0; padding: 0; }
+@media (max-width: 880px) { .m-sel { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.m-sel img, .m-sel .ph { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; }
+.m-sel-meta { display: flex; gap: .5rem; margin-top: .45rem; align-items: baseline; }
+.m-sel-no { font-family: var(--label); font-size: .62rem; letter-spacing: .1em; color: var(--accent); font-variant-numeric: tabular-nums; }
+.m-sel-title { font-size: .87rem; line-height: 1.3; }
+.m-guides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.1rem; }
+@media (max-width: 700px) { .m-guides { grid-template-columns: 1fr; } }
+.m-guide { display: grid; gap: .3rem; min-width: 0; }
+.m-guide p { font-size: .9rem; color: var(--pencil); }
+.m-colo { background: var(--cloth); color: var(--cloth-ink); padding-block: clamp(2rem, 4.5vw, 3rem); }
+.m-colo .m-in { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 2rem; }
+@media (max-width: 780px) { .m-colo .m-in { grid-template-columns: 1fr; } }
+.m-colo-text { display: grid; gap: .8rem; font-size: .95rem; max-width: 32rem; opacity: .9; }
+.m-colo dl { margin: 0; font-family: var(--label); font-size: .68rem; letter-spacing: .09em; text-transform: uppercase; line-height: 2; }
+.m-colo dt { opacity: .5; }
+.m-colo dd { margin: 0 0 .4rem; }
+
+/* article */
+.m-sheet { background: var(--plate); max-width: 56rem; margin: 2.4rem auto 2.4rem; padding: clamp(1.2rem, 5vw, 3rem); border: 1px solid var(--rule); display: grid; gap: 1rem; }
+.m-sheet .measure { max-width: 68ch; display: grid; gap: 1rem; }
+.m-sheet .date { color: var(--pencil); }
+.m-sheet img, .m-sheet .ph { width: 100%; height: auto; display: block; aspect-ratio: 3 / 2; object-fit: cover; }
+.m-sheet p { font-size: 1.125rem; line-height: 1.7; }
+.m-sheet .sub-head { margin-top: 1.2rem; }
+.m-read { border-top: 1px solid var(--rule); padding-top: 1.5rem; margin-top: 1.5rem; display: grid; gap: 1.1rem; }
+.m-read .sub { font-size: .88rem; color: var(--pencil); line-height: 1.4; margin-top: .25rem; }
+
+/* contents */
+.m-plates-head { padding-block: 2.6rem 1.6rem; display: grid; gap: 1rem; }
+.m-blurb { max-width: 30rem; color: var(--pencil); }
+.m-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.m-chip { font-family: var(--label); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; padding: .45rem .8rem; border: 1px solid var(--rule); color: var(--ink); }
+.m-chip span { color: var(--accent); margin-left: .3rem; }
+.m-chip.on { background: var(--cloth); color: var(--cloth-ink); border-color: var(--cloth); }
+.m-chip.on span { color: var(--stamp); }
+.m-plates { list-style: none; margin: 0 0 2.6rem; padding: 0; display: grid; gap: 2rem 1.5rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 880px) { .m-plates { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.m-plate { display: grid; gap: .3rem; min-width: 0; }
+.m-plate img, .m-plate .ph { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; display: block; margin-bottom: .3rem; }
+.m-plate-meta { display: flex; gap: .7rem; font-family: var(--label); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.m-plate-meta .d { color: var(--pencil); font-family: var(--body); font-size: .85rem; letter-spacing: 0; text-transform: none; }
+
+footer.end { padding-block: 2.5rem 4rem; }
+footer.end .col > div { max-width: 44rem; display: grid; gap: .8rem; }
+@media (prefers-reduced-motion: no-preference) { .mock .r svg { transition: opacity .15s ease; } }
+</style>
+
+<div class="col">
+  <header class="intro">
+    <p class="kicker" id="kicker"></p>
+    <h1 id="title"></h1>
+    <div id="intro" style="display:grid;gap:.9rem"></div>
+    <section class="verdict" id="verdict" aria-label="The reviewer's comparison" hidden></section>
+  </header>
+  <section class="glance" id="glance" aria-label="The shortlisted faces at a glance"></section>
+</div>
+
+<div class="switch">
+  <div class="col">
+    <fieldset id="face-picker"><legend>Set the pages in</legend></fieldset>
+    <p class="now" id="face-note"></p>
+  </div>
+</div>
+
+<div class="col" id="mocks"></div>
+
+<footer class="end"><div class="col"><div id="choosing"></div></div></footer>
+
+<script type="application/json" id="fd-content">/*CONTENT*/</script>
+<script>
+// a script error must be visible to the smoke run: it lands on <html> as data-fd-error
+window.addEventListener("error", function (e) { document.documentElement.setAttribute("data-fd-error", String(e.message || e)); });
+(function () {
+/*GEN*/
+/*CONCEPTS*/
+/*RENDER*/
+
+var CONTENT = JSON.parse(document.getElementById("fd-content").textContent);
+var QUERY = new URLSearchParams(location.search);
+var ROOT = document.documentElement;
+var FD_ROUND = "round2";
+var COMPARISON = "comparison";
+
+// ---- DOM helpers: text only, never markup ----
+function $(id) { return document.getElementById(id); }
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; }
+function add(parent, tag, cls, text) { var e = el(tag, cls, text); parent.appendChild(e); return e; }
+function cssString(s) { return "\"" + String(s).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, " ") + "\""; }
+function fdConcept(id) { for (var i = 0; i < CONCEPTS.length; i++) if (CONCEPTS[i].id === id) return CONCEPTS[i]; return null; }
+/* a headline slot: class r, text in data-t, sizes in data attributes; drawn by draw() later */
+function slot(parent, text, o) {
+  var n = add(parent, "div", "r" + (o && o.cls ? " " + o.cls : ""));
+  n.setAttribute("data-t", text);
+  n.setAttribute("data-size", String(o && o.size || 32));
+  if (o && o.w) n.setAttribute("data-w", String(o.w));
+  if (o && o.min) n.setAttribute("data-min", String(o.min));
+  if (o && o.fit) n.setAttribute("data-fit", String(o.fit));
+  if (o && o.lh) n.setAttribute("data-lh", String(o.lh));
+  if (o && o.caps) n.setAttribute("data-caps", "");
+  if (o && o.face) n.setAttribute("data-face", o.face);
+  return n;
+}
+/* slot sizes: every headline slot of the mock pages has a named default (the sizes hop-safari's redesigned
+   pages used, in CSS px: size, and the fit-to-width floor min, the fit characters-per-line fit, the line
+   height lh in 1/1000 em); content.slot_sizes[name] overrides those four per slot, so the mocks are set at
+   the sizes mine-sizes.py read from the site under review (second dry run, finding 7). The mock STRUCTURE
+   (home, article, contents) is fixed; the operator judges the real pages in phase 8. */
+var SLOT_SIZES = CONTENT.slot_sizes || {};
+var SLOT_SIZE_KEYS = ["size", "min", "fit", "lh"];
+function sized(name, dflt) {
+  var o = {}, k, s = SLOT_SIZES[name];
+  for (k in dflt) o[k] = dflt[k];
+  if (s) for (k in s) if (SLOT_SIZE_KEYS.indexOf(k) >= 0) o[k] = s[k];
+  return o;
+}
+/* an image from img/ beside the page, or a placeholder box when the content gives null */
+function picture(parent, src, alt) {
+  if (src) { var img = add(parent, "img"); img.setAttribute("src", src); img.setAttribute("alt", alt || ""); img.setAttribute("loading", "lazy"); return img; }
+  var ph = add(parent, "div", "ph"); ph.setAttribute("role", "img"); ph.setAttribute("aria-label", alt || "placeholder"); return ph;
+}
+
+// ---- colours and fonts from content, as CSS variables ----
+Object.keys(CONTENT.colours).forEach(function (k) { ROOT.style.setProperty("--" + k, CONTENT.colours[k]); });
+ROOT.style.setProperty("--body", CONTENT.fonts.body);
+ROOT.style.setProperty("--label", CONTENT.fonts.label);
+
+// ---- the comparison face: a local woff2 beside the page, or a stylesheet URL; serif when missing ----
+var CMP = CONTENT.comparison;
+ROOT.style.setProperty("--compare", cssString(CMP.family) + ", serif");
+if (CMP.font_url) {
+  var ws = CMP.weights && CMP.weights.length ? CMP.weights : [400, 700];
+  var st = document.createElement("style");
+  st.textContent = "@font-face { font-family: " + cssString(CMP.family) + "; font-weight: " + Math.min.apply(null, ws) + " " + Math.max.apply(null, ws) +
+    "; src: url(" + cssString(CMP.font_url) + ") format(\"woff2\"); }";
+  document.head.appendChild(st);
+} else if (CMP.css_url) {
+  var lk = document.createElement("link"); lk.setAttribute("rel", "stylesheet"); lk.setAttribute("href", CMP.css_url);
+  document.head.appendChild(lk);
+}
+
+// ---- faces in the picker: the shortlisted concepts (round 3 adds two-cut faces), then the comparison ----
+var BOLD = CONTENT.bold_mult, MED = CONTENT.medium_mult, SITE = CONTENT.site, P = CONTENT.pages;
+var FACES = [];
+CONTENT.shortlist.forEach(function (id) { var c = fdConcept(id); FACES.push({ id: id, name: c.name, from: c.from || "" }); });
+FACES.push({ id: COMPARISON, name: CMP.name, from: CMP.note || "For comparison" });
+var NOTES = CONTENT.notes || {};
+function faceById(id) { for (var i = 0; i < FACES.length; i++) if (FACES[i].id === id) return FACES[i]; return null; }
+var current = FACES[0].id;
+
+// ---- page frame ----
+$("kicker").textContent = SITE.kicker + " · round " + FD_ROUND.slice(-1);
+$("title").textContent = CONTENT.round.title;
+document.title = CONTENT.round.title;
+CONTENT.round.intro.forEach(function (p) { add($("intro"), "p", "", p); });
+// (round 3 fills #verdict here; round 2 leaves it hidden)
+
+// ---- glance cards: one per face, always in its own face ----
+FACES.slice(0, -1).forEach(function (f) {
+  var card = add($("glance"), "article", "g-card"), cloth = add(card, "div", "g-cloth");
+  slot(cloth, SITE.wordmark, sized("glance_wordmark_small", { cls: "wm", face: f.id, caps: true, w: BOLD, size: 18 }));
+  slot(cloth, SITE.wordmark, sized("glance_wordmark", { face: f.id, size: 64, min: 40, fit: 5.4 }));
+  var body = add(card, "div", "g-body"), name = add(body, "div", "g-name");
+  add(name, "h2", "", f.name);
+  var b = add(name, "button", "", "Set the pages in " + f.name); b.setAttribute("type", "button"); b.setAttribute("data-pick", f.id);
+  add(body, "p", "g-desc", NOTES[f.id] || f.from);
+  slot(body, P.home.chapters_heading, sized("glance_heading", { face: f.id, w: BOLD, size: 30, min: 24, fit: 10 }));
+  var gt = add(body, "div", "g-titles");
+  CONTENT.glance_titles.forEach(function (t) { slot(gt, t, sized("glance_title", { face: f.id, w: MED, size: 16.8, lh: 1250 })); });
+});
+
+// ---- the three mock pages ----
+function spine(mock) {
+  var sp = add(mock, "div", "m-spine"), inn = add(sp, "div", "m-in");
+  slot(inn, SITE.wordmark, sized("spine_wordmark", { cls: "wm", caps: true, w: BOLD, size: 22 }));
+  var nav = add(inn, "nav", "m-nav"); nav.setAttribute("aria-label", "Mock navigation");
+  SITE.nav.forEach(function (n) { add(nav, "span", "", n); });
+}
+function mockWrap(label, caption, sizes) {
+  var sec = add($("mocks"), "section", "mock-wrap"); sec.setAttribute("aria-label", label);
+  var cap = add(sec, "div", "mock-cap"), left = add(cap, "span");
+  var parts = caption.split(":"); add(left, "b", "", parts[0]); left.appendChild(document.createTextNode(parts.length > 1 ? ":" + parts.slice(1).join(":") : ""));
+  add(cap, "span", "", sizes);
+  return add(sec, "div", "mock");
+}
+// home
+(function () {
+  var H = P.home, mock = mockWrap("Home page mock-up", H.caption, H.sizes);
+  spine(mock);
+  var fore = add(add(mock, "div", "m-fore"), "div", "m-in");
+  add(fore, "p", "m-fore-read", H.fore_read);
+  var strip = add(fore, "div", "m-strip");
+  H.strip.forEach(function (c) { var i = add(strip, "i"); i.style.background = c; });
+  var years = add(fore, "div", "m-years");
+  H.years.forEach(function (y) { var s = add(years, "span", "", y[1]); s.style.flex = y[0] + " 1 0"; });
+  var front = add(add(mock, "section", "m-front"), "div", "m-in"), text = add(front, "div", "m-front-text");
+  slot(text, SITE.wordmark, sized("front_wordmark", { size: 80, min: 48, fit: 5.6 }));
+  add(text, "div", "m-rule");
+  add(text, "p", "m-lede", SITE.lede);
+  var vol = add(text, "p", "m-vol", H.front.volume); vol.appendChild(document.createElement("br")); vol.appendChild(document.createTextNode(H.front.since));
+  var btns = add(text, "div", "m-btns");
+  H.front.buttons.forEach(function (b, i) { add(btns, "span", "m-btn" + (i === 0 ? " solid" : ""), b); });
+  var fig = add(front, "figure"); picture(fig, H.front.image, H.front.alt); add(fig, "figcaption", "", H.front.caption);
+  var main = add(mock, "div", "m-in m-main");
+  var s1 = add(main, "section", "m-sec");
+  slot(s1, H.latest.heading, sized("section_heading", { w: BOLD, size: 35, min: 26, fit: 12 }));
+  var latest = add(s1, "div", "m-latest"); picture(latest, H.latest.image, H.latest.alt);
+  var lb = add(latest, "div", "m-latest-body");
+  slot(lb, H.latest.title, sized("latest_title", { w: BOLD, size: 27, min: 21 }));
+  add(lb, "p", "m-plateline", H.latest.plateline); add(lb, "p", "m-desc", H.latest.desc); add(lb, "span", "m-go", H.latest.go);
+  var s2 = add(main, "section", "m-sec"), head = add(s2, "div", "m-head");
+  slot(head, H.chapters_heading, sized("section_heading", { w: BOLD, size: 35, min: 26, fit: 12 })); add(head, "span", "m-more", H.more);
+  var chs = add(s2, "div", "m-chapters");
+  H.chapters.forEach(function (c) {
+    var d = add(chs, "div", "m-chapter"); picture(d, c.image, c.alt);
+    slot(d, c.num, sized("chapter_num", { cls: "num", size: 15.2, w: MED })); slot(d, c.name, sized("chapter_name", { w: BOLD, size: 18 }));
+    add(d, "p", "", c.blurb); add(d, "p", "m-count", c.count);
+  });
+  var s3 = add(main, "section", "m-sec");
+  slot(s3, H.selection_heading, sized("section_heading", { w: BOLD, size: 35, min: 26, fit: 12 }));
+  var sel = add(s3, "ol", "m-sel");
+  H.selection.forEach(function (p) {
+    var li = add(sel, "li"); picture(li, p.image, p.alt);
+    var meta = add(li, "span", "m-sel-meta"); add(meta, "span", "m-sel-no", p.no); add(meta, "span", "m-sel-title", p.title);
+  });
+  var s4 = add(main, "section", "m-sec");
+  slot(s4, H.guides_heading, sized("section_heading", { w: BOLD, size: 35, min: 26, fit: 12 }));
+  var gs = add(s4, "div", "m-guides");
+  H.guides.forEach(function (g) { var d = add(gs, "div", "m-guide"); slot(d, g.title, sized("guide_title", { w: BOLD, size: 18.4 })); add(d, "p", "", g.blurb); });
+  var colo = add(add(mock, "section", "m-colo"), "div", "m-in"), ct = add(colo, "div", "m-colo-text");
+  slot(ct, H.colophon.heading, sized("colophon_heading", { cls: "h", w: BOLD, size: 21 })); add(ct, "p", "", H.colophon.text);
+  var dl = add(colo, "dl");
+  H.colophon.facts.forEach(function (f) { add(dl, "dt", "", f[0]); add(dl, "dd", "", f[1]); });
+})();
+// article
+(function () {
+  var A = P.article, mock = mockWrap("Article page mock-up", A.caption, A.sizes);
+  spine(mock);
+  var art = add(mock, "article", "m-sheet"), m1 = add(art, "div", "measure");
+  slot(m1, A.title, sized("article_title", { size: 48, min: 32, fit: 13, lh: 1100 }));
+  add(m1, "p", "date", A.date);
+  picture(art, A.image, A.alt);
+  var m2 = add(art, "div", "measure");
+  A.paragraphs.forEach(function (p) { add(m2, "p", "", p); });
+  slot(m2, A.heading, sized("article_heading", { cls: "sub-head", w: BOLD, size: 28 }));
+  add(m2, "p", "", A.paragraph_after);
+  var nav = add(m2, "nav", "m-read"); nav.setAttribute("aria-label", "Mock read next");
+  A.read_next.forEach(function (r) { var d = add(nav, "div"); slot(d, r.title, sized("read_next_title", { w: MED, size: 16.8, lh: 1250 })); add(d, "p", "sub", r.sub); });
+})();
+// contents
+(function () {
+  var C = P.contents, mock = mockWrap("Contents page mock-up", C.caption, C.sizes);
+  spine(mock);
+  var inn = add(mock, "div", "m-in"), head = add(inn, "div", "m-plates-head");
+  slot(head, C.title, sized("contents_title", { size: 64, min: 38, fit: 9 }));
+  add(head, "p", "m-blurb", C.blurb);
+  var chips = add(head, "div", "m-chips");
+  C.chips.forEach(function (c) { var s = add(chips, "span", "m-chip" + (c.on ? " on" : ""), c.label); add(s, "span", "", c.count); });
+  var ol = add(inn, "ol", "m-plates");
+  C.plates.forEach(function (p) {
+    var li = add(ol, "li", "m-plate"); picture(li, p.image, p.alt);
+    var meta = add(li, "div", "m-plate-meta"); add(meta, "span", "", "Plate " + p.no); add(meta, "span", "d", p.date);
+    slot(li, p.title, sized("plate_title", { w: MED, size: 16.8, lh: 1250 }));
+  });
+})();
+
+add($("choosing"), "h2", "", CONTENT.choosing.heading);
+CONTENT.choosing.paragraphs.forEach(function (p) { add($("choosing"), "p", "", p); });
+
+// ---- the switcher ----
+FACES.forEach(function (f) {
+  var l = add($("face-picker"), "label"), r = add(l, "input");
+  r.setAttribute("type", "radio"); r.setAttribute("name", "face"); r.id = "face-" + f.id; r.value = f.id;
+  add(l, "span", "", f.name);
+});
+function setFace(id) {
+  if (!faceById(id)) return;
+  current = id;
+  var r = $("face-" + id); if (r) r.checked = true;
+  $("face-note").textContent = NOTES[id] || faceById(id).from;
+  try { localStorage.setItem(CONTENT.storage_key, id); } catch (e) { /* private mode: the pick is not remembered */ }
+  ROOT.setAttribute("data-fd-face", id);
+  drawAll(function (n) { return !n.hasAttribute("data-face"); });
+}
+$("face-picker").addEventListener("change", function (e) { if (e.target.name === "face") setFace(e.target.value); });
+document.addEventListener("click", function (e) {
+  var b = e.target.closest && e.target.closest("[data-pick]");
+  if (b) { setFace(b.getAttribute("data-pick")); document.querySelector(".switch").scrollIntoView({ behavior: "smooth" }); }
+});
+
+// ---- drawing ----
+var counts = new Map();
+function sizeOf(n) {
+  var max = parseFloat(n.getAttribute("data-size")), min = parseFloat(n.getAttribute("data-min") || max), fit = parseFloat(n.getAttribute("data-fit") || 0);
+  if (!fit) return max;
+  return Math.max(min, Math.min(max, (n.clientWidth || 300) / fit));
+}
+/* which concept draws a face at a size: a plain concept is itself; round 3 adds two-cut faces */
+function conceptFor(id, size) {
+  return fdConcept(id);
+}
+function draw(n) {
+  var id = n.getAttribute("data-face") || current, text = n.getAttribute("data-t"), caps = n.hasAttribute("data-caps");
+  var w = parseFloat(n.getAttribute("data-w") || 1), size = sizeOf(n), lh = parseFloat(n.getAttribute("data-lh") || 1120);
+  if (id === COMPARISON) {
+    var d = el("div", "css-face", caps ? text.toUpperCase() : text);
+    d.style.fontSize = size + "px"; d.style.fontWeight = w >= BOLD ? "700" : w > 1 ? "500" : "400"; d.style.lineHeight = String(lh / 1000);
+    if (caps) d.style.letterSpacing = ".06em";
+    while (n.firstChild) n.removeChild(n.firstChild);
+    n.appendChild(d);
+    counts.set(n, 0);
+    return;
+  }
+  var c = conceptFor(id, size);
+  if (!c) { counts.set(n, 0); return; }
+  if (caps) c = Object.assign({}, c, { id: c.id + "-caps", track: (c.track || 0) + 60 });
+  counts.set(n, render(n, caps ? text.toUpperCase() : text, params(c, w, false), size, { kern: !caps, liga: true, lh: lh }));
+}
+function drawAll(f) {
+  document.querySelectorAll(".r[data-t]").forEach(function (n) { if (!f || f(n)) draw(n); });
+  var sum = 0; counts.forEach(function (v) { sum += v; });
+  ROOT.setAttribute("data-fd-rendered", String(sum));
+}
+
+// ---- start: ?face=, else the stored pick, else the first face ----
+ROOT.setAttribute("data-fd-round", FD_ROUND);
+ROOT.setAttribute("data-fd-font", "none");
+var saved = null;
+try { saved = localStorage.getItem(CONTENT.storage_key); } catch (e) { saved = null; }
+var start = QUERY.get("face");
+if (!faceById(start)) start = faceById(saved) ? saved : current;
+setFace(start);
+drawAll(function (n) { return n.hasAttribute("data-face"); });
+
+var lastW = window.innerWidth, timer;
+window.addEventListener("resize", function () {
+  if (window.innerWidth === lastW) return;
+  lastW = window.innerWidth; clearTimeout(timer); timer = setTimeout(function () { drawAll(); }, 150);
+});
+function probeComparison() {
+  var probe = el("span", "", "Handgloves Hamburgefonstiv 0123456789");
+  probe.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font-size:48px;font-weight:400";
+  document.body.appendChild(probe);
+  probe.style.fontFamily = "serif"; var wb = probe.getBoundingClientRect().width;
+  probe.style.fontFamily = cssString(CMP.family) + ", serif"; var wf = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+  var checked = false;
+  try { checked = document.fonts.check("16px " + cssString(CMP.family)); } catch (e) { checked = false; }
+  return checked && wf !== wb ? "loaded" : "missing";
+}
+if (document.fonts && document.fonts.ready) {
+  var want = document.fonts.load ? document.fonts.load("16px " + cssString(CMP.family)) : Promise.resolve();
+  want.then(function () { return document.fonts.ready; }, function () { return document.fonts.ready; }).then(function () {
+    ROOT.setAttribute("data-fd-font", probeComparison());
+    if (current === COMPARISON) drawAll();
+  });
+}
+})();
+</script>

@@ -1,0 +1,5 @@
+# Runtime: the builder (build.py), the raster self-checks and the review tools.
+fonttools==4.68.*
+brotli
+skia-pathops
+pillow

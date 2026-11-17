@@ -1,0 +1,559 @@
+{
+  "_doc": "ADVERSARIAL content fixture for scripts/concepts/build-page.js and the three round templates (review finding F009). Derived from examples/neutral/content.json: every text field carries quotes, a closing script tag, an img tag with an onerror handler, an inline script that would set data-fd-pwned on <html> if it ever ran, an HTML entity, and U+2028; ids, colours (including the fore-edge strip and tile swatches), font families, the comparison font_url and image paths keep their valid values so the only validation failure is the one named below.",
+  "_how_it_is_used": [
+    "1. As is: pages.home.front.image is 'img/../x.jpg'. build-page.js must refuse it (exit 1) naming that key; the image regex allows only img/<name>.(jpg|jpeg|png|webp).",
+    "2. With pages.home.front.image set to the value of _variant.front_image_ok (null): the build must SUCCEED for round1, round2 and round3, the fd-content JSON block in the output must contain no raw '</script' and no raw '<', and a Chrome run (shoot.py --dump-dom) must show no data-fd-pwned and no data-fd-error on <html>, no <img ... onerror attribute anywhere, and data-fd-rendered > 0. The hostile text should be visible as text in the screenshot.",
+    "Keys that begin with '_' are documentation; the builder drops them before validation."
+  ],
+  "_variant": {
+    "front_image_ok": null
+  },
+  "site": {
+    "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Harbour Review",
+    "wordmark": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Harbour Review",
+    "lede": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Photographs and notes from the quay: boats, weather, the café tables and the people who keep them, kept since 2019.",
+    "nav": [
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Essays",
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Guides",
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep About",
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Feed"
+    ],
+    "kicker": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Harbour Review · display face"
+  },
+  "round": {
+    "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Two headline concepts for Harbour Review",
+    "intro": [
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Georgia is the display face today. These are generated replacements, set by the same generator that will build the font, on the site's own colours, at the sizes the site uses, with real titles.",
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep They are sketches, not fonts. Spacing, kerning and terminals are first-pass. Judge the voice, not the polish."
+    ]
+  },
+  "colours": {
+    "paper": "#f4efe6",
+    "plate": "#fdfaf5",
+    "ink": "#22201c",
+    "pencil": "#6b655c",
+    "accent": "#2d6a7a",
+    "accent-lift": "#3d8294",
+    "cloth": "#1d2a3a",
+    "cloth-deep": "#121b27",
+    "cloth-ink": "#f1ebdd",
+    "stamp": "#c9c0a8",
+    "desk": "#e4ddd0",
+    "rule": "rgba(34, 32, 28, 0.16)",
+    "placeholder": "#9aa5ad"
+  },
+  "fonts": {
+    "body": "Georgia, 'Times New Roman', serif",
+    "label": "system-ui, -apple-system, 'Segoe UI', sans-serif"
+  },
+  "comparison": {
+    "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Sampler (built)",
+    "family": "Sampler",
+    "font_url": "fonts/Sampler-VF.woff2",
+    "weights": [
+      400,
+      700
+    ],
+    "note": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The built Sampler variable font, for comparison with the sketches. When the file is not beside the page, this row falls back to the system serif."
+  },
+  "weights": [
+    {
+      "label": "Regular",
+      "mult": 1
+    },
+    {
+      "label": "Medium",
+      "mult": 1.25
+    },
+    {
+      "label": "Bold",
+      "mult": 1.5
+    }
+  ],
+  "bold_mult": 1.5,
+  "medium_mult": 1.25,
+  "storage_key": "harbour-review-face",
+  "lineup_text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand at the Third Floor",
+  "titles": [
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The Quiet Harbour at Dawn",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A Field Guide to Wet Stone",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Notes from the Third Floor #4",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep SIX WAYS OUT",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Offline, Afloat & Adrift"
+  ],
+  "audit_intro": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The site was reviewed at 500, 1280 and 1600px before any letters were drawn. Each finding says what it changes for the font. The items marked first are the ones to fix before the face is chosen.",
+  "audit": [
+    {
+      "first": true,
+      "finding": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Small capital labels repeat the heading under them.",
+      "fix": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep “Latest” sits over “What came in this week”; “Chapters” over “Four ways in”. Keep a label only where it adds a fact.",
+      "font_effect": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Large. With the labels gone, each heading stands alone, so the display face carries section identity by itself at 25 to 35px."
+    },
+    {
+      "first": true,
+      "finding": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Boxed cards that lift on hover.",
+      "fix": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The four chapter cards rise with a shadow. Use photo, numeral, name and count, with no box.",
+      "font_effect": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The chapter names become the only structure, so the Bold at 18px matters."
+    },
+    {
+      "first": false,
+      "finding": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Georgia cannot hold the 16.8px plate titles.",
+      "fix": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The plate titles look lighter than the body text beside them.",
+      "font_effect": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The hardest constraint: at 16.8px one screen pixel is 60 font units, so the Regular's thinnest stroke needs about 45 units."
+    },
+    {
+      "first": false,
+      "finding": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Two date formats.",
+      "fix": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The home page says “3 March 2026”; the grid says “2026-03-03”. Use one spelled-out date.",
+      "font_effect": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep None, if dates move to the body face."
+    }
+  ],
+  "guidelines": [
+    {
+      "lead": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Differ from the body face in at least two ways",
+      "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep out of contrast, stress angle, serif shape and width. Georgia is a sturdy text serif; a similar face looks like a mistake beside it."
+    },
+    {
+      "lead": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Work from 15px to 80px:",
+      "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 15px chapter numerals, 16.8px titles in a grid, 25 to 35px section headings, 32 to 48px essay titles, an 80px title on cloth, and the wordmark in spaced capitals at 22 to 26px."
+    },
+    {
+      "lead": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Two weights,",
+      "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Regular and a clearly heavier Bold. The lowercase matters most: titles are Title Case, and only the wordmark is set in capitals."
+    },
+    {
+      "lead": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Two character traps from the real titles:",
+      "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep most titles hold a no-break space before the last word, and some type the apostrophe as a straight ' which must draw as a curly one."
+    }
+  ],
+  "concepts": {
+    "text": {
+      "pick": true,
+      "cost": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Low",
+      "desc": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep An upright, low-contrast bracketed serif with flared terminals: a text cut meant to hold the 16.8px plate titles with even colour.",
+      "risk": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep It is the closest to Georgia and is distinct from it by its flared ends and tighter fit. It is here as the control."
+    },
+    "display": {
+      "pick": true,
+      "cost": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Low",
+      "desc": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The same drawing cut for large sizes: thinner hairlines, longer serifs and tighter spacing, so the 48 to 80px titles gain presence.",
+      "risk": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Below 24px its hairlines fall under a pixel; it only works as the large half of a two-cut face."
+    }
+  },
+  "specimen": {
+    "heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Chapters",
+    "chapters": [
+      {
+        "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep I",
+        "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Tide",
+        "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Weather, water and the things it leaves."
+      },
+      {
+        "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep II",
+        "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Tables",
+        "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The cafés, the counters and the people behind them."
+      },
+      {
+        "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep III",
+        "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Boats",
+        "blurb": null
+      },
+      {
+        "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep IV",
+        "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Streets",
+        "blurb": null
+      }
+    ],
+    "essay": {
+      "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Offline, Afloat & Adrift: a Note on the Eighty-Seventh Mooring",
+      "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 3 March 2026",
+      "paragraph": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The tide came in under the pier while the kettle boiled, and by the time the cups were out the boats had turned to face the other way. Nobody mentioned it; it happens twice a day."
+    },
+    "plateline": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Plate 7 · 2 September 2019",
+    "tiles": [
+      {
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The Quiet Harbour at Dawn",
+        "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 14 October 2025",
+        "colour": "#8fa3b1"
+      },
+      {
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A Field Guide to Wet Stone",
+        "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 29 September 2024",
+        "colour": "#6f7d72"
+      },
+      {
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Notes from the Third Floor #4",
+        "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 28 September 2024",
+        "colour": "#9b7b5a"
+      },
+      {
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand",
+        "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 18 March 2024",
+        "colour": "#b8b2a4"
+      },
+      {
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep SIX WAYS OUT",
+        "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 30 May 2023",
+        "colour": "#7a6f4e"
+      },
+      {
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Offline, Afloat & Adrift",
+        "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 7 January 2022",
+        "colour": "#c0a27c"
+      }
+    ],
+    "tiles_note": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Swatches stand in for each plate's photograph. Titles are set at the grid's real 16.8px. Six tiles fill the grid's rows at 500px (two columns) and at 1280 and 1600px (six columns).",
+    "chars": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep ABCDEFGHIJKLM NOPQRSTUVWXYZ abcdefghijklm nopqrstuvwxyz 0123456789 & ( ) ' : ? . - ! ,"
+  },
+  "recommendation": {
+    "heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Recommendation",
+    "paragraphs": [
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Take both cuts to a second round as one face: the text cut for everything under 40px and the display cut above. Neither is a candidate on its own.",
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The lineup text box and the weight select above redraw every concept; the specimens below are fixed."
+    ]
+  },
+  "shortlist": [
+    "text",
+    "display"
+  ],
+  "notes": {
+    "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The text cut: an upright, low-contrast bracketed serif with flared terminals, drawn to hold the 16.8px plate titles.",
+    "display": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The display cut: thinner hairlines, longer serifs and tighter spacing for the 48 to 80px titles.",
+    "sampler-two-cuts": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Sampler in two optical sizes: the text cut below 40px and the display cut from 40px up, which is how the variable font will be built.",
+    "comparison": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The built Sampler variable font, for comparison. When the file is missing beside the page this is the system serif."
+  },
+  "glance_titles": [
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The Quiet Harbour at Dawn",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Notes from the Third Floor #4",
+    "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand"
+  ],
+  "pages": {
+    "home": {
+      "caption": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Home page: frontispiece, latest plate, chapters, selection, guides, colophon",
+      "sizes": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Headline sizes 15 to 80px",
+      "fore_read": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 24 plates since September 2019",
+      "strip": [
+        "#8fa3b1",
+        "#6f7d72",
+        "#9b7b5a",
+        "#b8b2a4",
+        "#7a6f4e",
+        "#c0a27c",
+        "#5e6b7a",
+        "#a89f8f",
+        "#7c8a92",
+        "#b59a6a",
+        "#4f5d55",
+        "#c8c1b2"
+      ],
+      "years": [
+        [
+          5,
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 2019"
+        ],
+        [
+          6,
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 2020"
+        ],
+        [
+          4,
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 2022"
+        ],
+        [
+          5,
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 2024"
+        ],
+        [
+          4,
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 2025"
+        ]
+      ],
+      "front": {
+        "image": "img/../x.jpg",
+        "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A placeholder stands in for the frontispiece photograph.",
+        "caption": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Plate 7 · The Quay at Six · 2 September 2019",
+        "volume": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 24 plates · 118 photographs",
+        "since": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Since September 2019",
+        "buttons": [
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Open the contents",
+          "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Open at random"
+        ]
+      },
+      "latest": {
+        "heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Latest",
+        "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The Quiet Harbour at Dawn",
+        "image": null,
+        "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder",
+        "plateline": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Plate 24 · 14 October 2025",
+        "desc": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A cold morning on the quay, the first boat out and the last light on, and why it pays to be early.",
+        "go": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Read this plate"
+      },
+      "chapters_heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Chapters",
+      "more": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep All twenty-four plates, in order",
+      "chapters": [
+        {
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder",
+          "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep I",
+          "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Tide",
+          "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Weather, water and the things it leaves.",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 9 plates"
+        },
+        {
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder",
+          "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep II",
+          "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Tables",
+          "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The cafés, the counters and the people behind them.",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 11 plates"
+        },
+        {
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder",
+          "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep III",
+          "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Boats",
+          "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Hulls, ropes and the hands that mend them.",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 7 plates"
+        },
+        {
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder",
+          "num": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep IV",
+          "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Streets",
+          "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The town behind the harbour, mostly in rain.",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 8 plates"
+        }
+      ],
+      "selection_heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A selection",
+      "selection": [
+        {
+          "no": 23,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A Field Guide to Wet Stone",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 29 September 2024",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 19,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Notes from the Third Floor #4",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 28 September 2024",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 14,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 18 March 2024",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 11,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep SIX WAYS OUT",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 30 May 2023",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        }
+      ],
+      "guides_heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Guides",
+      "guides": [
+        {
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A Guide to the Quay Cafés",
+          "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Where to sit, what to order, and when the tables fill."
+        },
+        {
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Walking the Sea Wall",
+          "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Four miles, two gates and one place to turn back."
+        }
+      ],
+      "colophon": {
+        "heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep About this volume",
+        "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Harbour Review is written and photographed in one small town, with detours along the coast in both directions. New plates are added when there are new plates worth adding.",
+        "facts": [
+          [
+            "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Begun",
+            "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep September 2019"
+          ],
+          [
+            "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Extent so far",
+            "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 24 plates · 118 photographs"
+          ],
+          [
+            "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Latest",
+            "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Plate 24 · 14 October 2025"
+          ]
+        ]
+      }
+    },
+    "article": {
+      "caption": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep An essay: plate 14, title, a section heading, and the Read next list",
+      "sizes": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Headline sizes 17 to 48px",
+      "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand",
+      "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 18 March 2024",
+      "image": null,
+      "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder",
+      "paragraphs": [
+        "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The bracket in question held a shelf in the harbourmaster's office for sixty years, and the shelf held the tide tables. When it gave way on a Tuesday the tables went into the sink and the harbourmaster went to the café.",
+        "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep This is the story of the afternoon it took to find another, which is also the story of every shop on the front, in the order you would walk them."
+      ],
+      "heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Three shops and a shed",
+      "paragraph_after": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The chandlery had brackets but only in pairs; the hardware shop had one, bent; the shed at the end of the wall had six, in a biscuit tin, and would not sell them.",
+      "read_next": [
+        {
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Notes from the Third Floor #4",
+          "sub": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The stairwell, the window and the view of the slip, in the fourth of an occasional series."
+        },
+        {
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A Field Guide to Wet Stone",
+          "sub": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Granite, slate and the concrete that pretends to be either, after rain."
+        },
+        {
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep SIX WAYS OUT",
+          "sub": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Every road, lane and footpath that leaves the harbour, and what each one is for."
+        }
+      ]
+    },
+    "contents": {
+      "caption": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The contents: the essays index, first eight plates",
+      "sizes": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Plate titles at the real 16.8px",
+      "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Essays",
+      "blurb": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Every plate in the volume, newest first. Photographs and notes from the quay.",
+      "chips": [
+        {
+          "label": "All",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 24",
+          "on": true
+        },
+        {
+          "label": "Tide",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 9",
+          "on": false
+        },
+        {
+          "label": "Tables",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 11",
+          "on": false
+        },
+        {
+          "label": "Boats",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 7",
+          "on": false
+        },
+        {
+          "label": "Streets",
+          "count": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 8",
+          "on": false
+        }
+      ],
+      "plates": [
+        {
+          "no": 24,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The Quiet Harbour at Dawn",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 14 October 2025",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 23,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep A Field Guide to Wet Stone",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 29 September 2024",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 19,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Notes from the Third Floor #4",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 28 September 2024",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 14,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Bracket's Last Stand",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 18 March 2024",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 11,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep SIX WAYS OUT",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 30 May 2023",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 9,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Offline, Afloat & Adrift",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 7 January 2022",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 6,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The Café at the End of the Wall",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 2 June 2020",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        },
+        {
+          "no": 3,
+          "title": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Ropework",
+          "date": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep 11 November 2019",
+          "image": null,
+          "alt": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Placeholder"
+        }
+      ]
+    }
+  },
+  "choosing": {
+    "heading": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Choosing",
+    "paragraphs": [
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The tests for the choice: the face should differ from Georgia on at least two of contrast, stress, serif shape and width; it has to hold the 16.8px plate titles; and the Bold must be a clear step above the Regular at 18px.",
+      "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Round 3 takes the finalists into the real font build, reviewed at each step."
+    ]
+  },
+  "faces": [
+    {
+      "id": "sampler-two-cuts",
+      "name": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Sampler, two cuts",
+      "from": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Text cut below 40px, display cut above",
+      "cuts": {
+        "text": "text",
+        "display": "display",
+        "from": 40
+      }
+    }
+  ],
+  "verdict": {
+    "headline": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep What the reviewer says: build Sampler as two cuts",
+    "summary": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep The two-cut face is the only entry that holds the 16.8px plate titles and still has presence at 80px. On its own the text cut is plain above 48px, and on its own the display cut smudges below 24px.",
+    "items": [
+      {
+        "face": "sampler-two-cuts",
+        "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Even colour at 16.8px, serifs intact at 48px, and the 80px wordmark gains the longer serifs. The switch at 40px is not visible on any page here."
+      },
+      {
+        "face": "text",
+        "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Best at the 48px essay title and the 16.8px grid. Weakest at the 80px wordmark, the plainest of the three."
+      },
+      {
+        "face": "display",
+        "text": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Best at 64 to 80px. At 16.8px its hairlines fall under a pixel and the serifs smudge."
+      }
+    ],
+    "ranking": [
+      "sampler-two-cuts",
+      "text",
+      "display"
+    ],
+    "next": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Build the variable font with opsz 24 to 72 and the text cut as the default; measure where Chrome maps font-optical-sizing: auto with opsz.py before fixing the axis ends.",
+    "source": "Bracket's \"Last\" Stand </script><img src=x onerror=alert(1)><script>document.documentElement.setAttribute(\"data-fd-pwned\",\"1\")</script> &amp; &lt;b&gt;   line-sep Review of 2026-11-15 from headless-Chrome screenshots of this page at 500, 1280 and 1600px. Unhinted rendering on one machine; Windows and phone rendering not checked."
+  },
+  "slot_sizes": {
+    "article_title": {
+      "size": 48,
+      "min": 32
+    }
+  }
+}
