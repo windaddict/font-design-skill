@@ -158,6 +158,8 @@ TOOL_PREFIX = "/__fd/"  # narrow.html and opsz.html are served from this folder 
 BEACON_WAIT = 3.0  # seconds to wait for a beacon after Chrome exits (it is a loopback GET)
 EXIT_GRACE = 20.0  # seconds Chrome gets to exit after the screenshot and the whole DOM are written (item 1); then it is killed
 DOM_END = b"</html>\n"  # --dump-dom prints the serialised document and a newline; outerHTML always ends in </html>
+RESULT_CODE_HUNG = 2  # content::RESULT_CODE_HUNG, what Chrome's macOS shutdown watchdog _exits with (chrome/browser/shutdown_watchdog_mac.cc)
+TEARDOWN_WATCHDOG = "Teardown watchdog expired"  # the line that watchdog logs to stderr before it exits
 SHOT_COOKIE = "fd_shot"  # set by every .html response carrying ?shot=; ties this Chrome's later requests to the shot
 SHOT_TOKEN_OK = re.compile(r"^[A-Za-z0-9._-]{1,80}$")  # what may go into the Set-Cookie header
 # Returned by translate_path for a request that escapes its root. It lies under os.devnull, which is
@@ -681,9 +683,12 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
             raise RuntimeError(f"Chrome took over {timeout}s for {url} at {width}@{scale}x") from None
         except OSError as exc:  # not executable, wrong architecture, deleted since discovery
             raise RuntimeError(f"Chrome could not be started ({type(exc).__name__}: {exc}): {chrome}; set $CHROME to a working browser binary") from None
-    if r.complete and (r.returncode != 0 or r.killed):
-        # item 1's exception: both outputs exist and the fault is in Chrome's teardown; say so and go on
-        print(f"shoot.py: {'Chrome had not exited' if r.killed else f'Chrome exited {r.returncode}'} "
+    teardown_hung = r.complete and (r.killed or (r.returncode == RESULT_CODE_HUNG and TEARDOWN_WATCHDOG in r.stderr))
+    if teardown_hung:
+        # item 1's exception: both outputs exist and the fault is in Chrome's teardown; say so and go on. Any other
+        # non-zero exit after a complete DOM stays a failure: a renderer that died leaves a complete DOM of an
+        # error page behind, and accepting it would pass a shot of nothing
+        print(f"shoot.py: {'Chrome had not exited' if r.killed else f'Chrome exited {r.returncode} (its teardown watchdog)'} "
               f"{EXIT_GRACE:g}s after writing the screenshot and the DOM for {url} at {width}@{scale}x"
               f"{' and was killed' if r.killed else ''}; both outputs are complete and are used "
               f"(a teardown hang, not a page fault): {r.stderr[-300:]!r}", file=sys.stderr)

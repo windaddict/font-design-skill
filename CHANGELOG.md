@@ -153,8 +153,9 @@ default did change, as a fix: an unset `cut` is now 0 rad, where 0.1 drew non-fi
   shutdown watchdog logs "Teardown watchdog expired; recording dump and terminating." and `_exit`s with 2, and the
   helpers it leaves behind hold stdout open), and `subprocess.run` waited for the pipe to close. `run_chrome()` now
   reads stdout as it arrives; once the PNG exists and the DOM ends in `</html>` Chrome has `EXIT_GRACE` (20 s) to exit,
-  after which its process group is killed, and a non-zero exit after a complete shot is accepted; both departures are
-  printed. An incomplete DOM still fails as before. `tests/test_shoot.py` runs a fake Chrome through all four cases;
+  after which its process group is killed, and an exit 2 that follows a complete shot with the watchdog's line on stderr
+  is accepted (any other non-zero exit still fails: a dead renderer leaves a complete DOM of an error page); both
+  departures are printed. An incomplete DOM still fails as before. `tests/test_shoot.py` runs a fake Chrome through all four cases;
   the two "keep" cases were red on the old code with the exact CI messages.
 
 ### Known issues
