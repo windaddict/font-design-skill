@@ -871,3 +871,985 @@ def test_static_instances_exist_and_match_the_variable_font(group, instance_name
     im = Image.new("L", (120, 120), 0)
     ImageDraw.Draw(im).text((20, 90), "H", font=ImageFont.truetype(str(ttf_path), 40), fill=255, anchor="ls")
     assert im.getextrema()[1] > 0, f"{ttf_path.name}: FreeType rendered nothing"
+
+
+# --- optical corrections: hzThin, roundGain, diagThin (0.2, item 3) -----------------------------------------
+OPTICAL_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+// monoline, nib 0, every end a plain butt: the pen width is then 1 everywhere and the only variation in a
+// stroke's width is the optical factor. `s` stays "serif" because the corner pass (E, z) runs only for a
+// serifed concept; the serif polygons are separate from the stroke bodies measured below. The fit is kept
+// (overshoot 10) because the flat-line and corner assertions need it.
+const ends = {}; for (const k of Object.keys(concepts[0].ends)) ends[k] = "butt"; ends.s = "serif";
+const base = Object.assign({}, concepts[0], { thin: 1, nib: 0, pow: 1, swell: 0, wob: 0, tear: false, overshoot: 10, ends });
+delete base.thinGrow; delete base.flareAmt; delete base.dropAmt;
+const VARIANTS = {
+  none: {}, hz: { hzThin: 0.9 }, round: { roundGain: 1.05 }, diag: { diagThin: 0.94 },
+  // the bound's extra cases (finding R3): a gain below 1, and a hzThin above 1 that multiplies the gain term
+  roundLow: { roundGain: 0.85 }, hzHigh: { hzThin: 1.4 }, hzHighRound: { hzThin: 1.4, roundGain: 1.05 },
+  all: { hzThin: 0.9, roundGain: 1.05, diagThin: 0.94 }, ones: { hzThin: 1, roundGain: 1, diagThin: 1 },
+  // the unfitted c has a curve tighter than the gain radius; the fitted one flattens it (the fit pulls the
+  // centre line in by the half width), so the saturated end of the weight is only visible without the fit
+  roundNoFit: { roundGain: 1.05, overshoot: 0 },
+};
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function bodies(g) {
+  // the stroke bodies in drawing order: the polygons with two edge runs
+  const out = [];
+  g.polys.forEach((poly, i) => {
+    if (g.runs[i].length !== 2) return;
+    const runs = g.runs[i], flipped = runs[0][0] !== 0, n = runs[0][1] - runs[0][0] + 1;
+    out.push({ poly, n, L: j => flipped ? poly[runs[0][1] - j] : poly[runs[0][0] + j], R: j => flipped ? poly[runs[1][0] + j] : poly[runs[1][1] - j] });
+  });
+  return out;
+}
+const maxY = poly => Math.max(...poly.map(p => p[1])), maxX = poly => Math.max(...poly.map(p => p[0]));
+const res = { W0: base.W, variants: {} };
+for (const [vn, extra] of Object.entries(VARIANTS)) {
+  res.variants[vn] = {};
+  for (const mult of [1, 1.5]) {
+    const P = m.params(Object.assign({}, base, extra, { id: "optical-" + vn }), mult);
+    const g = k => m.glyph(k, P);
+    const r = {};
+    const l = bodies(g("l"))[0], mid = Math.floor(l.n / 2);
+    r.l_w = dist(l.L(mid), l.R(mid));
+    const d = bodies(g("-"))[0]; r.dash_w = dist(d.L(Math.floor(d.n / 2)), d.R(Math.floor(d.n / 2)));
+    const o = g("o"); r.o_right = maxX(o.polys[0]) - maxX(o.polys[1]);
+    r.o_top = maxY(o.polys[0]); r.o_bot = Math.min(...o.polys[0].map(p => p[1]));
+    const x = bodies(g("x"))[0], xm = Math.floor(x.n / 2), mp = j => [(x.L(j)[0] + x.R(j)[0]) / 2, (x.L(j)[1] + x.R(j)[1]) / 2];
+    r.x_w = dist(x.L(xm), x.R(xm)); r.x_theta = Math.atan2(mp(xm + 1)[1] - mp(xm - 1)[1], mp(xm + 1)[0] - mp(xm - 1)[0]);
+    r.z_top = maxY(bodies(g("z"))[0].poly);
+    r.tops = {}; for (const k of ["c", "e", "s"]) r.tops[k] = Math.max(...g(k).polys.map(maxY));
+    const E = bodies(g("E")); r.E_stem_top = maxY(E[0].poly); r.E_bar_top = maxY(E[1].poly);
+    const c = bodies(g("c"))[0], cn = c.n, pin = j => j > 0 && (dist(c.L(j), c.L(j - 1)) < 1e-9 || dist(c.R(j), c.R(j - 1)) < 1e-9);
+    r.c_mid = []; r.c_w = []; r.c_pin = [];
+    for (let j = 0; j < cn; j++) {
+      r.c_mid.push([(c.L(j)[0] + c.R(j)[0]) / 2, (c.L(j)[1] + c.R(j)[1]) / 2]); r.c_w.push(dist(c.L(j), c.R(j)));
+      r.c_pin.push(pin(j) || pin(j + 1));
+    }
+    res.variants[vn][mult] = r;
+  }
+}
+// h: with every knob explicitly 1, every glyph is the glyph without the keys, exactly
+let same = true, count = 0;
+for (const mult of [1, 1.5]) {
+  const A = m.params(Object.assign({}, base, { id: "optical-same-a" }), mult), B = m.params(Object.assign({}, base, VARIANTS.ones, { id: "optical-same-b" }), mult);
+  for (const k of Object.keys(m.G)) {
+    const a = m.glyph(k, A), b = m.glyph(k, B);
+    if (!a) continue;
+    count++;
+    if (JSON.stringify(a.polys) !== JSON.stringify(b.polys)) same = false;
+  }
+}
+res.same = same; res.glyphs = count;
+console.log(JSON.stringify(res));
+"""
+
+
+def run_optical(cfg):
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", OPTICAL_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+def expected_curvature_weight(mids, W0, RADIUS=2.5):
+    """The documented curvature weight (references/generator.md section 3), restated from a stroke's centre
+    line: the turning angle at a sample over the mean length of its two chords, times 2.5 x W0, capped at 1.
+    The end samples take the weight of their neighbour. The centre line is the midpoint of the two output
+    edges, so nothing here comes from the generator's own arithmetic."""
+    n, out = len(mids), []
+    for i in range(n):
+        j = min(n - 2, max(1, i))
+        (ax, ay), (bx, by), (cx, cy) = mids[j - 1], mids[j], mids[j + 1]
+        ux, uy, vx, vy = bx - ax, by - ay, cx - bx, cy - by
+        ds = (math.hypot(ux, uy) + math.hypot(vx, vy)) / 2
+        kappa = abs(math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)) / ds if ds > 0 else 0
+        out.append(min(1.0, kappa * RADIUS * W0))
+    return out
+
+
+def test_optical_corrections_change_only_the_strokes_they_name(cfg):
+    """Item 3 of the 0.2 plan. One knob per variant, then all three together, so no expectation mixes two
+    factors by accident (review finding F007: the first draft expected a diagonal's width from `diagThin`
+    alone while `hzThin` also applied at that angle). The base concept is monoline with nib 0 and plain butt
+    ends, so every width is W times the optical factor and nothing else. Expected values are the configured
+    ratio or the documented formula restated here with this test's own trigonometry; the angle of the `x`
+    stroke and the curvature of the `c` are read from the output polygons, never from the generator.
+
+    Mutations (scripts/tests/mutate.py): hzThin without its cos^2 weight (the plumb `l` thins); a curvature
+    weight of 1 on every open stroke (the straight `l` swells); a weight of 0 on every open stroke (the `c`
+    never swells); no diagonal weight (the `x` stays full width); a fit that ignores the factor (the `z`
+    bar's top edge misses 500); a corner that ignores it (the `E` stem overshoots its bar)."""
+    out = run_optical(cfg)
+    V, W0 = out["variants"], out["W0"]
+    for mult in ("1", "1.5"):
+        W = W0 * float(mult)
+        for name, r in ((n, v[mult]) for n, v in V.items()):
+            where = f"{name} at mult {mult}"
+            # a: a plumb straight stem is untouched by every knob (cos^2 90 deg = 0, sin^2 180 deg = 0, curvature 0)
+            if name != "roundNoFit":
+                assert abs(r["l_w"] - W) < 0.05, f"{where}: the `l` stem is {r['l_w']:.3f} wide, expected {W}"
+        # b: a level bar thins by hzThin, and by nothing else
+        assert abs(V["hz"][mult]["dash_w"] - 0.9 * W) < 0.05, f"hz at mult {mult}: the `-` bar is {V['hz'][mult]['dash_w']:.3f} wide, expected {0.9 * W}"
+        for n in ("none", "round", "diag"):
+            assert abs(V[n][mult]["dash_w"] - W) < 0.05, f"{n} at mult {mult}: the `-` bar is {V[n][mult]['dash_w']:.3f} wide, expected {W}"
+        # c: the ring's right extreme (a vertical tangent on a closed stroke) swells by roundGain
+        got = V["round"][mult]["o_right"]
+        assert abs(got - 1.05 * W) < 0.1, f"round at mult {mult}: the `o` is {got:.3f} thick at its right extreme, expected {1.05 * W}"
+        assert abs(V["none"][mult]["o_right"] - W) < 0.1, f"none at mult {mult}: the `o` is {V['none'][mult]['o_right']:.3f} thick at its right extreme, expected {W}"
+        # c2: the configured overshoot is what a round top gets, whatever the knobs do to the stroke's width
+        for vn in ("none", "hz", "round", "diag", "all"):
+            r = V[vn][mult]
+            assert abs(r["o_top"] - 510) < 0.1 and abs(r["o_bot"] + 10) < 0.1, \
+                f"{vn} at mult {mult}: the `o` spans {r['o_bot']:.2f} to {r['o_top']:.2f}, expected -10 to 510 (overshoot 10 past the lines)"
+        # d: an open stroke swells by the weight of its local curvature. Every sample of the `c` is compared with
+        # the width the documented formula gives for the curvature read off the OUTPUT centre line.
+        for vn in ("round", "roundNoFit"):
+            r = V[vn][mult]
+            cw = expected_curvature_weight(r["c_mid"], W0)
+            # a fold-pinned sample is not the pen law's (the pin copies its neighbour), so it is left out
+            seen = [c for c, pinned in zip(cw, r["c_pin"]) if not pinned]
+            worst = max(abs(w - W * (1 + 0.05 * c)) for w, c, pinned in zip(r["c_w"], cw, r["c_pin"]) if not pinned)
+            assert worst < 0.05, f"{vn} at mult {mult}: the `c` is up to {worst:.3f} off W x (1 + 0.05 x curvature weight) at one sample"
+            if vn == "roundNoFit":
+                assert max(seen) > 0.99, \
+                    f"{vn} at mult {mult}: the unfitted `c` never reaches a curvature weight of 1 (max {max(seen):.3f}); the fixture cannot observe the cap"
+                assert max(r["c_w"]) > 1.049 * W, f"{vn} at mult {mult}: the widest `c` sample is {max(r['c_w']):.3f}, expected {1.05 * W}"
+            else:
+                assert max(seen) > 0.5, \
+                    f"{vn} at mult {mult}: the fitted `c` never reaches a curvature weight of 0.5 (max {max(seen):.3f}); the fixture cannot observe the weighting"
+                assert max(r["c_w"]) > 1.02 * W, f"{vn} at mult {mult}: the widest `c` sample is {max(r['c_w']):.3f}, the roundGain never reached it"
+        # e: a diagonal thins by diagThin x sin^2(2 theta); theta is read from the centre line of the output
+        x = V["diag"][mult]
+        th = x["x_theta"]
+        assert abs(x["x_w"] - W * (1 - 0.06 * math.sin(2 * th) ** 2)) < 0.05, \
+            f"diag at mult {mult}: the `x` stroke (theta {math.degrees(th):.1f} deg) is {x['x_w']:.3f} wide, expected {W * (1 - 0.06 * math.sin(2 * th) ** 2):.3f}"
+        # e2: all three together, the full product restated; the stroke is straight, so the curvature weight is 0
+        a = V["all"][mult]
+        th = a["x_theta"]
+        want = W * (1 - 0.1 * math.cos(th) ** 2) * (1 - 0.06 * math.sin(2 * th) ** 2) * (1 + 0.05 * 0)
+        assert abs(a["x_w"] - want) < 0.05, \
+            f"all at mult {mult}: the `x` stroke (theta {math.degrees(th):.1f} deg) is {a['x_w']:.3f} wide, expected the product {want:.3f}"
+        # f: the fit follows the thinning, so a flat bar's outer edge still sits on the x-line
+        assert abs(V["hz"][mult]["z_top"] - 500) < 0.1, f"hz at mult {mult}: the `z` bar's top edge is at {V['hz'][mult]['z_top']:.2f}, expected 500"
+        # g: and the corner reach follows it, so the stem ends flush with the bar's outer edge
+        hzr = V["hz"][mult]
+        assert abs(hzr["E_stem_top"] - hzr["E_bar_top"]) < 0.1, f"hz at mult {mult}: the `E` stem tops out at {hzr['E_stem_top']:.2f}, its bar at {hzr['E_bar_top']:.2f}"
+        # the same lines with no knob set, so f and g measure a difference the knob made; and with all three
+        # set, where a fit or a corner that wrongly gave the straight bar the round gain would miss by 2.25
+        for vn in ("none", "all"):
+            r = V[vn][mult]
+            assert abs(r["z_top"] - 500) < 0.1, f"{vn} at mult {mult}: the `z` bar's top edge is at {r['z_top']:.2f}, expected 500"
+            assert abs(r["E_stem_top"] - r["E_bar_top"]) < 0.1, f"{vn} at mult {mult}: the `E` stem tops out at {r['E_stem_top']:.2f}, its bar at {r['E_bar_top']:.2f}"
+    # h: with every knob explicitly 1 every glyph is the glyph with no knob, exactly
+    assert out["same"] and out["glyphs"] > 100, f"explicit 1s changed a glyph (same={out['same']}, {out['glyphs']} glyphs compared)"
+
+
+REFUSAL_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+const cases = JSON.parse(process.argv[3]), out = [];
+for (const [knob, spec] of cases) {
+  const value = spec && typeof spec === "object" && spec.nan ? NaN : spec;
+  let msg = null;
+  try { m.params(Object.assign({}, concepts[0], { id: "refuse", [knob]: value }), 1); } catch (e) { msg = e.message; }
+  out.push([knob, spec, msg]);
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def refusal_results(cfg, cases):
+    """Runs params() once per (knob, value) and returns [(knob, value, error message or None)]. A value of {"nan": 1} is sent as NaN."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", REFUSAL_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"]), json.dumps(cases)], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+# every optical knob and the open interval params() must accept, written here and not read from the generator (review finding G6: the first
+# version built its bad cases from its own fixture and never sent `diagThin: null` or `roundGain: null`)
+OPTICAL_RANGES = {"hzThin": (0.5, 1.5), "diagThin": (0.5, 1.5), "roundGain": (0.8, 1.25)}
+
+
+def test_the_optical_knobs_refuse_values_outside_their_ranges(cfg):
+    """params() throws, naming the knob, for every optical knob (hzThin and diagThin outside (0.5, 1.5), roundGain outside (0.8, 1.25)) given
+    null, a string, NaN, a boolean, a value just below, just above, far outside, or either bound (the intervals are open), and accepts a value
+    just inside either bound, the middle and 1. The cases are written in this test (OPTICAL_RANGES), the product of every knob and every kind
+    of bad value, so a knob that forgot one kind (the Impasse review's `diagThin: null`) fails by name.
+
+    Mutations: the range check removed; and one that accepts `diagThin: null` only."""
+    cases, want = [], {}
+    for knob, (lo, hi) in OPTICAL_RANGES.items():
+        bad = [None, "1", "NaN", {"nan": 1}, True, lo - 0.01, hi + 0.01, lo, hi, -1, 0, 100]
+        good = [lo + 0.01, (lo + hi) / 2, hi - 0.01, 1]
+        for v in bad:
+            cases.append([knob, v])
+            want[(knob, json.dumps(v))] = "refuse"
+        for v in good:
+            cases.append([knob, v])
+            want[(knob, json.dumps(v))] = "accept"
+    for knob, spec, msg in refusal_results(cfg, cases):
+        verdict = want[(knob, json.dumps(spec))]
+        label = f"{knob}={'NaN' if isinstance(spec, dict) else json.dumps(spec)}"
+        if verdict == "refuse":
+            assert msg and knob in msg, f"{label}: params() did not refuse it by name: {msg!r}"
+        else:
+            assert msg is None, f"{label}: params() refused a value inside the range: {msg!r}"
+
+
+# --- the x-height (xh) and the unbracketed serif (serifBracket) (0.2, item 4) -----------------------------
+XH_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+// the project's first concept with every end a plain butt (so no serif, flare or beak decides a position), no swell and no wobble
+// (so a width is the pen's), and the fit on: the lines under test are the fit's targets
+const ends = {}; for (const k of Object.keys(concepts[0].ends)) ends[k] = "butt";
+const base = Object.assign({}, concepts[0], { swell: 0, wob: 0, tear: false, overshoot: 10, ends });
+delete base.flareAmt; delete base.dropAmt;
+const maxY = p => Math.max(...p.map(q => q[1])), minY = p => Math.min(...p.map(q => q[1]));
+function bodies(g) { return g.polys.filter((p, i) => g.runs[i].length === 2); }
+const res = { W0: base.W, dot: base.dot, runs: {} };
+for (const xh of [500, 600, 400]) for (const mult of [1, 1.5]) {
+  const P = m.params(Object.assign({}, base, { id: "xh" + xh, xh }), mult), g = k => m.glyph(k, P), r = {};
+  const o = g("o"); r.o_top = maxY(o.polys[0]); r.o_bot = minY(o.polys[0]);
+  r.n_stem_top = maxY(bodies(g("n"))[0]); r.z_top = maxY(bodies(g("z"))[0]);
+  const d = bodies(g("-"))[0]; r.dash_cy = (maxY(d) + minY(d)) / 2;
+  const dd = bodies(g("d")); r.d_stem_top = maxY(dd[0]); r.d_bowl_top = maxY(dd[1]);
+  r.H_top = maxY(g("H").polys[0]); r.O_top = maxY(g("O").polys[0]); r.zero_top = maxY(g("0").polys[0]); r.l_top = maxY(g("l").polys[0]);
+  const ap = g("'").polys; r.apos = [Math.min(...ap.map(minY)), Math.max(...ap.map(maxY))];
+  r.colon = g(":").polys.map(p => (maxY(p) + minY(p)) / 2).sort((a, b) => a - b);
+  r.i_dot = g("i").polys.filter(p => minY(p) > 500).map(p => (maxY(p) + minY(p)) / 2);
+  // h: the same polygons and points per polygon at every xh, for every key
+  const P5 = m.params(Object.assign({}, base, { id: "xh500c" + xh }), mult); let diff = null;
+  for (const k of Object.keys(m.G)) {
+    const a = m.glyph(k, P5), b = g(k);
+    if (!a) continue;
+    if (a.polys.length !== b.polys.length || a.polys.some((p, i) => p.length !== b.polys[i].length)) { diff = k; break; }
+  }
+  r.shape_diff = diff;
+  res.runs[xh + "/" + mult] = r;
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def ymap(y, xh):
+    """The documented x-height map (references/generator.md section 7), restated: descenders and ascenders stay, the body scales to xh,
+    the band between the x-line and the ascender scales from xh to 740."""
+    if y <= 0 or y >= 740:
+        return y
+    return y * xh / 500 if y <= 500 else xh + (y - 500) * (740 - xh) / 240
+
+
+def test_xh_moves_the_lowercase_lines_and_leaves_the_capitals(cfg):
+    """Item 4 of the 0.2 plan. At xh 600 and 400, Regular and Bold, with every end a butt so no terminal decides a position: the round
+    `o` lands at xh plus the overshoot; a butt stem end sits on the new x-line; a flat bar's outer edge sits on it; the hyphen scales with
+    the body; ascenders stay at 740; capitals, figures and the apostrophe stay where they are drawn; the colon's two dots sit on the
+    baseline and the x-line (the rule reads the UNMAPPED dot position, review F006: at xh 600 the mapped 420 would read 504 and miss
+    it); the i's dot is carried by the map; and no glyph gains or loses a polygon or a point. Expected values restate the documented map.
+
+    Mutations: round targets left at the literal 500; flat targets left at 500; the map applied to capitals and the apostrophe; the band
+    above the x-line left unmapped; the dot rule reading the mapped position."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", XH_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    for xh in (600, 400):
+        for mult in (1, 1.5):
+            R, B = out["runs"][f"{xh}/{mult}"], out["runs"][f"500/{mult}"]
+            where = f"xh {xh} at mult {mult}"
+            ov = 10
+            # a ring's measured extreme sits up to 1.2 units outside the line plus overshoot even at xh 500 (the offset of a stroke whose
+            # width varies with direction: measured 511.15 for a Bold at xh 500), so the absolute bound is 1.6 and the shift is the exact check
+            assert abs(R["o_top"] - (xh + ov)) < 1.6 and abs(R["o_bot"] + ov) < 1.6, \
+                f"{where}: the `o` spans {R['o_bot']:.2f} to {R['o_top']:.2f}, expected {-ov} to {xh + ov}"
+            assert abs((R["o_top"] - B["o_top"]) - (xh - 500)) < 0.5, f"{where}: the `o` top moved by {R['o_top'] - B['o_top']:.2f} from xh 500, expected {xh - 500}"
+            assert abs(R["n_stem_top"] - xh) < 0.05, f"{where}: the `n` stem ends at {R['n_stem_top']:.2f}, expected the x-line {xh}"
+            assert abs(R["z_top"] - xh) < 0.1, f"{where}: the `z` bar's top edge is at {R['z_top']:.2f}, expected the x-line {xh}"
+            assert abs(R["dash_cy"] - 260 * xh / 500) < 0.1, f"{where}: the `-` is centred at {R['dash_cy']:.2f}, expected {260 * xh / 500}"
+            assert abs(R["d_stem_top"] - 740) < 0.05, f"{where}: the `d` stem ends at {R['d_stem_top']:.2f}, expected 740"
+            assert abs(R["d_bowl_top"] - (xh + ov)) < 1.6 and abs((R["d_bowl_top"] - B["d_bowl_top"]) - (xh - 500)) < 0.5, \
+                f"{where}: the `d` bowl tops out at {R['d_bowl_top']:.2f} (xh 500: {B['d_bowl_top']:.2f}), expected {xh + ov}"
+            for k in ("H_top", "O_top", "zero_top", "l_top"):
+                assert abs(R[k] - B[k]) < 0.01, f"{where}: {k} moved from {B[k]:.2f} to {R[k]:.2f}; capitals, figures and ascenders do not follow xh"
+            assert abs(R["H_top"] - 700) < 0.05 and abs(R["O_top"] - 710) < 1.6 and abs(R["l_top"] - 740) < 0.05, \
+                f"{where}: H {R['H_top']}, O {R['O_top']}, l {R['l_top']}"
+            assert all(abs(a - b) < 0.01 for a, b in zip(R["apos"], B["apos"])), f"{where}: the apostrophe moved from {B['apos']} to {R['apos']}"
+            W = out["W0"] * mult
+            rd = W * out["dot"]
+            low, high = R["colon"]
+            assert abs(low - (rd - 4)) < 0.05 and abs(high - (xh - rd + 4)) < 0.05, \
+                f"{where}: the colon's dots are centred at {low:.2f} and {high:.2f}, expected {rd - 4:.2f} and {xh - rd + 4:.2f}"
+            assert len(R["i_dot"]) == 1 and abs(R["i_dot"][0] - ymap(680, xh)) < 0.05, f"{where}: the `i` dot is at {R['i_dot']}, expected {ymap(680, xh):.2f}"
+            assert R["shape_diff"] is None, f"{where}: {R['shape_diff']!r} has a different polygon or point count than at xh 500"
+
+
+BRANCH_FIXTURE = r"""
+const fs = require("fs"), path = require("path");
+const m = require(process.argv[1]);
+const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const concepts = m.loadConcepts(path.resolve(path.dirname(process.argv[2]), cfg.concepts));
+let compared = 0; const flips = [];
+for (const [gname, group] of Object.entries(cfg.groups)) {
+  const italic = group.italic ? (group.italic_angle || 10) : false;
+  for (const [mname, spec] of Object.entries(group.masters)) {
+    const c0 = m.conceptById(concepts, spec.concept);
+    // each master twice: as the project draws it, and with every end but the serif a curl (no shipped face uses curl, so without this
+    // variant the curl test is never exercised and a mutation of it survives, as it did on the first run)
+    const curl = Object.assign({}, c0.ends); for (const k of Object.keys(curl)) if (k !== "s") curl[k] = "curl";
+    for (const [vn, c] of [["as drawn", c0], ["curls", Object.assign({}, c0, { ends: curl, tear: false, dropAmt: undefined })]]) {
+     const sigs = {};
+     for (const xh of [500, 400, 600]) {
+      const P = m.params(Object.assign({}, c, { id: c.id + "|branch" + vn + xh, xh }), spec.mult, italic);
+      for (const k of Object.keys(m.G)) {
+        const g = m.glyph(k, P); if (!g) continue;
+        const s = JSON.stringify(g.sig);
+        if (xh === 500) { sigs[k] = s; continue; }
+        compared++;
+        if (sigs[k] !== s && flips.length < 5) flips.push(gname + "/" + mname + " (" + vn + ") xh " + xh + " " + k + ": " + sigs[k] + " -> " + s);
+      }
+     }
+    }
+  }
+}
+console.log(JSON.stringify({ compared, flips }));
+"""
+
+
+def test_xh_does_not_change_any_branch_record(cfg):
+    """Review findings F004 and F005 of the 0.2 plan: a legal xh must not flip a geometry-dependent decision, or the exporter refuses a
+    group (or worse, two masters decide differently and interpolate a hybrid). The decisions that enter the branch record (curved, the
+    teardrop side, the serif kind, vert, the beak side, partner identity) are taken on the UNMAPPED skeleton, so the whole record is the
+    xh 500 record. This draws every key of every master of the project's own groups, roman and italic, at xh 500, 400 and 600, and
+    compares each glyph's record. It is also the executable form of the margin measurement (references/generator.md section 12).
+
+    Mutation `xh-branch-mapped`: the serif-kind and vert tests read the drawn tangent instead of the unmapped one."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", BRANCH_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_path"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["compared"] > 1000, f"only {out['compared']} glyph records were compared; the fixture is not drawing the project's masters"
+    assert not out["flips"], "xh changed a branch record:\n  " + "\n  ".join(out["flips"])
+
+
+SPACING_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+const base = Object.assign({}, concepts[0]);
+const res = { track: base.track || 0, W0: base.W, runs: {} };
+for (const xh of [500, 600]) {
+  const P = m.params(Object.assign({}, base, { id: "sp" + xh, xh }), 1), r = {};
+  for (const k of ["o", "n", "a", "v"]) { const g = m.glyph(k, P); r[k] = { adv: g.adv, polys: g.polys }; }
+  r.kern = m.kern(m.glyph("a", P), m.glyph("v", P), P); r.kern_oo = m.kern(m.glyph("o", P), m.glyph("o", P), P);
+  res.runs[xh] = r;
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def band_profile(polys):
+    """Per 20-unit bin from y = -260: the leftmost and rightmost x of any polygon point in it (the documented measure, section 8)."""
+    L, R = [None] * 54, [None] * 54
+    for p in polys:
+        for x, y in p:
+            b = math.floor((y + 260) / 20)
+            if 0 <= b < 54:
+                L[b] = x if L[b] is None else min(L[b], x)
+                R[b] = x if R[b] is None else max(R[b], x)
+    return L, R
+
+
+def restate_sidebearing(polys, top, W0, track, W=None):
+    """The left sidebearing the documented formula gives: bins of 20 from -260, the band [0, top), each bin's depth capped at 0.2 x top,
+    T = 30 + 0.36 W0 - 0.25 (W - W0) + track, sbL = max(8, T - mL / 2)."""
+    L, R = band_profile(polys)
+    xs = [x for p in polys for x, y in p]
+    minX = min(xs)
+    b0, b1 = math.floor(260 / 20), math.floor((top + 260) / 20)
+    cap = 0.2 * top
+    mL = sum(min(L[b] - minX, cap) if L[b] is not None else cap for b in range(b0, b1)) / (b1 - b0)
+    T = 30 + 0.36 * W0 - 0.25 * ((W or W0) - W0) + track
+    return max(8, T - 0.5 * mL)
+
+
+def restate_kern(a, b, ref, top, W0):
+    """The automatic kern of a lowercase pair from the documented rule (section 8): the pair's mean gap over the band against the
+    n|n reference, 0.75 of the excess over 8, clamped to -170, capped at -50 when either glyph covers under 35 % of the band, never
+    closer than 14 + 0.05 W, and at most 80."""
+    def prof(g):
+        L, R = band_profile(g["polys"])
+        return L, R
+
+    def gap(ga, gb):
+        (_, Ra), (Lb, _) = prof(ga), prof(gb)
+        s, n, minraw = 0.0, 0, math.inf
+        for i in range(54):
+            if Ra[i] is None or Lb[i] is None:
+                continue
+            raw = (ga["adv"] - Ra[i]) + Lb[i]
+            minraw = min(minraw, raw)
+            if 0 <= -260 + i * 20 < top:
+                s += raw
+                n += 1
+        return (s / n if n else None), minraw
+
+    def cover(g):
+        L, _ = prof(g)
+        b0, b1 = math.floor(260 / 20), math.floor((top + 260) / 20)
+        return sum(1 for i in range(b0, b1) if L[i] is not None) / (b1 - b0)
+    rg = gap(ref, ref)[0]
+    mean, minraw = gap(a, b)
+    k = 0
+    if mean is not None and mean - rg > 8:
+        k = -0.75 * (mean - rg - 8)
+    k = max(k, -170)
+    if min(cover(a), cover(b)) < 0.35:
+        k = max(k, -50)
+    if math.isfinite(minraw):
+        k = max(k, 14 + 0.05 * W0 - minraw)
+    return min(k, 80)
+
+
+def test_xh_sets_the_spacing_band(cfg):
+    """Spacing follows the x-line: the sidebearing band and the kerning band of a lowercase glyph run from the baseline to xh, not to 500
+    (generator.md section 8). Measured in 0.2 on the neutral example at xh 600: the `o` left sidebearing is 52.2 with a band of 500 and
+    47.0 with a band of 600, so the property is observable. The `o|o` kern is 0 in both (the gap is the reference gap), so the kern
+    half uses `a|v`, which is -49.05 with the band at 600 and -63.12 with it at 500. Both are recomputed here from the output polygons
+    and the documented formula, never from the generator's own figures.
+
+    Mutations: `xh-band-500` (the glyph's band stays 500); `xh-kern-band-500` (the kern's band stays 500)."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", SPACING_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    W0, track = out["W0"], out["track"]
+    for xh in (500, 600):
+        run = out["runs"][str(xh)]
+        sb = min(x for p in run["o"]["polys"] for x, y in p)  # the glyph is shifted so its leftmost ink sits at the left sidebearing
+        want = restate_sidebearing(run["o"]["polys"], xh, W0, track)
+        assert abs(sb - want) < 0.05, f"xh {xh}: the `o` left sidebearing is {sb:.3f}, the documented formula over a band of {xh} gives {want:.3f}"
+    wrong = restate_sidebearing(out["runs"]["600"]["o"]["polys"], 500, W0, track)
+    right = restate_sidebearing(out["runs"]["600"]["o"]["polys"], 600, W0, track)
+    assert abs(wrong - right) > 1, f"a band of 500 and of 600 give the same `o` sidebearing ({wrong:.2f}, {right:.2f}); the fixture cannot observe the band"
+    run = out["runs"]["600"]
+    want_k = restate_kern(run["a"], run["v"], run["n"], 600, W0)
+    wrong_k = restate_kern(run["a"], run["v"], run["n"], 500, W0)
+    assert abs(want_k - wrong_k) > 1, f"the `a|v` kern is {want_k:.2f} over either band; the fixture cannot observe the kern band"
+    assert abs(run["kern"] - want_k) < 0.05, f"xh 600: the `a|v` kern is {run['kern']:.3f}, the documented rule over a band of 600 gives {want_k:.3f}"
+
+
+def test_xh_outside_its_range_is_refused(cfg):
+    """params() throws, naming xh, for a value below 400, above 600, a string or null; the bounds themselves are allowed."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    js = r"""
+const m = require(process.argv[1]); const c = m.loadConcepts(process.argv[2])[0], res = {};
+for (const v of [399, 601, "500", null, 400, 600]) {
+  try { m.params(Object.assign({}, c, { id: "x", xh: v }), 1); res[JSON.stringify(v)] = null; } catch (e) { res[JSON.stringify(v)] = e.message; }
+}
+console.log(JSON.stringify(res));"""
+    r = subprocess.run([node, "-e", js, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    for v in ("399", "601", '"500"', "null"):
+        assert out[v] and "xh" in out[v], f"xh {v}: params() did not refuse it by name: {out[v]!r}"
+    assert out["400"] is None and out["600"] is None, f"the bounds 400 and 600 must be allowed: {out['400']!r} {out['600']!r}"
+
+
+SLAB_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+const base = Object.assign({}, concepts[0], { id: "slab" });
+base.ends = Object.assign({}, base.ends, { s: "serif" });
+if (base.serifLen === undefined) base.serifLen = 0.5;
+if (base.serifH === undefined) base.serifH = 0.6;
+const res = { W0: base.W, serifH: base.serifH, serifGrow: base.serifGrow || 0, runs: {} };
+for (const mult of [1, 1.5]) for (const b of ["undef", 0, 0.5, 1]) {
+  const c = Object.assign({}, base, { id: "slab" + b });
+  if (b !== "undef") c.serifBracket = b;
+  const P = m.params(c, mult), r = {};
+  for (const k of ["I", "n", "v"]) {
+    const g = m.glyph(k, P);
+    // serif polygons: one edge run, 26 or 15 points (a ball is 64, a ring or a beak is another count)
+    r[k] = g.polys.filter((p, i) => g.runs[i].length === 1 && (p.length === 26 || p.length === 15)).map(p => ({ len: p.length, ys: p.map(q => q[1]), pts: p }));
+  }
+  res.runs[mult + "/" + b] = r;
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count(cfg):
+    """Item 4 of the 0.2 plan: `serifBracket` blends each serif construction between today's bracketed form (1) and a slab (0) with the same
+    number of points, so a bracket can interpolate between masters. Three constructions are covered (review finding F013 corrected the
+    diagonal's count to 26): the foot and symmetric head of `I`, the lowercase head of `n`, and the diagonal serif of `v`. At 0 every point
+    of a serif lies between the line and one serif height from it, and both are reached; at 1 the extreme is 1.7 serif heights from the line (1.9 for the lowercase
+    head); at 0.5 it is strictly between; the point count is 26, 15 and 26 at all three; and 1 is exactly the polygon with no key set.
+    The serif height is restated: SW = W0 (W / W0)^serifGrow, h = SW serifH.
+
+    Mutations: `bracket-ignored` (the blend factor forced to 1); `bracket-count` (the slab drawn as a six-point rectangle); `bracket-diag`
+    (the diagonal serif not given the blend)."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", SLAB_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    # glyph, point count, the line the serif stands on, the side it grows to (+1 up, -1 down), the extreme in serif heights at 1
+    cases = [("I", 26, 0, 1, 1.7), ("I", 26, 700, -1, 1.7), ("n", 15, 500, -1, 1.9), ("n", 26, 0, 1, 1.7), ("v", 26, 500, -1, 1.7)]
+    for mult in (1, 1.5):
+        W = out["W0"] * mult
+        h = out["W0"] * (W / out["W0"]) ** out["serifGrow"] * out["serifH"]
+        for glyph, count, line, side, reach in cases:
+            def serifs(b, glyph=glyph, count=count, line=line):
+                polys = [p for p in out["runs"][f"{mult}/{b}"][glyph] if p["len"] == count and abs(sum(p["ys"]) / len(p["ys"]) - line) < 2 * h]
+                assert polys, f"{glyph} at serifBracket {b}, mult {mult}: no {count}-point serif near y {line}"
+                return polys
+            where = f"{glyph} {count}-point serif at y {line}, mult {mult}"
+            for p in serifs(0):
+                # the slab's vertical sides are straight segments sampled by quad(), so their points lie between the two lines
+                a, z = min(line, line + side * h), max(line, line + side * h)
+                assert all(a - 0.05 <= y <= z + 0.05 for y in p["ys"]) and min(p["ys"]) <= a + 0.05 and max(p["ys"]) >= z - 0.05, \
+                    f"{where}: at serifBracket 0 the serif spans {min(p['ys']):.2f} to {max(p['ys']):.2f}, expected the slab {a:.2f} to {z:.2f}"
+            for b, lo, hi in ((1, reach * h, reach * h), (0.5, h + 0.05, reach * h - 0.05)):
+                ext = max(max(abs(y - line) for y in p["ys"]) for p in serifs(b))
+                assert lo - 0.05 <= ext <= hi + 0.05, \
+                    f"{where}: at serifBracket {b} the extreme is {ext / h:.3f} serif heights from the line, expected {lo / h:.3f} to {hi / h:.3f}"
+            for b in ("undef", 0, 0.5, 1):
+                assert all(p["len"] == count for p in serifs(b)), f"{where}: the point count changed at serifBracket {b}"
+            assert [p["pts"] for p in serifs(1)] == [p["pts"] for p in serifs("undef")], f"{where}: serifBracket 1 is not the polygon with no key set"
+    # `slab` really differs from `bracketed`, so the checks above cannot pass on identical polygons
+    zero, one = out["runs"]["1/0"]["I"], out["runs"]["1/1"]["I"]
+    assert [p["pts"] for p in zero] != [p["pts"] for p in one], "serifBracket 0 draws the same serifs as 1"
+
+
+def test_serifbracket_outside_zero_to_one_is_refused(cfg):
+    """params() throws, naming serifBracket, for -0.01, 1.01, a string and null; 0 and 1 are allowed."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    js = r"""
+const m = require(process.argv[1]); const c = m.loadConcepts(process.argv[2])[0], res = {};
+for (const v of [-0.01, 1.01, "1", null, 0, 1]) {
+  try { m.params(Object.assign({}, c, { id: "x", serifBracket: v }), 1); res[JSON.stringify(v)] = null; } catch (e) { res[JSON.stringify(v)] = e.message; }
+}
+console.log(JSON.stringify(res));"""
+    r = subprocess.run([node, "-e", js, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    for v in ("-0.01", "1.01", '"1"', "null"):
+        assert out[v] and "serifBracket" in out[v], f"serifBracket {v}: params() did not refuse it by name: {out[v]!r}"
+    assert out["0"] is None and out["1"] is None, f"the bounds 0 and 1 must be allowed: {out['0']!r} {out['1']!r}"
+
+
+# --- junctions: joints and crotch (0.2, item 9), and the refused apex ---------------------------------------
+JOINTS_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+// the project's first concept with every end a plain butt, so that with `joints` off nothing cuts a joint level and no terminal decides a position
+const ends = {}; for (const k of Object.keys(concepts[0].ends)) ends[k] = "butt";
+const base = Object.assign({}, concepts[0], { swell: 0, wob: 0, tear: false, overshoot: 10, ends });
+delete base.flareAmt; delete base.dropAmt; delete base.joints;
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function bodies(g) {
+  const out = [];
+  g.polys.forEach((poly, i) => {
+    if (g.runs[i].length !== 2) return;
+    const runs = g.runs[i], fl = runs[0][0] !== 0, n = runs[0][1] - runs[0][0] + 1;
+    out.push({ poly, n, L: j => fl ? poly[runs[0][1] - j] : poly[runs[0][0] + j], R: j => fl ? poly[runs[1][0] + j] : poly[runs[1][1] - j] });
+  });
+  return out;
+}
+const res = {};
+for (const mult of [1, 1.5]) for (const joints of ["off", true]) for (const mode of ["", "/disk"]) {
+  // "/disk": the shipped sans concepts' mapping, where the empty end (a hidden join) is a disk; the plain variant maps it to a butt
+  const c = Object.assign({}, base, { id: "joints" + joints + mode, ends: Object.assign({}, base.ends, mode ? { "": "disk" } : {}) });
+  if (joints === true) c.joints = true;
+  const P = m.params(c, mult), r = {};
+  const V = m.glyph("V", P), v0 = bodies(V)[0], n = v0.n, a = v0.L(n - 1), b = v0.R(n - 1), p = v0.L(n - 3), q = v0.R(n - 3);
+  const cx = [(a[0] + b[0]) / 2 - (p[0] + q[0]) / 2, (a[1] + b[1]) / 2 - (p[1] + q[1]) / 2], cl = Math.hypot(cx[0], cx[1]);
+  r.V = { yL: a[1], yR: b[1], w: dist(a, b), tx: cx[0] / cl, sig: V.sig[0] };
+  const L = bodies(m.glyph("L", P));
+  r.L = { stem_min: Math.min(...L[0].poly.map(q => q[1])), base_min: Math.min(...L[1].poly.map(q => q[1])) };
+  r.disks = {}; for (const k of ["V", "A", "W", "M", "N", "v", "w"]) r.disks[k] = m.glyph(k, P).polys.filter(p => p.length === 64).length;
+  res[mult + "/" + joints + mode] = r;
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def run_node(cfg, fixture):
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", fixture, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+def test_joints_opt_in_cuts_a_sans_joint_level(cfg):
+    """Item 9 of the 0.2 plan. The level cuts where two stroke ends meet (V W A M N 1 4 v w) and the squared corners (E F L Z z 2 5 7)
+    belonged to serif concepts only: for any other concept the V's apex was two stroke ends drawn in whatever `ends[""]` maps. With
+    `joints: true` a sans concept gets the same pass. Measured on the project's first concept with every end a butt: with `joints`, both
+    edge points of the `V`'s joint end lie on the baseline (a level cut) and its record reads `/joint`, and the `L`'s stem reaches the
+    base's outer edge (a squared corner); without it the two edge points differ in y by the stroke's width times the tangent's x
+    component (a perpendicular cut, restated from the output polygon), the record has no `joint`, and the stem stops short.
+
+    Also with the shipped sans mapping of the empty end to a disk, where a joint must draw no disk (finding G7 of the Impasse review of 0.2).
+
+    Mutations `joints-ignored` (the pass reads `ends.s` only) and `joints-keep-disk` (a joint keeps its disk)."""
+    out = run_node(cfg, JOINTS_FIXTURE)
+    for mult in ("1", "1.5"):
+        on, off = out[f"{mult}/true"], out[f"{mult}/off"]
+        assert abs(on["V"]["yL"]) < 0.05 and abs(on["V"]["yR"]) < 0.05, \
+            f"mult {mult}: with joints the V's joint end is at y {on['V']['yL']:.2f} and {on['V']['yR']:.2f}, expected 0 and 0"
+        assert "/joint" in on["V"]["sig"], f"mult {mult}: with joints the V's record is {on['V']['sig']!r}, expected an end of `joint`"
+        want = off["V"]["w"] * abs(off["V"]["tx"])
+        assert want > 10, f"mult {mult}: the fixture's V cut would differ by only {want:.2f} units, too little to observe"
+        assert abs(abs(off["V"]["yL"] - off["V"]["yR"]) - want) < 0.05, \
+            f"mult {mult}: without joints the V's two edge points differ by {abs(off['V']['yL'] - off['V']['yR']):.2f}, expected width x |T_x| = {want:.2f}"
+        assert "joint" not in off["V"]["sig"], f"mult {mult}: without joints the V's record has a joint: {off['V']['sig']!r}"
+        assert abs(on["L"]["stem_min"] - on["L"]["base_min"]) < 0.05, \
+            f"mult {mult}: with joints the L's stem ends at {on['L']['stem_min']:.2f}, its base's outer edge at {on['L']['base_min']:.2f}"
+        assert off["L"]["stem_min"] - off["L"]["base_min"] > 1, \
+            f"mult {mult}: without joints the L's stem already reaches the base's outer edge ({off['L']['stem_min']:.2f} vs {off['L']['base_min']:.2f})"
+        # the shipped sans concepts map the empty end to a disk (review finding G7): with joints no terminal is drawn at a joint, so the
+        # glyphs carry no 64-point disk, the V's joint is still a level cut, and its record still says joint; without joints the disks are drawn
+        d_on, d_off = out[f"{mult}/true/disk"], out[f"{mult}/off/disk"]
+        # the `A`'s crossbar has two free ends of its own, which keep their disks; every other glyph here is joints only
+        want_disks = {"V": 0, "A": 2, "W": 0, "M": 0, "N": 0, "v": 0, "w": 0}
+        assert d_on["disks"] == want_disks, \
+            f"mult {mult}: with joints and a disk for the empty end, a terminal is still drawn at a joint: {d_on['disks']}, expected {want_disks}"
+        assert d_off["disks"]["V"] >= 1 and d_off["disks"]["A"] >= 1, \
+            f"mult {mult}: without joints the disk mapping draws no disk on V and A ({d_off['disks']}); the fixture cannot see one"
+        assert abs(d_on["V"]["yL"]) < 0.05 and abs(d_on["V"]["yR"]) < 0.05 and "/joint" in d_on["V"]["sig"], \
+            f"mult {mult}: with joints and a disk mapping the V's joint end is at y {d_on['V']['yL']:.2f} and {d_on['V']['yR']:.2f}, record {d_on['V']['sig']!r}"
+
+
+CROTCH_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+const base = Object.assign({}, concepts[0], { swell: 0, wob: 0, tear: false });
+base.ends = Object.assign({}, concepts[0].ends, { s: "serif" });
+if (base.serifLen === undefined) base.serifLen = 0.5;
+if (base.serifH === undefined) base.serifH = 0.6;
+if (base.flareAmt === undefined) base.flareAmt = 0.2;
+if (base.flareLen === undefined) base.flareLen = 90;
+delete base.dropAmt; delete base.crotch;
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function bodies(g) {
+  const out = [];
+  g.polys.forEach((poly, i) => {
+    if (g.runs[i].length !== 2) return;
+    const runs = g.runs[i], fl = runs[0][0] !== 0, n = runs[0][1] - runs[0][0] + 1;
+    out.push({ poly, n, L: j => fl ? poly[runs[0][1] - j] : poly[runs[0][0] + j], R: j => fl ? poly[runs[1][0] + j] : poly[runs[1][1] - j] });
+  });
+  return out;
+}
+const mid = (b, j) => [(b.L(j)[0] + b.R(j)[0]) / 2, (b.L(j)[1] + b.R(j)[1]) / 2];
+const res = { W0: base.W, runs: {} };
+const KEYS = Object.keys(m.G);
+for (const mult of [1, 1.5]) {
+  const build = c => { const P = m.params(Object.assign({}, base, { id: "crotch" + JSON.stringify(c.crotch) + mult }, c), mult); return k => m.glyph(k, P); };
+  const g0 = build({ crotch: 0 }), g3 = build({ crotch: 0.3 }), gu = build({});
+  const r = { strokes: [], same: {}, minw: {} };
+  for (const k of ["V", "A"]) {
+    const A = g0(k), B = g3(k), a = bodies(A), b = bodies(B);
+    // the crotch token is recorded only when crotch is set, so the acute ends are read from the crotch 0.3 build
+    B.sig.forEach((sig, j) => {
+      const mm = sig.match(/crotch=(\d)\/(\d)/);
+      [["A", mm[1]], ["B", mm[2]]].forEach(([end, v]) => {
+        if (v !== "1") return;
+        const n = a[j].n, k0 = end === "A" ? 0 : n - 1, step = end === "A" ? 1 : -1, ref = Math.floor(n / 2);
+        // the first sample at least eight steps in that the fold pin touched in neither build (the Bold's tighter angle pins the first ones)
+        const isPinned = (x, q) => [x.L, x.R].some(E => dist(E(q), E(q - step)) < 1e-9 || dist(E(q), E(q + step)) < 1e-9);
+        let s = k0 + 8 * step; while (Math.abs(s - k0) < 40 && (isPinned(a[j], s) || isPinned(b[j], s))) s += step;
+        // the partner: another stroke whose end centre is within 3 units of this end's centre; a point 12 samples along it
+        let pp = null;
+        a.forEach((o, oj) => {
+          if (oj === j) return;
+          [[0, 1], [o.n - 1, -1]].forEach(([ok, os]) => { if (!pp && dist(mid(o, ok), mid(a[j], k0)) < 3) pp = mid(o, ok + 12 * os); });
+        });
+        const shift = [b[j].L(ref)[0] - a[j].L(ref)[0], b[j].L(ref)[1] - a[j].L(ref)[1]];
+        const al = p => [p[0] - shift[0], p[1] - shift[1]];
+        const chain = []; for (let q = s; q !== k0 + step * -1; q -= step) chain.push(mid(a[j], q));
+        const pinned = isPinned(a[j], s) || isPinned(b[j], s);
+        r.strokes.push({ glyph: k, stroke: j, end, L0: a[j].L(s), R0: a[j].R(s), L3: al(b[j].L(s)), R3: al(b[j].R(s)), partner: pp, chain, pinned,
+          refShift: Math.hypot(...shift), refW: [dist(a[j].L(ref), a[j].R(ref)), dist(b[j].L(ref), b[j].R(ref))] });
+      });
+    });
+    r.minw[k] = [A.minw, B.minw];
+  }
+  // c: glyphs with no acute joint (a stem, an arch, corners) are identical at 0 and 0.3; e: crotch 0 is the crotch-undefined glyph, for every key
+  ["l", "n", "E", "F", "L", "T", "H", "š", "ê", "Ô"].forEach(k => { r.same[k] = JSON.stringify(g0(k).polys) === JSON.stringify(g3(k).polys); });
+  let unsetSame = true; for (const k of KEYS) { const a = g0(k), b = gu(k); if (a && JSON.stringify(a.polys) !== JSON.stringify(b.polys)) unsetSame = false; }
+  r.unsetSame = unsetSame;
+  r.acute = KEYS.filter(k => { const g = g3(k); return g && g.sig.some(s => /crotch=1\/|crotch=\d\/1/.test(s)); });
+  res.runs[mult] = r;
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def test_crotch_thins_only_the_inner_edge_of_an_acute_joint(cfg):
+    """Item 9 of the 0.2 plan. `crotch` thins, over the last 1.1 W0 of an arm that ends in an acute JOINT (the V and A's apex), only the edge
+    on the partner's side, by `crotch x e` of the half width, with e the smoothstep of the sample's distance from the end. The outer
+    edge keeps its line and the counter opens. Measured at the first sample at least eight steps before the joint end that the fold pin left alone (the Bold's tighter
+    angle pins the first ones), on the `V`'s and the `A`'s arms,
+    mult 1 and 1.5, with the build re-aligned on a sample far from the joint (the sidebearing shifts): the edge nearer the partner arm
+    (found from the partner's output, not from the generator) moved inward by 0.3 e (w / 2), e restated from the arc distance
+    read off the output centre line (within 2 %); the other edge did not move (under 1e-6); `l`, `n`, the corners of `E F L T H` and the
+    right-angled joints of the caron and circumflex (`š ê Ô`) are identical at 0 and 0.3; the hairline minimum of `V` and `A` is unchanged (the teardrop's reach
+    keeps it out of the
+    floor); and crotch 0 draws every glyph exactly as no key.
+
+    Mutations: both edges thin; every end thins (no acute test, no partner); a corner counts as a joint; the reach grows to 2 W0."""
+    out = run_node(cfg, CROTCH_FIXTURE)
+    W0 = out["W0"]
+    for mult in ("1", "1.5"):
+        r = out["runs"][mult]
+        for k, same in r["same"].items():
+            assert same, f"mult {mult}: {k} differs between crotch 0 and 0.3, but it has no acute joint"
+        for k, (m0, m3) in r["minw"].items():
+            assert abs(m0 - m3) < 1e-9, \
+                f"mult {mult}: {k} hairline minimum is {m0:.3f} at crotch 0 and {m3:.3f} at 0.3; the crotch must stay outside the floor's interior"
+        assert r["unsetSame"], f"mult {mult}: crotch 0 draws a glyph differently from no crotch key"
+        # the glyphs whose records name an acute joint: the end-to-end joints of the plan's survey (1 4 5 v w A M N V W), the trademark sign's
+        # diagonals and the composites that carry an A or an N. A corner (2 3 7 z B Z) counted as a joint would add six keys.
+        want_acute = sorted("1 4 5 v w A M N V W ™ Á À Â Ä Ñ".split())
+        assert sorted(r["acute"]) == want_acute, f"mult {mult}: glyphs with an acute joint in their record: {sorted(r['acute'])}, expected {want_acute}"
+        found = {(s["glyph"], s["end"]) for s in r["strokes"]}
+        assert len(r["strokes"]) >= 2 and {"V", "A"} <= {g for g, _ in found}, f"mult {mult}: the records name no acute joint on V and A: {sorted(found)}"
+        for s in r["strokes"]:
+            where = f"mult {mult} {s['glyph']} stroke {s['stroke']} end {s['end']}"
+            assert not s["pinned"], f"{where}: the sample is on a pinned point"
+            assert abs(s["refW"][0] - s["refW"][1]) < 1e-6, f"{where}: the reference sample's width changed; the re-alignment is wrong"
+            assert s["partner"], f"{where}: no partner arm found in the output"
+            L0, R0 = s["L0"], s["R0"]
+            near_left = math.dist(L0, s["partner"]) < math.dist(R0, s["partner"])
+            ctr = [(L0[0] + R0[0]) / 2, (L0[1] + R0[1]) / 2]
+            w = math.dist(L0, R0)
+            d = sum(math.dist(p, q) for p, q in zip(s["chain"], s["chain"][1:]))
+            u = 1 - d / (1.1 * W0)
+            e = u * u * (3 - 2 * u)
+            want = 0.3 * e * (w / 2)
+            assert 0 < u < 1 and want > 5, f"{where}: the sample (distance {d:.1f}) is outside the thinning reach or the thinning ({want:.2f}) is too small to observe"
+            crotch, outer = (s["L3"], s["R3"]) if near_left else (s["R3"], s["L3"])
+            crotch0, outer0 = (L0, R0) if near_left else (R0, L0)
+            moved = math.dist(crotch, crotch0)
+            assert abs(moved - want) <= 0.02 * want + 1e-6, f"{where}: the crotch-side edge moved {moved:.3f}, expected 0.3 x {e:.3f} x w/2 = {want:.3f}"
+            assert abs(math.dist(crotch, ctr) - (w / 2 - want)) < 0.02 * want + 1e-6, f"{where}: the crotch-side edge did not move inward by {want:.3f}"
+            assert math.dist(outer, outer0) < 1e-6, f"{where}: the outer edge moved by {math.dist(outer, outer0):.6f}"
+
+
+def test_apex_is_refused_until_built(cfg):
+    """`apex` (a pointed apex) is designed, not built, in 0.2: the plan's own arithmetic shows one depth rule cannot serve the `A` and the
+    `M` (the Bold `M`'s crotch would reach y = 26). A knob that does nothing is the dead-knob shape of issue #24, so params() throws, naming
+    `apex` and the section of references/generator.md that holds the design. Also: `joints` must be a boolean and `crotch` a number from 0
+    to 0.6.
+
+    Mutation `apex-accepted`: the throw is removed."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    js = r"""
+const m = require(process.argv[1]); const c = m.loadConcepts(process.argv[2])[0], res = {};
+const tries = {
+  apex: [["apex", 10]], joints: [["joints", "yes"], ["joints", 1], ["joints", true], ["joints", false]],
+  crotch: [["crotch", -0.1], ["crotch", 0.61], ["crotch", "0.2"], ["crotch", null], ["crotch", 0.6], ["crotch", 0]],
+};
+for (const [name, list] of Object.entries(tries)) for (const [k, v] of list) {
+  try { m.params(Object.assign({}, c, { id: "x", [k]: v }), 1); res[k + "=" + JSON.stringify(v)] = null; } catch (e) { res[k + "=" + JSON.stringify(v)] = e.message; }
+}
+console.log(JSON.stringify(res));"""
+    r = subprocess.run([node, "-e", js, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["apex=10"] and "apex" in out["apex=10"] and "generator.md" in out["apex=10"], f"apex was not refused naming apex and generator.md: {out['apex=10']!r}"
+    for case in ('joints="yes"', "joints=1", "crotch=-0.1", "crotch=0.61", 'crotch="0.2"', "crotch=null"):
+        assert out[case] and case.split("=")[0] in out[case], f"{case}: params() did not refuse it by name: {out[case]!r}"
+    for case in ("joints=true", "joints=false", "crotch=0.6", "crotch=0"):
+        assert out[case] is None, f"{case} must be allowed: {out[case]!r}"
+
+
+STRESS_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+const S = m.S;
+// a deterministic generator (mulberry32), so a failure names a glyph that can be drawn again
+let seed = 20261116;
+function rnd() {
+  seed = (seed + 0x6D2B79F5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const pick = a => a[Math.floor(rnd() * a.length)], between = (a, b) => a + (b - a) * rnd();
+// angles from the horizontal, in degrees, clustered on the decisions' own thresholds: a level stroke (the beak gate, 0.5 unit), 30 degrees
+// (|T_y| = 0.5, vert), 5.7 degrees off plumb (|T_x| = 0.1, the serif kind) and anything
+const ANGLES = [() => between(-0.2, 0.2), () => between(28, 32) * pick([-1, 1]), () => 90 - between(4, 7.5) * pick([-1, 1]), () => between(0, 180)];
+const f = v => +v.toFixed(2);
+function stroke(x, y, deg, len, endsA, endsB) {
+  const a = deg * Math.PI / 180, x1 = x + Math.cos(a) * len, y1 = y + Math.sin(a) * len;
+  if (rnd() < 0.3) { // a cubic bowed by up to 12 units, either way
+    const b = between(-12, 12), c = Math.cos(a), n = Math.sin(a);
+    const p1 = [x + c * len / 3 - n * b, y + n * len / 3 + c * b], p2 = [x + c * 2 * len / 3 + n * b, y + n * 2 * len / 3 - c * b];
+    return [S(`M ${f(x)} ${f(y)} C ${f(p1[0])} ${f(p1[1])} ${f(p2[0])} ${f(p2[1])} ${f(x1)} ${f(y1)}`, endsA, endsB), x1, y1];
+  }
+  return [S(`M ${f(x)} ${f(y)} L ${f(x1)} ${f(y1)}`, endsA, endsB), x1, y1];
+}
+const FLAGS = ["", "s", "t", "u", "x", "j"];
+const KEYS = [];
+// the last 150: a stroke that ends within 30 units of the x-line on a slight bow, so the curl's tail (the last 16 samples) straddles the
+// x-line and the drawn cross product can take the opposite sign of the unmapped one (finding R1: the handedness of the spiral)
+for (let i = 500; i < 650; i++) {
+  const a = between(20, 80), len = 220, ey = between(485, 530), ex = between(200, 420), c = Math.cos(a * Math.PI / 180), n = Math.sin(a * Math.PI / 180);
+  const key = "\u0298" + i, [s0] = stroke(ex - c * len, ey - n * len, a, len, "", "t");
+  m.G[key] = [s0]; KEYS.push(key);
+}
+for (let i = 0; i < 500; i++) {
+  const key = "ʘ" + i, strokes = [];
+  let x = between(60, 400), y = between(20, 680);
+  const [s0, x1, y1] = stroke(x, y, ANGLES[i % 4](), between(120, 420), pick(FLAGS), pick(["", "", "j"]));
+  strokes.push(s0);
+  if (rnd() < 0.6) { // a partner: another stroke that starts within 1-3 units of the first's end, the 2-unit pairing threshold between
+    const off = between(1, 3) * pick([-1, 1]), [s1] = stroke(x1, y1 + off, ANGLES[(i + 1) % 4](), between(120, 420), pick(["", "j"]), pick(FLAGS));
+    strokes.push(s1);
+  }
+  m.G[key] = strokes; KEYS.push(key);
+}
+const base = Object.assign({}, concepts[0], { swell: 0, wob: 0, tear: false });
+delete base.dropAmt;
+const flare = { s: "serif", t: "flare", u: "flare", x: "exit", "": "disk", j: "disk" };
+const VARIANTS = {
+  serif: { ends: Object.assign({}, flare), overshoot: 10 },
+  beak: { ends: Object.assign({}, flare, { s: "butt" }), beak: true, overshoot: 0, flareAmt: 0.2, flareLen: 90 },
+  curl: { ends: { s: "serif", t: "curl", u: "curl", x: "curl", "": "disk", j: "curl" }, overshoot: 10 },
+  tear: { ends: Object.assign({}, flare), tear: true, dropAmt: 0.55, overshoot: 10, flareAmt: undefined },
+  joints: { ends: { s: "butt", t: "flare", u: "disk", x: "butt", "": "disk", j: "disk" }, joints: true, crotch: 0.3, overshoot: 10, flareAmt: 0.2, flareLen: 90 },
+};
+const res = { flips: [], compared: 0, seen: { beak: 0, partner: 0, curled: 0, tear: 0, joint: 0, corner: 0, curved: 0, serifDiag: 0, crotch: 0 } };
+for (const [vn, v] of Object.entries(VARIANTS)) for (const it of [false, 12]) {
+  const sigs = {};
+  for (const xh of [500, 400, 600]) {
+    const c = Object.assign({}, base, v, { id: "stress" + vn + xh + it, xh });
+    if (c.flareAmt === undefined) delete c.flareAmt;
+    const P = m.params(c, 1, it);
+    for (const k of KEYS) {
+      const g = m.glyph(k, P), s = JSON.stringify(g.sig);
+      if (xh === 500) {
+        sigs[k] = s;
+        if (/beak[AB]=[1-9]/.test(s)) res.seen.beak++;
+        if (/joins=\d|\/\d[ab]/.test(s)) res.seen.partner++;
+        if (/ends=curl|curl\//.test(s)) res.seen.curled++;
+        if (/tearcap/.test(s)) res.seen.tear++;
+        if (/\/joint|joint\//.test(s)) res.seen.joint++;
+        if (/\/corner|corner\//.test(s)) res.seen.corner++;
+        if (/curved=true/.test(s)) res.seen.curved++;
+        if (/serif[AB]=diag/.test(s)) res.seen.serifDiag++;
+        if (/crotch=1|\/1"/.test(s)) res.seen.crotch++;
+      } else {
+        res.compared++;
+        if (sigs[k] !== s && res.flips.length < 6) res.flips.push(vn + (it ? " italic" : "") + " xh " + xh + " " + k + ": " + sigs[k] + " -> " + s);
+      }
+    }
+  }
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def test_no_decision_reads_a_mapped_coordinate(cfg):
+    """The general guard behind `test_xh_does_not_change_any_branch_record` (Impasse review of 0.2, findings G1 and G2: the beak gate and the
+    partner pairing read the drawn points, and only a stroke 0.45 units off level, or two ends 1.8 apart, could show it). The project's own
+    glyphs sit far from every threshold, so this draws 500 synthetic glyphs with a fixed seed, built to sit ON them: strokes level to within
+    0.2 degrees (the beak gate's 0.5 unit), at 30 degrees (`vert`), 5.7 degrees off plumb (the serif kind), curved by up to 12 units, and a
+    second stroke starting 1-3 units from the first's end (the 2-unit pairing), in five concepts (serif, beak with flare ends, curl, teardrop,
+    sans with `joints`), roman and slanted, and compares every glyph's branch record at xh 500, 400 and 600. It counts the decisions it reached,
+    so a generator that stops reaching them is a failure and not a pass.
+
+    Mutations: the beak gate reads the drawn points; the pairing reads the drawn endpoints."""
+    out = run_node(cfg, STRESS_FIXTURE)
+    assert out["compared"] >= 10000, f"only {out['compared']} glyph records were compared"
+    seen = out["seen"]
+    floors = {"beak": 30, "partner": 300, "curled": 30, "tear": 100, "joint": 100, "corner": 100, "curved": 150, "serifDiag": 100, "crotch": 30}
+    for name, floor in floors.items():
+        assert seen[name] >= floor, \
+            f"the stress glyphs reached the `{name}` decision only {seen[name]} times (expected at least {floor}); the generator no longer exercises it"
+    assert not out["flips"], "xh changed a branch record on a synthetic glyph:\n  " + "\n  ".join(out["flips"])
+
+
+def test_open_curve_extremes_stay_within_the_documented_bound_of_the_overshoot(cfg):
+    """Impasse review of 0.2, finding G3: the round fit gives every round extreme the half width of a fully weighted curve, which is exact for a
+    ring (the `o` lands on its overshoot) and not for an open curve, whose weight at the extreme is below 1 (about 0.6 on the fitted `c`). The
+    top of an open curve (`c`, `e`, `s`) therefore sits off its target by `hw |roundGain - 1| (1 - cw)` at most, where `hw` is the level half
+    width `W f(0) hzThin / 2`: generator.md states that bound. Measured on the monoline fixture (f(0) = 1) as the shift of each top from the
+    same glyph without roundGain, at roundGain 1.05, 0.85 (a gain below 1) and 1.05 with hzThin 1.4 (the level factor multiplies the gain
+    term), and held to `(W / 2) hzThin |roundGain - 1|` plus 0.1; the shifts are not all zero, so the check can see a fit that is off.
+
+    Mutation `optical-fit-overcorrect`: round extremes are fitted with a weight of 2, which doubles the error of an open curve."""
+    both = run_optical(cfg)
+    out, W0 = both["variants"], both["W0"]
+    # (variant, the same without roundGain, the level factor hzThin, roundGain)
+    for vn, base, hz, rg in (("round", "none", 1.0, 1.05), ("roundLow", "none", 1.0, 0.85), ("hzHighRound", "hzHigh", 1.4, 1.05)):
+        for mult in ("1", "1.5"):
+            W = W0 * float(mult)
+            bound = (W / 2) * hz * abs(rg - 1)
+            shifts = {k: out[vn][mult]["tops"][k] - out[base][mult]["tops"][k] for k in ("c", "e", "s")}
+            for k, v in shifts.items():
+                assert abs(v) <= bound + 0.1, \
+                    f"{vn} at mult {mult}: the `{k}` top shifted by {v:.2f}, beyond the bound {bound:.2f} = (W / 2) hzThin |roundGain - 1|"
+            assert max(abs(v) for v in shifts.values()) > 0.3, f"{vn} at mult {mult}: no open-curve top moved ({shifts}); the check cannot see a fit that is off"
+
+
+
+RECORD_FIXTURE = r"""
+const fs = require("fs"), path = require("path");
+const m = require(process.argv[1]);
+const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const concepts = m.loadConcepts(path.resolve(path.dirname(process.argv[2]), cfg.concepts));
+const out = { unset: [], withCrotch: [] };
+for (const [gname, group] of Object.entries(cfg.groups)) {
+  const italic = group.italic ? (group.italic_angle || 10) : false;
+  for (const [mname, spec] of Object.entries(group.masters)) {
+    const c = m.conceptById(concepts, spec.concept);
+    if (c.crotch) continue; // a project that sets crotch records it, by design
+    const P = m.params(c, spec.mult, italic), Q = m.params(Object.assign({}, c, { id: c.id + "|crotch", crotch: 0.3 }), spec.mult, italic);
+    for (const k of Object.keys(m.G)) {
+      const g = m.glyph(k, P), h = m.glyph(k, Q);
+      if (g) out.unset.push(...g.sig);
+      if (h) out.withCrotch.push(...h.sig);
+    }
+  }
+}
+console.log(JSON.stringify(out));
+"""
+
+
+def test_an_unset_crotch_leaves_the_0_1_branch_record(cfg):
+    """Impasse re-review, finding R2: recording `crotch=a/b` on every open stroke would make 0.2 refuse a 0.1 project whose masters fall on
+    opposite sides of the new acute test, although nothing is thinned. The token is written only when `crotch` is set. With it unset,
+    every stroke of every master of the project's own groups matches the 0.1 grammar (open or ring, sample count, both ends, curved, taper,
+    teardrop sides, partners, end outcomes, then beak, teardrop cap and serif tokens), plus the one documented 0.2 token, the handedness of
+    a curl (`curlsg`, which only a curl end writes); with `crotch` 0.3 the token is there. The baseline digests exclude the record, so this
+    is the direct assertion.
+
+    Mutation `crotch-token-always`: the token is written whether or not crotch is set."""
+    import re
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", RECORD_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_path"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    old = re.compile(r"(dot|ring n=\d+ A=\S* B=\S* curved=false tap=00 tear=null/null joins=-/-"
+                     r"|open n=\d+ A=\S* B=\S* curved=(true|false) tap=[01]{2} tear=\S+/\S+ joins=\S+/\S+ ends=\S+/\S+"
+                     r"( beak[AB]=\d+| tearcap[AB]| serif[AB]=\w+)*( curlsg=-?\d/-?\d)?)")
+    assert len(out["unset"]) > 1000, f"only {len(out['unset'])} records were read; the fixture is not drawing the project's masters"
+    bad = [s for s in out["unset"] if not old.fullmatch(s)]
+    assert not bad, f"{len(bad)} records are not in the 0.1 form with crotch unset; first: {bad[0]!r}"
+    assert any(re.search(r" crotch=(1/\d|\d/1)( |$)", s) for s in out["withCrotch"]), "crotch 0.3 recorded no acute joint on any stroke"
+    assert sum(" crotch=" in s for s in out["withCrotch"]) > 100, "crotch 0.3 does not record the token on the open strokes"

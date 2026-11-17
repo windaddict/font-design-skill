@@ -3,6 +3,158 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [0.2.0] — 2026-11-16
+
+Five changes from the font research review (`docs/plan-0.2.md`, items 3, 4, 9, 2 and 10), planned by Fable,
+reviewed before code by an independent cross-provider reviewer (14 findings, all reconciled in the plan's
+section 12), and built by three agents in parallel. **Every new parameter defaults to the 0.1 behaviour**, and
+the three examples build to the same fonts as 0.1.0: `tests/test_backward_compat.py` holds the export and the
+decoded TTF to digests recorded from the 0.1.0 code (it does not hash the woff2 bytes, which depend on the
+brotli build; on this machine the rebuilt woff2 files were also byte-identical to 0.1.0's by `cmp`). One
+default did change, as a fix: an unset `cut` is now 0 rad, where 0.1 drew non-finite outlines (see Fixed); no
+0.1 example left `cut` unset.
+
+### Added
+
+- **Optical corrections in the pen model** (item 3): `hzThin` (level strokes thinned, weighted by cos²θ),
+  `roundGain` (curves thickened, weighted per sample by local curvature: a ring fully, an open curve by
+  min(1, κ·2.5·W0)) and `diagThin` (diagonals thinned, weighted by sin²2θ); all default 1 (off). The width
+  law is now one function, `penWidth()`, used by the stroke samples, the corner reach and the vertical fit,
+  so a thinned bar still lands on its line, and a round top lands at the line plus `overshoot` whatever
+  `roundGain` is. `params()` refuses `hzThin` or `diagThin` outside (0.5, 1.5), `roundGain` outside
+  (0.8, 1.25), and non-numbers. Tests: `test_optical_corrections_change_only_the_strokes_they_name` (one
+  variant per knob plus one with all three whose expectation restates the full product) and
+  `test_the_optical_knobs_refuse_values_outside_their_ranges`; 14 `optical-*` mutations, all red.
+- **`xh`, the x-height of the lowercase** (item 4): 400–600, default 500. A piecewise-linear y map inside
+  `fitSkeleton()` for every lowercase key except the apostrophe: the body scales to `xh`, the band to the
+  ascender scales to 740, descenders and ascenders stay. Flat and round targets follow the map; the dot rule
+  reads the unmapped dot position; the spacing and kerning bands follow `xh`. **Every geometry-dependent
+  decision** (curved, teardrop side, curl, vertical, serif kind, corners and joints, the beak side) **is
+  taken on the skeleton fitted at `xh` 500**, so `xh` cannot flip a branch record: measured over 16,768
+  glyph comparisons at `xh` 400 and 600, none flipped. Four tests, 11 `xh-*` mutations, all red.
+- **`serifBracket`** (item 4): 0–1, default 1. Blends every serif between the 0.1 bracketed form (1, the old
+  code unchanged) and an unbracketed slab (0) with the same point count (26, 15 and 26 for the three serif
+  constructions), so a bracket can interpolate between masters. Two tests, 4 `bracket-*` mutations.
+- **`joints`** (item 9): `joints: true` gives a concept whose `s` end is not `serif` the joint and corner
+  pass a serif concept always had: level or plumb ends where two strokes meet (`V W A M N 1 4 v w`) and
+  squared corners. Default off. Test `test_joints_opt_in_cuts_a_sans_joint_level`.
+- **`crotch`** (item 9): 0–0.5, default 0 (refused outside 0–0.6). At an acute joint (`V A W M N v w 1 4 5`)
+  the edge on the partner's side thins by `crotch` over the last 1.1·W0 with the teardrop's smoothstep; the
+  outer edge keeps its line and the hairline floor never sees it. The acute outcome is recorded in every
+  open stroke's branch record. Test `test_crotch_thins_only_the_inner_edge_of_an_acute_joint`; six
+  `crotch-*` mutations.
+- **`references/genres.md` and `templates/concepts.genres.js`** (item 2): a genre table (Didone, fat face,
+  Scotch roman, Clarendon, Egyptian slab, grotesque, geometric, reverse contrast, optical sizes) with what
+  defines each, the parameters that reach it and whether the generator reaches it today, plus ten recipes
+  and seven genres it cannot reach (Tuscan, Art Deco, a circular `O`, a single-storey roman `a`, a spurred
+  `G`, the pointed apex, expansion contrast). **Each recipe was rendered and read by a fresh strong-model reviewer
+  on 2026-11-16**, and each verdict is dated in the table: reaches (`scotch`, `slab`, the optical-size pair),
+  partly (`didone`, `grot`, `reverse`), no (`fatface`, `clarendon`, `geometric`). One reading, not a panel.
+  `scripts/concepts/content.genres.json` is the genres page's content; `tests/test_genres.py` (6 tests) holds
+  recipes, table and content together. `concepts.example.js` gains `slab` and `grot`.
+- **`scripts/diff.py`** (item 10): the per-round visual diff. It renders the titles at every review size and
+  every named instance of every group from a previous and a current build (instanced with
+  `varLib.instancer`, through the one-instruction `fpgm` so FreeType does not autohint, laid out with raqm so
+  GPOS kerning applies) and writes `diff.md`, `diff.json` and a before/after/diff PNG per changed render.
+  It proves what FreeType drew on one machine, not a browser render. 7 tests in `tests/test_diff.py`, 13
+  by-hand mutations, all red; `smoke.sh` step 2b checks a build against its own copy reports no change.
+- **A junction row in the specimen**: `1 4 5 v w A M N V W AVAWMNW vwvwv` in the Bold at the smallest review
+  size (`y` and `k` are not in it: their strokes cross, they do not end on each other). The proof rows go
+  from five to six, and all six still lie inside the default 2400 px shot.
+- **`tests/test_backward_compat.py`**, with `tests/baseline_digest.py` and `tests/fixtures/baseline-0.1.0.json`:
+  the three examples must build to digests recorded from the unmodified 0.1.0 code (the export without branch
+  records, the woff2 decompressed to a TTF, the manifest without source hashes, tool versions, woff2 figures
+  and the absolute output path), keyed by Node major version (20 and 22 agree; 26 differs by V8 arithmetic).
+
+### Fixed
+
+- `params()` now sets `cut` to 0 when a concept leaves it unset, as `generator.md` section 4 always said. Before,
+  a concept with `cut` or `taper` ends and no `cut` angle drew non-finite coordinates in `C E G S T a c e g s t y 1 2 3 &`:
+  Chrome dropped whole words while the concept page's self-test counted them drawn, and `export.js` wrote about 2,900
+  `null` coordinates and exited 0, so `build.py` died later with an unrelated `TypeError`. The three examples all set
+  `cut`, so 0.1.0 never drew the case; the genre render review was the first to. Now `export.js` refuses non-finite
+  coordinates (exit 1, naming master and glyph), `render.js` sets `data-fd-error` on a NaN or Infinity path so
+  `shoot.py` fails the shot, and `tests/test_genres.py` checks every recipe's glyphs are finite; each guard watched red.
+
+### Changed
+
+- With an optical knob set, the hairline is no longer `W × thin`: it is the smallest stroke the export
+  reports, so a concept that adds a knob re-reads the export and re-pins its floors.
+- The branch record gains a `crotch=a/b` token (text only).
+- Phase 3 names each round-1 concept's genre and covers at least three (`process.md`, `concept-pipeline.md`,
+  the concepts brief); phase 8 keeps each round's `out/` and gives the reviewer `diff.md`.
+
+### Fixed before release, from the independent review of the finished diff (15 findings)
+
+- Two geometry decisions still read the drawn skeleton, not the `xh`-500 one: the beak gate (a stroke 0.45 units
+  off level at `xh` 500 was 0.54 at 600) and the pairing of stroke ends (1.8 units apart at 500, 2.16 at 600). Both
+  read the unmapped skeleton now. The test that should have caught them used only the project's own glyphs, which
+  sit far from every threshold, so both mutations were green against it. `test_no_decision_reads_a_mapped_coordinate`
+  draws 500 synthetic glyphs placed on the thresholds, in five concepts, at `xh` 500, 400 and 600, and requires every
+  decision to be reached; `generator.md` section 12 lists every decision and what it reads.
+- `roundGain` gives a ring its exact overshoot; an open curve (`c e s`) lands within `(W/2)(roundGain − 1)` of it,
+  measured, documented and asserted.
+- `diff.py` counts a render as changed when the title's advance moves by more than 0.02 CSS px, not only when ink
+  moves; refuses a group with no `instances`; sizes its canvas from both builds' ink so nothing outside the line box
+  is clipped; and its `share` figures and order are now asserted.
+- The genre table's parameter column, the recipes, and the page content are held to one source by tests; the build
+  command written in `concepts.genres.js` named the wrong content file and is now run by a test; smoke step 8b
+  checks that each of the ten recipes drew, not only that something did.
+- `docs/reviews/genres-2026-11-16.md` records the render review's verdicts and a digest of each recipe's outlines
+  (by Node major; 20, 22 and 26 agree). A recipe or generator change that moves a reviewed recipe's outlines fails
+  "the genre verdict for <id> is stale", which enforces the sentence in `genres.md` that said so.
+- Test gaps closed: the optical range test carries its own case list (it never sent `null` for two knobs); the joints
+  test runs the shipped `"": "disk"` mapping; `test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli` adds a
+  raw-byte check keyed by Node major and brotli version, beside the decoded-font digests.
+
+### Fixed before release, from the re-review (8 findings)
+
+- The curl's spiral direction was decided on the drawn cross product while the curl itself was decided on the
+  unmapped one, and the branch record did not encode it, so `xh` could flip a curl's handedness unseen. It is
+  decided on the unmapped value now and recorded as `curlsg=a/b`. **This is the one token 0.2 adds to a 0.1
+  branch record**, and only a curl end writes it: two masters of a 0.1 curl project that spiral opposite ways,
+  which interpolate to nonsense, are now refused instead of built.
+- The `crotch=a/b` token was written on every open stroke, so a 0.1 project whose masters fell on opposite sides of
+  the new acute-angle test would have been refused although nothing is thinned. It is written only when `crotch`
+  is set (`test_an_unset_crotch_leaves_the_0_1_branch_record`).
+- The open-curve overshoot bound is `(W/2) × f(0) × hzThin × |roundGain − 1|`; the first form was signed and left
+  out `hzThin`, and `roundGain` 1.05 with `hzThin` 1.4 broke it (4.49 against 3.75). The test covers that case.
+- `diff.py` compares an advance change with its 0.02 px tolerance before rounding (a change of 0.0204 rounded to
+  0.020 and was reported unchanged).
+- The genre table's rows that describe a recipe relative to another must name every difference: two were
+  undisclosed (`fatface` `xs 0.98`, `geometric` `track 4`). The review record's digests include the Medium
+  (mult 1.25) the reviewed page showed, added after the review from a generator whose mult 1 and 1.5 digests match
+  the review-time record.
+
+### Known issues
+
+- Butt-ended curves draw a hooked flag with a notch at the top terminal of `a` and on `f r j y`, and the
+  reverse-contrast `R` has a bump at the bowl and leg join. Not fixed in 0.2 (`references/genres.md` section 7).
+
+### Designed, not built
+
+- **`apex`**, a pointed apex that passes the line by a few units. `params()` refuses it, so a concept cannot
+  carry a parameter that does nothing. `references/generator.md` section 13 holds the construction and the
+  arithmetic for `A`, `V`, `N` and `M`. It waits because one value cannot serve `A` and `M`: the Bold `M`'s
+  crotch would reach y = 26.1, closing the letter. A fix needs thinner diagonals or new skeletons.
+
+### Findings, kept because they are about how the work was done
+
+- Places where the build measured the plan wrong: the `c`'s curvature weight at its leftmost sample
+  (≈ 0.6, not 1); unmapped points recovered by inverting the map (flipped 103 records on an all-curl concept;
+  replaced by fitting at `xh` 500); an absolute tolerance on the `o` top that failed on unmodified code; an
+  `o|o` kern that is 0 at every `xh`; a test outline shift that FreeType undoes unless the `lsb` moves too;
+  `content.minimal.json` cannot serve the genres page; the first apex construction drew a 208-unit flat, not
+  a point (found by the plan review).
+- Mutations that survived the plan's own assertions, each fixed in the test: a corner or fit giving a
+  straight bar the round gain; a corner counted as a joint; "every joint is acute" (no obtuse joint was in
+  the identical list); a curl-decision change (no example uses a curl end, so the branch test now draws a
+  curl-end variant of each master); a manifest digest that moved with the absolute output path.
+- The neutral example's italic `w` decides its serif kind with a margin of 0.0028 (0.1028 against 0.1): a
+  fragility present in 0.1.0, recorded in `generator.md` section 12.
+- FreeType autohints the shipped fonts as they are; `prep` does not prevent it (deleting it changes nothing;
+  adding a one-instruction `fpgm` changes the `B` at 16 px by 212 grey levels). Measured twice.
+
 ## [0.1.0] — 2026-11-16
 
 The first version, written for publication. The operator confirmed the rights to relicense both

@@ -68,6 +68,11 @@ if want 2; then
   # in the sites' own test files), so the required-character check is declined explicitly (C6)
   "$PY" "$HERE/build.py" --font "$ROOT/examples/bract/font.json" --no-requirements
   "$PY" "$HERE/build.py" --font "$ROOT/examples/driftwood/font.json" --no-requirements
+  # 2b. diff.py: the neutral build against a copy of itself must report no change (a renderer that differs
+  # between two loads of one file would make every round's "what changed" noise)
+  mkdir -p "$OUT/diff-before" && cp -R "$NEUTRAL/out/." "$OUT/diff-before/"
+  "$PY" "$HERE/diff.py" "$OUT/diff0" --font "$NEUTRAL/font.json" --before "$OUT/diff-before" --sizes 16 40
+  grep -Eq '^\*\*0 of [0-9]+ renders changed\*\*' "$OUT/diff0/diff.md" || { echo "diff.py reported a change between a font and its copy" >&2; exit 1; }
 fi
 
 if want 3; then
@@ -97,6 +102,8 @@ if want 6; then
   for r in round1 round2 round3; do
     node "$HERE/concepts/build-page.js" --template "$r" --concepts "$NEUTRAL/concepts.js" --content "$NEUTRAL/content.json" "$OUT/pages/$r.html"
   done
+  # 6b. the genre recipes (references/genres.md) as one round-1 page, with each recipe's limit in its risk line
+  node "$HERE/concepts/build-page.js" --template round1 --concepts "$ROOT/templates/concepts.genres.js" --content "$HERE/concepts/content.genres.json" "$OUT/pages/genres.html"
 fi
 
 if want 7; then
@@ -145,6 +152,36 @@ assert {f for where, f in faces if where == "shots-comparison"} == {"comparison"
 assert len({f for _, f in faces}) >= 2, f"the face switch did not change the face: {faces}"
 print("face switch observed:", sorted(faces))
 EOF
+    # 8b. the genres page executes in Chrome and every recipe renders: per recipe, its <section id="concept-<id>"> in the dumped
+    #     DOM holds drawn paths (>= 10, each a real outline, none with NaN or Infinity); data-fd-rendered alone only sums glyphs
+    #     over the whole page. (its comparison face is Georgia, so no --family)
+    "$PY" "$HERE/shoot.py" "$OUT/shots-genres" --serve "$OUT/pages" --pages genres.html --widths 500 1280 --scales 1 --dump-dom
+    "$PY" - "$HERE" "$OUT/shots-genres" "$HERE/concepts/content.genres.json" <<'EOF'
+import json, pathlib, re, sys
+sys.path.insert(0, sys.argv[1])
+from shoot import html_attrs
+ids = sorted(json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))["concepts"])
+assert len(ids) >= 10, ids
+doms = sorted(pathlib.Path(sys.argv[2]).glob("*.dom.html"))
+assert len(doms) == 2, f"expected the genres page at two widths, found {[d.name for d in doms]}"
+for d in doms:
+    html = d.read_text(encoding="utf-8")
+    a = html_attrs(html)
+    rendered, err, font = a.get("data-fd-rendered"), a.get("data-fd-error"), a.get("data-fd-font")
+    assert rendered and int(rendered) > 0 and err is None and font == "loaded", (d.name, rendered, font, err)
+    sections = {}
+    for chunk in re.split(r'(?=<section class="part concept)', html)[1:]:
+        m = re.search(r'id="concept-([a-z-]+)"', chunk)
+        if m:
+            sections[m.group(1)] = chunk
+    bad = []
+    for i in ids:
+        paths = re.findall(r'<path [^>]*?\bd="([^"]*)"', sections.get(i, ""))
+        if len(paths) < 10 or min(map(len, paths)) < 500 or any(re.search(r"NaN|Infinity", q) for q in paths):
+            bad.append(f"{i}: {len(paths)} paths")
+    assert not bad, f"{d.name}: recipes that did not draw: {bad}"
+    print(f"shots-genres/{d.name}: rendered={rendered} font={font} recipes drawn={len(ids)}")
+EOF
   fi
 
   if want 9; then
@@ -157,6 +194,7 @@ EOF
       grep -q "data-fd-spacing=\"$kind\"" "$OUT/review/specimen.html" || { echo "specimen.py wrote no spacing control row of kind $kind" >&2; exit 1; }
     done
     grep -q 'data-fd-legibility="true"' "$OUT/review/specimen.html" || { echo "specimen.py wrote no legibility row" >&2; exit 1; }
+    grep -q 'data-fd-junctions="true"' "$OUT/review/specimen.html" || { echo "specimen.py wrote no junction row" >&2; exit 1; }
     "$PY" "$HERE/shoot.py" "$OUT/shots-specimen" --serve "$OUT/review" --pages specimen.html --widths 500 1280 --scales 1 2 --dump-dom --family Sampler --font-url "$FONT_URL"
     "$PY" "$HERE/shoot.py" "$OUT/shots-specimen" --serve "$OUT/review" --pages specimen.html --widths 1280 --scales 1 --root 150 --dump-dom --family Sampler --font-url "$FONT_URL"
     "$PY" - "$HERE" "$OUT/shots-specimen" <<'EOF'
@@ -172,7 +210,7 @@ for d in doms:
     assert int(a.get("data-fd-probe-count", 0)) > 0 and a.get("data-fd-probe-bad") == "0" and a.get("data-fd-missing-chars") == "", (d.name, a)
     # the proof rows (spacing strings, legibility) must lie inside the captured height, or the review PNG does not contain them
     bottom = int(a.get("data-fd-proof-bottom", 0))
-    assert a.get("data-fd-proof-count") == "5" and 0 < bottom <= DEFAULT_HEIGHT, f"{d.name}: proof rows end at {bottom} px of a {DEFAULT_HEIGHT} px capture ({a.get('data-fd-proof-count')} rows)"
+    assert a.get("data-fd-proof-count") == "6" and 0 < bottom <= DEFAULT_HEIGHT, f"{d.name}: proof rows end at {bottom} px of a {DEFAULT_HEIGHT} px capture ({a.get('data-fd-proof-count')} rows)"
 EOF
     "$PY" "$HERE/opsz.py" "$OUT/opsz" --serve "$OUT/review" --font-url "$FONT_URL" --family Sampler --axis 24 72 --title "The Quiet Harbour at Dawn 48" --px 24 48 72
   fi

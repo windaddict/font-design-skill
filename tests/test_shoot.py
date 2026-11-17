@@ -756,7 +756,7 @@ def test_specimen_writes_the_proof_rows_before_every_other_section(tmp_path):
 def test_chrome_the_specimens_proof_rows_lie_inside_the_default_shot_height(tmp_path, width):
     """The specimen is laid out in real Chrome at `width` and shot at the DEFAULT height; the dumped DOM carries
     data-fd-proof-bottom, the page-px bottom of the last proof row (written by the specimen's own script after the fonts
-    settle), which must be positive, count five rows (four spacing kinds and the legibility row) and be at most
+    settle), which must be positive, count six rows (four spacing kinds, the legibility row and the junction row) and be at most
     shoot.DEFAULT_HEIGHT, so the review PNG contains them. A page whose rows end below the capture fails. Weakest mutation
     watched red: the control strings set at 90px instead of 24 (the section then runs past 2400 at 500 wide); the page's own
     script hard-coding the bottom as 100 while the rows sit past 2400 (the page's figure then disagrees with the test's own)."""
@@ -773,7 +773,7 @@ def test_chrome_the_specimens_proof_rows_lie_inside_the_default_shot_height(tmp_
     # an independent measurement: the test appends its OWN script to the written page (the page's script wrote data-fd-proof-bottom,
     # which cannot be the only evidence of where the rows are)
     page = (site / "specimen.html").read_text(encoding="utf-8")
-    probe = ("<script>(function(){function m(){var e=document.querySelectorAll('[data-fd-spacing],[data-fd-legibility]'),b=0;"
+    probe = ("<script>(function(){function m(){var e=document.querySelectorAll('[data-fd-spacing],[data-fd-legibility],[data-fd-junctions]'),b=0;"
              "for(var i=0;i<e.length;i++){var r=e[i].getBoundingClientRect();b=Math.max(b,r.top+r.height+window.pageYOffset);}"
              "document.documentElement.setAttribute('data-test-bottom',String(Math.round(b)));}"
              "m();window.addEventListener('load',m);if(document.fonts&&document.fonts.ready){document.fonts.ready.then(m);}})();</script></body>")
@@ -785,7 +785,7 @@ def test_chrome_the_specimens_proof_rows_lie_inside_the_default_shot_height(tmp_
     assert r.returncode == 0, r.stdout[-800:] + r.stderr[-800:]
     dom = next((tmp_path / "shots").glob("*.dom.html")).read_text(encoding="utf-8")
     attrs = shoot.html_attrs(dom)
-    assert attrs.get("data-fd-proof-count") == "5", attrs.get("data-fd-proof-count")
+    assert attrs.get("data-fd-proof-count") == "6", attrs.get("data-fd-proof-count")
     bottom = int(attrs["data-fd-proof-bottom"])
     measured = int(attrs["data-test-bottom"])
     assert 0 < measured <= shoot.DEFAULT_HEIGHT, \

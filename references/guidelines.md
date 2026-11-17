@@ -75,6 +75,16 @@ IBM Plex Sans: a mechanical grotesque) and require each concept to move **at lea
 higher or much lower contrast; vertical stress (`nib 0`) or a steep angle; hairline, slab or no
 serifs; wide or condensed. The spectrum of round 1 is built along these axes.
 
+`references/genres.md` is the vocabulary for these axes (Didone, Scotch roman, Clarendon, slab,
+grotesque, geometric, reverse contrast, optical sizes), with a parameter set for each and a plain
+statement of what the generator cannot reach. Name the genre of each concept from it.
+
+**Set the three optical knobs (`hzThin`, `roundGain`, `diagThin`) whenever a concept's `thin` is above
+about 0.7**, because contrast no longer supplies the correction by accident: a high-contrast pen already draws
+level strokes thinner than stems, which is most of what `hzThin` asks for, and a near-monoline pen
+does not. Re-read
+`minStrokeWidth` after setting them and re-pin the hairline floors (`generator.md` section 3).
+
 Note the sister-site trap: a pen-drawn humanist roman is what Driftwood already is, so on hopsafari
 the Field concept was flagged as "sharing a hand" with the sister site and shown only to anchor the
 organic end.

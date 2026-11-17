@@ -26,6 +26,10 @@ names in `scripts/tests/test_font.py`, in file order, are: `test_the_cmap_is_exa
 `test_style_metadata_matches_the_group`, `test_the_italic_straight_tick_is_slanted`,
 `test_the_build_is_reproducible`, `test_dropamt_scales_the_outer_inner_and_symmetric_teardrop`,
 `test_dropamt_changes_the_teardrops_and_flareamt_with_tear_throws`,
+`test_optical_corrections_change_only_the_strokes_they_name`, `test_the_optical_knobs_refuse_values_outside_their_ranges`,
+`test_xh_moves_the_lowercase_lines_and_leaves_the_capitals`, `test_xh_does_not_change_any_branch_record`, `test_xh_sets_the_spacing_band`,
+`test_xh_outside_its_range_is_refused`, `test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count`, `test_serifbracket_outside_zero_to_one_is_refused`, `test_joints_opt_in_cuts_a_sans_joint_level`,
+`test_crotch_thins_only_the_inner_edge_of_an_acute_joint`, `test_apex_is_refused_until_built`,
 `test_export_refuses_a_required_character_without_a_skeleton`,
 `test_build_refuses_a_required_character_without_a_skeleton` (C6: the build itself, on the export
 path and the `--masters` path), `test_build_refuses_a_masters_json_that_overstates_its_stroke_width`
@@ -114,6 +118,19 @@ the table below reads "equals the exporter's", that is the limit it carries.
 | build is reproducible | `build.py --check` exits 0 under a foreign `SOURCE_DATE_EPOCH` in the environment, with `sys.executable` | `Math.random()` added to an advance in `export.js` | the foreign epoch is re-review F005 |
 | `dropAmt` changes outlines; `flareAmt` + `tear` throws | export twice with two `dropAmt` values: polygons differ in the teardrop glyphs; `params()` throws on the bad concept | revert the throw | new in this skill |
 | `dropAmt` scales the outer, inner and symmetric teardrop (`test_dropamt_scales_the_outer_inner_and_symmetric_teardrop`) | finds a stroke with an L, an R and an S teardrop from the branch records; at a sample inside the zone (re-aligned for the sidebearing shift, clear of the fold pin) the outer edge swells and the inner thins in the ratio 55/28, the S case moves both edges equally, and every displacement doubles from 0.55 to 1.1 | `dropamt-inner` (dk dropped from the inner thinning only) and `dropamt-s` (dk dropped from the symmetric case only). Both survived the "changes outlines" test above during the review of this repo, which is why this test exists: a knob that moves *something* is not a knob that works |
+| optical corrections change only the strokes they name (`test_optical_corrections_change_only_the_strokes_they_name`) | monoline, nib 0, butt ends (so every width is `W` times the optical factor), one knob per variant then all three, at mult 1 and 1.5: a plumb `l` stays `W` in every variant; the level `-` is `0.9 W` under `hzThin 0.9` and `W` otherwise; the `o` ring is `1.05 W` thick at its right extreme under `roundGain 1.05`; EVERY sample of the `c` is `W (1 + 0.05 cw)` with `cw` recomputed in the test from the output centre line (turning angle over mean chord × 2.5 `W0`, capped at 1), once fitted and once with `overshoot` 0 where the cap is reached; the `x` stroke is `W (1 − 0.06 sin²2θ)` under `diagThin`, and under all three the full product, with θ read from the output; the `o` spans -10 to 510 whatever the knobs do; the `z` bar's top edge is 500 and the `E` stem ends flush with its bar under `hzThin` and under all three; explicit 1s draw every glyph exactly as no keys | `optical-hz-all`, `optical-round-straight`, `optical-round-open-off`, `optical-round-uncapped`, `optical-diag-flat`, `optical-fit`, `optical-corner`, `optical-corner-round`, `optical-fit-round`, `optical-radius`, `optical-ring-off`, `optical-flag-omits-round`, `optical-overshoot-round` (13) | one variant per knob, because the first draft of the plan expected a diagonal from `diagThin` alone while `hzThin` also applied at that angle (review F007). The plan placed the `c` check at its leftmost sample "radius ≈ 210 < 250"; measured here the fitted `c` never curves tighter than radius ~420 (weight ~0.6), so the test compares every sample with the weight the formula gives and keeps an unfitted variant to observe the cap |
+| the optical knobs refuse values outside their ranges (`test_the_optical_knobs_refuse_values_outside_their_ranges`) | `params()` throws, naming the knob, for each of `hzThin`, `diagThin`, `roundGain` given null, a string, NaN, a boolean, a value just below, just above, far outside or either bound (the intervals are open), and accepts a value just inside each bound, the middle and 1; the case list is written in the test, not read from the fixture | `optical-range-removed`, `optical-null-accepted` | the first version built its bad cases from its own fixture and never sent `diagThin: null` or `roundGain: null` (Impasse review, G6) |
+| open curve extremes stay within the documented bound (`test_open_curve_extremes_stay_within_the_documented_bound_of_the_overshoot`) | the `c`, `e` and `s` tops shift from the same drawing without `roundGain` by at most `(W/2) hzThin |roundGain − 1|` at `roundGain` 1.05, 0.85 and 1.05 with `hzThin` 1.4 (the last exceeds the bound without `hzThin`), and not all by zero | `optical-fit-overcorrect` | the ring is exact and the open curve is not (G3); the bound is documented in generator.md section 4 |
+| no decision reads a mapped coordinate (`test_no_decision_reads_a_mapped_coordinate`) | 500 synthetic glyphs with a fixed seed, placed on the decisions' thresholds (level to 0.2 degrees, 30 degrees, 5.7 degrees off plumb, curved, a second stroke 1-3 units from the first's end), in five concepts (serif, beak with flare, curl, teardrop, sans with `joints`), roman and slanted: every record at `xh` 400 and 600 equals the one at 500 (10,000 comparisons), and each decision was reached a minimum number of times | `xh-beak-mapped`, `xh-partner-mapped` | the project's own glyphs sit far from every threshold: both mutations were GREEN against `test_xh_does_not_change_any_branch_record` (G1, G2) |
+| `xh` moves the lowercase lines and leaves the capitals (`test_xh_moves_the_lowercase_lines_and_leaves_the_capitals`) | at `xh` 600 and 400, mult 1 and 1.5, every end a butt: the `o` spans -10 to `xh` + 10 (within 1.6, and its top moves by exactly `xh` - 500 from the xh 500 drawing); a butt `n` stem ends at `xh`; the `z` bar's top edge is at `xh`; the `-` is centred at 260 `xh` / 500; the `d` stem ends at 740 and its bowl tops out at `xh` + 10; `H`, `O`, `0`, `l` and the apostrophe do not move; the colon's dots are centred at `r` - 4 and `xh` - `r` + 4; the `i` dot is at the restated map of 680; no glyph gains a polygon or a point | `xh-round-literal`, `xh-flat-literal`, `xh-caps-too`, `xh-apostrophe-mapped`, `xh-band-unmapped`, `xh-dot-mapped` | the plan's absolute tolerance of 0.6 on the `o` fails on unmodified code (the Bold's `o` top reads 511.15 at `xh` 500: the offset of a stroke whose width varies with direction), so the absolute bound is 1.6 and the exact check is the shift from the `xh` 500 drawing |
+| `xh` does not change any branch record (`test_xh_does_not_change_any_branch_record`) | every key of every master of the project's groups (italic as exported), and a variant of each master with every end but the serif a curl, at `xh` 500, 400 and 600: each glyph's branch record is the `xh` 500 record (more than 1,000 comparisons required) | `xh-branch-mapped`, `xh-curl-mapped` | no shipped face uses a curl end, so without the second variant a mutation of the curl decision survived (found when the mutation was tried by hand) |
+| `xh` sets the spacing band (`test_xh_sets_the_spacing_band`) | the `o`'s left sidebearing at `xh` 500 and 600 equals the documented formula recomputed from the output polygons (band `[0, xh)`, 20-unit bins from -260, depth capped at 0.2 `xh`); the band of 500 and of 600 differ by more than 1 unit (5.2 measured); the `a|v` kern at `xh` 600 equals the restated kern rule (sparse cap, clearance, clamps) and differs by more than 1 from the same rule over a band of 500 (-49.05 against -63.12) | `xh-band-500`, `xh-kern-band-500` | the plan's `o|o` kern is 0 in both bands (its gap is the reference gap), so the kern half uses `a|v`; 305 of the 676 lowercase pairs shift by more than 1 |
+| `xh` outside 400-600 is refused (`test_xh_outside_its_range_is_refused`) | `params()` names `xh` for 399, 601, a string and null; 400 and 600 pass | `xh-range-removed` | — |
+| an unbracketed serif is a slab with the bracketed point count (`test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count`) | `I` foot and head (26 points), `n` lowercase head (15) and feet, `v` diagonal serif (26), mult 1 and 1.5, `serifBracket` 0, 0.5, 1 and unset: at 0 every point lies between the line and one serif height (`h` = `W0` (`W` / `W0`)^`serifGrow` x `serifH`, restated) and both are reached; at 1 the extreme is 1.7 `h` (1.9 for the lowercase head); at 0.5 strictly between; the count is unchanged; 1 is the unset polygon exactly | `bracket-ignored`, `bracket-count`, `bracket-diag` | the plan said every slab point is on one of two lines; the slab's vertical sides are straight segments sampled by `quad()`, so their points lie between the lines |
+| `serifBracket` outside 0-1 is refused (`test_serifbracket_outside_zero_to_one_is_refused`) | `params()` names `serifBracket` for -0.01, 1.01, a string and null; 0 and 1 pass | `bracket-range-removed` | — |
+| `joints` opt-in cuts a sans joint level (`test_joints_opt_in_cuts_a_sans_joint_level`) | the project's first concept, every end a butt, and again with the shipped mapping of the empty end to a disk (no 64-point disk is drawn at a joint: V W M N v w have none, the A keeps the two on its crossbar), with and without `joints: true`, mult 1 and 1.5: with it both edge points of the `V`'s joint end lie on the baseline and the record reads `/joint`, and the `L`'s stem reaches its base's outer edge; without it the two edge points differ in y by the width times the tangent's x component (restated from the output) and the stem stops short | `joints-ignored`, `joints-keep-disk` | the jointed `V` reads y of 17.25 and -17.25 under the mutation |
+| `crotch` thins only the inner edge of an acute joint (`test_crotch_thins_only_the_inner_edge_of_an_acute_joint`) | at the first unpinned sample at least eight steps in on the `V`'s and the `A`'s arms (the partner side found from the partner's OUTPUT): that edge moved inward by 0.3 e w/2 with e restated from the arc distance read off the output (within 2 %); the other edge did not move (under 1e-6); `l`, `n`, `E F L T H` and the right-angled joints of `š ê Ô` are identical at crotch 0 and 0.3; `V` and `A` keep their hairline minimum; crotch 0 draws every glyph as no key; the glyphs whose record names an acute joint are exactly `1 4 5 v w A M N V W ™ Á À Â Ä Ñ` | `crotch-both-edges`, `crotch-everywhere`, `crotch-corners`, `crotch-corner-as-joint`, `crotch-obtuse`, `crotch-floor` | the Bold pins the first samples before a tight joint, so the sample is chosen by scanning (the plan's "eight steps" fails there) |
+| `apex` is refused until built (`test_apex_is_refused_until_built`) | `params()` throws naming `apex` and `generator.md`; `joints` must be a boolean; `crotch` a number from 0 to 0.6 (bounds allowed) | `apex-accepted` | — |
 | italic group (when wired) | the same compatibility, floors, F013 and instancing checks over the second file; `post.italicAngle`, the `fsSelection` italic bit, `macStyle`; a slanted tick | build the italic from the roman JSON | pipeline-tested only; no shipped font has gone through it |
 
 ## 3. Choosing the weakest mutation
@@ -363,3 +380,101 @@ test or the mutation each time, as `mutate.py` reports):
 - Stale bytecode, once more: a mutation that swaps two same-length strings in a module another test
   imports through `importlib` leaves a `.pyc` with the same size and a same-second mtime, and the
   restored file is not what runs. Clear `scripts/__pycache__` after every mutation of an imported file.
+
+Added 2026-11-16 with the optical corrections (0.2 item 3); the findings are about the tests and the plan:
+
+- **The byte-identity guard is `tests/test_backward_compat.py`**, not a font-suite test, because it needs
+  the 0.1.0 digests in `tests/fixtures/baseline-0.1.0.json`. Watched red twice: `export.js`'s
+  `adv: Math.round(g.adv)` made `+ 1` (the export and TTF digests move on all five groups), and
+  `gen.js`'s default `P.hzThin` made 0.999 (`compat-default`, applied by hand: the test failed, naming
+  the groups, all three digests on every group). The manifest digest moved under the 0.999 default and
+  did not move under the advance mutation, so the advance mutation alone does not prove it.
+- **First version of the manifest digest was not reproducible**: a build with `--out-dir` records the
+  group's absolute output path in `file`, so two runs differed. `manifest_digest()` now cuts `file` to
+  its name. Found because the test failed on unmodified 0.1.0 code, the first run it was given.
+- **A plan figure was wrong and the mutation list could not see it.** The plan put the `roundGain`
+  check at the `c`'s leftmost sample ("radius ≈ 210 < 250, weight 1"). Measured: that sample has radius
+  322 unfitted and about 420 after the fit, so its weight is 0.6 at most. A test written to the plan
+  would have failed on unmodified correct code. The test compares every sample of the `c` with the
+  restated formula instead, and a second variant without the fit is there to reach the cap.
+- **`optical-corner-round` and `optical-fit-round` survived the plan's six assertions.** A corner or a fit
+  that wrongly gives its straight bar the round gain moves the line by 2.25 units, and the plan's
+  assertions f and g measured `hzThin` alone, where the gain is 1. They now also run under all three
+  knobs. Two more mutations the plan did not name (`optical-radius`, `optical-ring-off`) and one for the
+  dead-knob shape (`optical-flag-omits-round`) were written after the first run and are RED.
+- **Round tops and `roundGain` (operator decision 2026-11-16).** The plan's `hwFlat` (weight 0) made a round
+  top overshoot by `overshoot + hw·(roundGain − 1)`: the `o` top measured 512.5 for `overshoot` 10. The fit
+  now gives round extremes the half width of a fully weighted curve, and the test asserts the `o` spans
+  -10 to 510 in every variant. `optical-overshoot-round` (the old half width) was watched red on that
+  assertion (-12.50 to 512.50).
+- **Digests differ by node major.** Recorded from a clone at 0fc4314 under node 20, 22 and 26: node 20 and
+  22 give identical digests; node 26 differs in the export and TTF digests of 4 of 5 groups and in the
+  manifest digest of all 5 (V8 arithmetic, not a regression). The test accepts only a recorded major.
+
+Added with the diff tool and the specimen junction row (agent B, 2026-11-16):
+
+- `tests/test_diff.py` has 7 tests (the 5 planned, one for a missing group file named in the error, one for the
+  install command on the wrong interpreter). 13 by-hand mutations, all red: before font at px+1; after = before;
+  layout BASIC (the kerning test); first instance only; `with_fpgm` removed (the autohinter test); the missing-file
+  check off; `except ImportError` changed to `KeyError`; threshold 300; red and blue swapped; panels swapped; bbox
+  None; PNG for every entry; italic reading the roman. A size loop cut to one size turned 3 red.
+- `test_the_specimen_carries_the_junction_row`: 6 mutations, all red (empty list, weight 400, largest size, `y`
+  added, template selector without `data-fd-junctions`, cmap filter off). The checklist test's junction item and
+  `diff.md` brief slot: 2 mutations red.
+
+Added with `xh` and `serifBracket` (0.2 item 4):
+
+- **The plan's mechanism for the unmapped points was replaced.** It applied the inverse y-map to the drawn
+  points. That is exact for a curve whose control points lie in one band and approximate for one that
+  straddles the x-line, and the all-curl variant of the branch test flipped 103 glyph records at `xh` 400 and
+  600 (the curl test's cross product drifted by up to 0.25 against a threshold of 0.06). `glyph()` now fits the
+  skeleton at `xh` 500 as well and samples that, so the decisions are the `xh` 500 ones by construction.
+- **A mutation survived by hand and the test was widened.** Reading the curl decision from the drawn tail
+  stayed green on the three examples, because none of them uses a curl end. The branch test now also draws a
+  variant of each master with every end a curl; `xh-curl-mapped` is RED there.
+- **Mutations that crashed instead of failing.** The first form of `xh-curl-mapped` removed the unmapped array
+  and made node throw (the test went red on a stack trace, not on an assertion; `mutate.py` reported
+  UNPROVEN). The second form changes only the decision, and the arrays stay aligned.
+
+Added with `joints`, `crotch` and the refused `apex` (0.2 item 9):
+
+- **An equivalent mutation, recorded.** `crotch` ignoring the end's own flag (`!flags[side]`) changes no glyph on this skeleton set: no shipped
+  skeleton has a flagged end at a shared point where the arms are also acute. It is not in `mutate.py`.
+- **A survivor widened the test.** `crotch` counting a corner as a joint stayed green against the first test (the corners of `E F L` are right angles and give no acute dot product; the acute ones, `z 2 3 7 B Z`, were not on its list); the test now compares the exact set of glyphs whose record names an acute joint, and `z 2 3 7 B Z` appear under
+  the mutation. The first identical-at-0-and-0.3 list (`l n E F L T H`) held no obtuse joint, so a mutation that made every joint count as acute could not have failed it (reasoned, not run on that list); the caron and circumflex joints (`š ê Ô`, right-angled) were added, and `crotch-obtuse` is RED on them.
+- **The plan's "eight steps before the joint end"** is pinned by the fold guard on the Bold's `V` and `A`; the test takes the first
+  unpinned sample at least eight steps in. The plan's check order also let a mutation fail on an unrelated assertion (every end thinning failed on
+  "no partner arm found" before the `l` check); the glyph checks now run first.
+
+**`tests/test_genres.py`** (item 2, 0.2). The recipes in `templates/concepts.genres.js` against the table in
+`references/genres.md` and the page content in `scripts/concepts/content.genres.json`. Watched red: the fitted-path
+sample count (`samplePath(st.d, sampleCounts(st.d))`) on all 10 recipes' master compatibility; `xs` 0.86 on a serif
+recipe (it survives on `grot` by design: the serif-kind test sits inside serif mode); a renamed recipe, a changed
+table id and a flipped verdict on the table-and-recipes test; a page built from `concepts.example.js` on the
+page test (red through the id comparison once the content `concepts` block is empty); and six edits on the content
+drift test (a renamed, removed or added key, an edited `risk`, an edited table cell, a recipe added without the
+content file following).
+
+Added after the Impasse review of the finished 0.2 diff (2026-11-16):
+
+- **G1, G2: two decisions still read drawn coordinates, and no test could see it.** The beak gate and the pairing of two stroke ends read the mapped
+  points; a stroke 0.45 units off level, or two ends 1.8 apart, flipped at `xh` 600. Both mutations were GREEN against
+  `test_xh_does_not_change_any_branch_record`, because the project's own glyphs sit far from every threshold. Fixed, and
+  `test_no_decision_reads_a_mapped_coordinate` draws glyphs placed on the thresholds; `xh-beak-mapped` and `xh-partner-mapped` are RED there.
+- **G3: the round fit is exact for a ring and not for an open curve.** Documented with its bound and measured; the first version of the open-curve
+  assertion could not fail on a fit that was too weak, so `optical-fit-overcorrect` (weight 2) is the mutation that proves it.
+- **G4: `test_backward_compat` never proved woff2 bytes.** It proves outlines, the TTF fontTools writes from the woff2, and the manifest figures.
+  `test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli` adds the bytes, keyed by node major AND brotli version (1.2.1 recorded), and
+  skips naming both versions when this brotli differs. It is RED under the same `Math.round(g.adv) + 1` mutation.
+- **G6, G7:** the refusal test now carries its own case list (every knob times null, string, NaN, boolean, below, above, bounds), and the joints
+  test also runs the shipped `"": "disk"` mapping (`optical-null-accepted` and `joints-keep-disk` are RED).
+
+Added after the Impasse re-review (2026-11-16):
+
+- **R1: the curl's spiral direction read the drawn cross product** while the curl decision read the unmapped one, and the record did not encode it. The
+  record now carries `curlsg`, the sign decides on the unmapped cross product, and the stress test has 150 glyphs whose curl tail straddles the x-line
+  (`xh-curl-handedness` is RED there; without the token the flip changes no sample count and nothing could see it).
+- **R2: the `crotch` token was written on every open stroke**, so a 0.1 project whose masters fell on opposite sides of the new test would have been
+  refused for a knob it never set. It is written only when `crotch` > 0; `test_an_unset_crotch_leaves_the_0_1_branch_record` matches every record of
+  the project's masters against the 0.1 grammar (`crotch-token-always` is RED). The crotch test now reads the acute ends from the crotch 0.3 build.
+- **R3: the open-curve bound had the wrong sign and omitted `hzThin`.** At `hzThin` 1.4 the measured shift (4.49) exceeds the old bound (3.75).

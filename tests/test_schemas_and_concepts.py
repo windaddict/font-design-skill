@@ -44,7 +44,7 @@ def test_the_font_schema_rejects_a_group_with_one_master(tmp_path):
 
 
 def concepts_files():
-    return sorted((REPO / "examples").glob("*/concepts.js")) + [REPO / "templates" / "concepts.example.js"]
+    return sorted((REPO / "examples").glob("*/concepts.js")) + [REPO / "templates" / "concepts.example.js", REPO / "templates" / "concepts.genres.js"]
 
 
 @pytest.mark.parametrize("concepts", concepts_files(), ids=lambda p: p.parent.name + "/" + p.name)

@@ -329,6 +329,19 @@ function samplePath(d, counts) {
   if (seg !== counts.length) throw new Error("sample counts do not match the path: " + d);
   return pts;
 }
+/* ---------- The x-height map ----------
+   WHAT IT'S FOR: skeletons are drawn with the x-line at 500, and `xh` moves it. The map is piecewise
+   linear in y: descenders stay, the body (0..500) scales to 0..xh, the band between the x-line and the
+   ascender (500..740) scales to xh..740, and ascenders stay. It applies to every key that is not
+   UPPERISH, except the apostrophe (xhMapped). Every geometry-dependent DECISION is taken on the
+   skeleton as fitted at xh 500 (glyph() samples it as well, "unmapped"), never on the mapped one, so
+   xh cannot flip a branch: mapped coordinates draw, unmapped coordinates decide (see strokePolys). */
+function ymap(y, xh) {
+  if (y <= 0 || y >= 740) return y;
+  if (y <= 500) return y * xh / 500;
+  return xh + (y - 500) * (740 - xh) / 240;
+}
+function xhMapped(key, P) { return P.xh !== 500 && !UPPERISH.test(key) && key !== "'"; }
 function xf(ch, P, p) {
   var x = p[0], y = p[1];
   if (P.wonk && P.wonk.indexOf(ch) >= 0) x -= 0.045 * y;
@@ -359,21 +372,33 @@ function area(p) {
 }
 
 /* Curl for Tideline: continue the stroke's own turn as a shrinking spiral. Returns the curl's length, or 0 for a straight end. */
-function addCurl(pts, P) {
+function addCurl(pts, P, dec, info) {
+  // dec: the same stroke on the unmapped skeleton (absent when the x-height map is off); the curl is decided on it and drawn on pts
   var n = pts.length;
   if (n < 12) return 0;
   var E = pts[n - 1], A = pts[n - 4], B = pts[Math.max(0, n - 16)], C2 = pts[Math.max(0, n - 13)];
   var T = [E[0] - A[0], E[1] - A[1]], tl = Math.hypot(T[0], T[1]); T = [T[0] / tl, T[1] / tl];
   var T0 = [C2[0] - B[0], C2[1] - B[1]], t0 = Math.hypot(T0[0], T0[1]); T0 = [T0[0] / t0, T0[1] / t0];
   var cross = T0[0] * T[1] - T0[1] * T[0];
-  if (Math.abs(cross) < 0.06) return 0;
-  var sg = cross > 0 ? 1 : -1, N = sg > 0 ? [-T[1], T[0]] : [T[1], -T[0]];
+  var crossD = cross;
+  if (dec) {
+    var Ed = dec[n - 1], Ad = dec[n - 4], Bd = dec[Math.max(0, n - 16)], Cd = dec[Math.max(0, n - 13)];
+    var Td = [Ed[0] - Ad[0], Ed[1] - Ad[1]], tld = Math.hypot(Td[0], Td[1]); Td = [Td[0] / tld, Td[1] / tld];
+    var T0d = [Cd[0] - Bd[0], Cd[1] - Bd[1]], t0d = Math.hypot(T0d[0], T0d[1]); T0d = [T0d[0] / t0d, T0d[1] / t0d];
+    crossD = T0d[0] * Td[1] - T0d[1] * Td[0];
+  }
+  if (Math.abs(crossD) < 0.06) return 0;
+  // the handedness of the spiral is decided on the unmapped cross product too (it is recorded: info.sg), the geometry is drawn from the drawn tail
+  var sg = crossD > 0 ? 1 : -1, N = sg > 0 ? [-T[1], T[0]] : [T[1], -T[0]];
   var r = P.W * 0.55 + 22, cx = E[0] + N[0] * r, cy = E[1] + N[1] * r;
   var a0 = Math.atan2(E[1] - cy, E[0] - cx), sweep = sg * 1.3 * Math.PI, len = 0, prev = E;
   for (var j = 1; j <= 30; j++) {
     var u = j / 30, a = a0 + sweep * u, rr = r * (1 - 0.42 * u), p = [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
     len += dist(prev, p); prev = p; pts.push(p);
   }
+  if (info) info.sg = sg;
+  // the unmapped copy gets its own spiral, built from its own tail, so that its tangents are the xh 500 ones
+  if (dec) addCurl(dec, P);
   return len;
 }
 function endMod(mode, d, curlLen, P) {
@@ -390,9 +415,38 @@ function cutSide(X, T, p, Dv, w) {
   t = Math.max(-w, Math.min(w, t));
   return [X[0] + T[0] * t, X[1] + T[1] * t];
 }
+/* serifBracket: a serif is drawn between today's bracketed form (b = 1, the 0.1 code, unchanged) and a slab (b = 0), with the same
+   number of points, so a bracket can interpolate between masters. mix(a, c, b) is b of the bracketed point a and 1 - b of the slab
+   point c. The control of each quad() in the slab sits on its chord, so the six points of a quad lie on a straight segment. */
+function mix(a, c, b) { return [c[0] + (a[0] - c[0]) * b, c[1] + (a[1] - c[1]) * b]; }
+function mid(a, c) { return [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2]; }
+/* the foot (sy +1) and the symmetric head (sy -1): two pushes and four quads, 26 points; a..f are the anchors, c the four controls */
+function serifBlend(x, y, w, L, h, sy, b) {
+  var A = [[x - w / 2, y + sy * h * 1.7], [x - L, y + sy * h * 0.42], [x - L + h * 0.45, y], [x + L - h * 0.45, y], [x + L, y + sy * h * 0.42], [x + w / 2, y + sy * h * 1.7]];
+  var S = [[x - w / 2, y + sy * h], [x - L, y + sy * h], [x - L, y], [x + L, y], [x + L, y + sy * h], [x + w / 2, y + sy * h]];
+  var a = A.map(function (q, i) { return mix(q, S[i], b); });
+  var C = [[x - w / 2, y + sy * h * 0.55], [x - L - h * 0.1, y], [x + L + h * 0.1, y], [x + w / 2, y + sy * h * 0.55]];
+  var chords = [mid(S[0], S[1]), mid(S[1], S[2]), mid(S[3], S[4]), mid(S[4], S[5])];
+  var c = C.map(function (q, i) { return mix(q, chords[i], b); }), o = [a[0]];
+  quad(o, a[0], c[0], a[1]); quad(o, a[1], c[1], a[2]);
+  o.push(a[3]);
+  quad(o, a[3], c[2], a[4]); quad(o, a[4], c[3], a[5]);
+  return o;
+}
 function serifPoly(E, T, w, P, symmetric) {
   // serif reach follows the Regular, so the Bold does not grow slab serifs
   var SW = (P.W0 || P.W) * (P.serifGrow ? Math.pow(P.W / (P.W0 || P.W), P.serifGrow) : 1), L = w * 0.5 + SW * P.serifLen * (P.italic && symmetric ? 0.6 : 1), h = SW * P.serifH, x = E[0], y = E[1], o = [];
+  var b = P.serifBracket;
+  if (b !== 1 && (T[1] < 0 || symmetric)) return serifBlend(x, y, w, L, h, T[1] < 0 ? 1 : -1, b);
+  if (b !== 1) { // lowercase head, blended: three pushes and two quads, 15 points
+    var A = [[x + w / 2, y - h * 1.8], [x + w / 2, y + h * 0.18], [x - L + h * 0.5, y - h * 0.2], [x - L, y - h * 0.65], [x - w / 2, y - h * 1.9]];
+    var S = [[x + w / 2, y - h], [x + w / 2, y], [x - L, y], [x - L, y - h], [x - w / 2, y - h]];
+    var a = A.map(function (q, i) { return mix(q, S[i], b); });
+    var c1 = mix([x - L - h * 0.05, y - h * 0.3], mid(S[2], S[3]), b), c2 = mix([x - w / 2, y - h * 0.8], mid(S[3], S[4]), b);
+    o.push(a[0], a[1], a[2]);
+    quad(o, a[2], c1, a[3]); quad(o, a[3], c2, a[4]);
+    return o;
+  }
   if (T[1] < 0) { // foot
     o.push([x - w / 2, y + h * 1.7]);
     quad(o, [x - w / 2, y + h * 1.7], [x - w / 2, y + h * 0.55], [x - L, y + h * 0.42]);
@@ -429,6 +483,20 @@ function diagSerifPoly(E, T, Lk, Rk, P) {
   var leansRight = -T[0] > 0; // going into the stroke, it heads right
   var extA = L * (leansRight ? 1.15 : 0.6), extB = L * (leansRight ? 0.6 : 1.15);
   var xa = a[0] - extA, xb = b[0] + extB, o = [];
+  var bk = P.serifBracket;
+  if (bk !== 1) { // blended with a slab: one push, four quads, one push, 26 points, as the bracketed form below
+    var DA = [onEdge(a, h * 1.7), [xa, y + up * h * 0.42], [xa + h * 0.45, y], [xb - h * 0.45, y], [xb, y + up * h * 0.42], onEdge(b, h * 1.7)];
+    var DS = [onEdge(a, h), [xa, y + up * h], [xa, y], [xb, y], [xb, y + up * h], onEdge(b, h)];
+    var da = DA.map(function (q, i) { return mix(q, DS[i], bk); });
+    var DC = [onEdge(a, h * 0.55), [xa - h * 0.1, y], [xb + h * 0.1, y], onEdge(b, h * 0.55)];
+    var dch = [mid(DS[0], DS[1]), mid(DS[1], DS[2]), mid(DS[3], DS[4]), mid(DS[4], DS[5])];
+    var dc = DC.map(function (q, i) { return mix(q, dch[i], bk); });
+    o.push(da[0]);
+    quad(o, da[0], dc[0], da[1]); quad(o, da[1], dc[1], da[2]);
+    o.push(da[3]);
+    quad(o, da[3], dc[2], da[4]); quad(o, da[4], dc[3], da[5]);
+    return o;
+  }
   var a2 = onEdge(a, h * 1.7), b2 = onEdge(b, h * 1.7);
   o.push(a2);
   quad(o, a2, onEdge(a, h * 0.55), [xa, y + up * h * 0.42]);
@@ -446,8 +514,9 @@ function clipPast(arr, k, sg, T, Dv) {
     if (side * ref > 1e-6) arr[j] = [C[0], C[1]]; else if (steps > 6) break;
   }
 }
-function beakPoly(p, T, w, P) {
-  var y = p[1], x = p[0], up = y < 150 ? 1 : y > 450 ? -1 : 0, SW = P.W0 || P.W, H = SW * 0.95, Bw = SW * 0.5, polys = [];
+function beakPoly(p, T, w, P, yU) {
+  // yU: the end's y on the unmapped skeleton, which decides the beak's side (the thresholds are skeleton coordinates)
+  var y = p[1], x = p[0], yd = yU === undefined ? y : yU, up = yd < 150 ? 1 : yd > 450 ? -1 : 0, SW = P.W0 || P.W, H = SW * 0.95, Bw = SW * 0.5, polys = [];
   function side(dir, hh) {
     var e = y + dir * w / 2, tip = [x, e + dir * hh], back = [x - T[0] * Bw, e], o = [back];
     quad(o, back, [x - T[0] * Bw * 0.15, e], tip);
@@ -458,24 +527,49 @@ function beakPoly(p, T, w, P) {
   return polys;
 }
 
+/* ---------- The width law ----------
+   WHAT IT'S FOR: the one place a pen width is decided, so the stroke samples, the corner a stem runs
+   out to, and the vertical fit (hwFlat) cannot disagree about how thick a stroke is. A fit that
+   ignored an optical correction would move a level bar inward by the UN-corrected half width and
+   leave its outer edge short of the line.
+   th is the stroke direction (radians); cw is the curvature weight, 0 for a straight sample and 1
+   for a sample on a curve of radius ROUND_GAIN_RADIUS * W0 or tighter. With no optical knob set
+   (P.optical false) this is the 0.1 expression, verbatim. */
+var ROUND_GAIN_RADIUS = 2.5;
+function penWidth(th, P, cw) {
+  var f = P.thin + (1 - P.thin) * Math.pow(Math.abs(Math.sin(th - P.nib)), P.pow);
+  if (!P.optical) return f;
+  var c = Math.cos(th), s2 = Math.sin(2 * th);
+  return f * (1 - (1 - P.hzThin) * c * c)        // level strokes thinner: cos^2 is 1 level, 0 plumb
+           * (1 - (1 - P.diagThin) * s2 * s2)    // diagonals thinner: sin^2(2 th) is 1 at 45 degrees
+           * (1 + (P.roundGain - 1) * cw);       // curves heavier, by how much the sample curves
+}
+
 /* Turn one centre line into outline polygons for concept P. */
-function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
-  var modeA = P.ends[flags[0]], modeB = P.ends[flags[1]], curlA = 0, curlB = 0, dropK = 1, first = out.length;
+function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U) {
+  // U carries the same stroke on the UNMAPPED skeleton (the x-height map undone): every geometry-dependent decision below reads pu
+  // and ju and every drawn coordinate reads pts and joins, so xh cannot flip a branch. With the map off U is absent and
+  // pu IS pts, ju IS joins: the 0.1 code path.
+  var pu = U ? U.pts : pts, ju = U ? U.joins : joins;
+  // the level cuts and squared corners where two stroke ends meet are a serif concept's; `joints: true` gives a sans concept the same pass
+  var jointsOn = P.ends.s === "serif" || P.joints === true;
+  var modeA = P.ends[flags[0]], modeB = P.ends[flags[1]], curlA = 0, curlB = 0, curlInfoA = {}, curlInfoB = {}, dropK = 1, first = out.length;
   // "flareS" is a free end with a half-size teardrop, for strokes where a full drop reads as a dot
   if (modeA === "flareS") { modeA = "flare"; dropK = 0.5; }
   if (modeB === "flareS") { modeB = "flare"; dropK = 0.5; }
-  if (P.beak && !closed && pts.every(function (q) { return Math.abs(q[1] - pts[0][1]) < 0.5; })) {
+  if (P.beak && !closed && pu.every(function (q) { return Math.abs(q[1] - pu[0][1]) < 0.5; })) {
     if (modeA === "flare") modeA = "beak";
     if (modeB === "flare") modeB = "beak";
   }
   if (!closed) {
-    if (modeB === "curl") { curlB = addCurl(pts, P); if (!curlB) modeB = "disk"; }
-    if (modeA === "curl") { pts.reverse(); curlA = addCurl(pts, P); pts.reverse(); if (!curlA) modeA = "disk"; }
+    var dec = pu !== pts ? pu : undefined;
+    if (modeB === "curl") { curlB = addCurl(pts, P, dec, curlInfoB); if (!curlB) modeB = "disk"; }
+    if (modeA === "curl") { pts.reverse(); if (dec) pu.reverse(); curlA = addCurl(pts, P, dec, curlInfoA); pts.reverse(); if (dec) pu.reverse(); if (!curlA) modeA = "disk"; }
   }
   var n = pts.length, s = [0], i;
-  var chord = [pts[n - 1][0] - pts[0][0], pts[n - 1][1] - pts[0][1]], cl = Math.hypot(chord[0], chord[1]) || 1;
-  var curved = !closed && pts.some(function (q) {
-    return Math.abs((q[0] - pts[0][0]) * chord[1] - (q[1] - pts[0][1]) * chord[0]) / cl > 3;
+  var chord = [pu[n - 1][0] - pu[0][0], pu[n - 1][1] - pu[0][1]], cl = Math.hypot(chord[0], chord[1]) || 1;
+  var curved = !closed && pu.some(function (q) {
+    return Math.abs((q[0] - pu[0][0]) * chord[1] - (q[1] - pu[0][1]) * chord[0]) / cl > 3;
   });
   var tapA = curved && modeA === "disk" && !(joins && joins[0]), tapB = curved && modeB === "disk" && !(joins && joins[1]);
   var tapL = 0.9 * (P.W0 || P.W);
@@ -485,18 +579,43 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
   var Lp = [], Rp = [], Ws = [], Ts = [], minw = Infinity;
   // which edge of each free curved end is the outside of the curve: that edge swells into the teardrop
   var tearL = 1.1 * (P.W0 || P.W), tearA = null, tearB = null;
-  function tang(j) { var a = pts[Math.max(0, j - 1)], b = pts[Math.min(n - 1, j + 1)], l = dist(a, b) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; }
+  function tang(j) { var a = pu[Math.max(0, j - 1)], b = pu[Math.min(n - 1, j + 1)], l = dist(a, b) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; }
   if (P.tear && !closed && n > 30) {
     var span = Math.min(n - 2, Math.round(n / 4));
     if (modeB === "flare") { var t0 = tang(n - 1 - span), t1 = tang(n - 1), cb = t0[0] * t1[1] - t0[1] * t1[0]; tearB = Math.abs(cb) < 0.03 ? "S" : cb > 0 ? "R" : "L"; }
     if (modeA === "flare") { var u0 = tang(span), u1 = tang(0), ca = u0[0] * u1[1] - u0[1] * u1[0]; tearA = Math.abs(ca) < 0.03 ? "S" : ca > 0 ? "L" : "R"; }
   }
+  // curvature weight per sample for roundGain: the turning angle at the sample over the mean chord
+  // length, scaled by ROUND_GAIN_RADIUS * W0 and capped at 1; a ring is round by definition (cw 1)
+  var cwOf = null;
+  if (P.optical && P.roundGain !== 1 && !closed && n > 2) {
+    cwOf = [];
+    for (i = 0; i < n; i++) {
+      var jc = Math.min(n - 2, Math.max(1, i)), p0 = pts[jc - 1], p1 = pts[jc], p2 = pts[jc + 1];
+      var ux = p1[0] - p0[0], uy = p1[1] - p0[1], vx = p2[0] - p1[0], vy = p2[1] - p1[1];
+      var ds = (Math.hypot(ux, uy) + Math.hypot(vx, vy)) / 2;
+      var kappa = ds > 0 ? Math.abs(Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)) / ds : 0;
+      cwOf.push(Math.min(1, kappa * ROUND_GAIN_RADIUS * (P.W0 || P.W)));
+    }
+  }
+  // crotch: at each end that resolves as a JOINT (not a corner) between two arms meeting at an acute angle, the edge on the partner's
+  // side thins over the last crotchLen (the teardrop's reach, so the hairline floor never sees it). Decided on the unmapped skeleton.
+  // The outcome is recorded whether or not the knob is set, so two masters that disagree about an angle are refused.
+  var crotchLen = tearL, cr = null;
+  function crotchEnd(side) {
+    var pdU = jointsOn && ju && !flags[side] ? ju[side] : null;
+    var t = tang(side ? n - 1 : 0), sg = side ? 1 : -1;
+    var isJoint = !!pdU && Math.abs(t[1]) > 0.5 && Math.abs(pdU[1]) > 0.5;
+    var acute = isJoint && -(t[0] * sg * pdU[0] + t[1] * sg * pdU[1]) > 0.3;
+    return { acute: acute, left: pdU ? -t[1] * pdU[0] + t[0] * pdU[1] > 0 : true };
+  }
+  if (!closed && n > 1) cr = [crotchEnd(0), crotchEnd(1)];
   for (i = 0; i < n; i++) {
     var a = closed ? pts[(i - 1 + n) % n] : pts[Math.max(0, i - 1)];
     var b = closed ? pts[(i + 1) % n] : pts[Math.min(n - 1, i + 1)];
     var tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
     var th = Math.atan2(ty, tx);
-    var f = P.thin + (1 - P.thin) * Math.pow(Math.abs(Math.sin(th - P.nib)), P.pow);
+    var f = penWidth(th, P, closed ? 1 : cwOf ? cwOf[i] : 0);
     var m = 1;
     if (!closed) { m *= endMod(modeA, s[i], curlA, P); m *= endMod(modeB, total - s[i], curlB, P); }
     if (tapA) m *= tap(s[i]);
@@ -513,6 +632,13 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
         var dk = P.dropAmt / DROP_AMT_DEFAULT;
         var out = 1 + 0.55 * dk * wk * dropK * e, inn = 1 - 0.28 * dk * dropK * e;
         if (t[2] === "L") { wl *= out; wr *= inn; } else if (t[2] === "R") { wr *= out; wl *= inn; } else { wl *= 1 + 0.3 * dk * e; wr *= 1 + 0.3 * dk * e; }
+      });
+    }
+    if (P.crotch && cr) {
+      [[s[i], cr[0]], [total - s[i], cr[1]]].forEach(function (c) {
+        if (!c[1].acute || c[0] >= crotchLen) return;
+        var u = 1 - c[0] / crotchLen, e = u * u * (3 - 2 * u), fc = 1 - P.crotch * e;
+        if (c[1].left) wl *= fc; else wr *= fc;
       });
     }
     Lp.push([pts[i][0] + nx * wl / 2, pts[i][1] + ny * wl / 2]);
@@ -544,20 +670,21 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
   }
   var ends = [[0, modeA, -1], [n - 1, modeB, 1]];
   ends.forEach(function (e) {
-    var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg];
+    var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg], TU = pu === pts ? T : [tang(k)[0] * sg, tang(k)[1] * sg];
     if (mode === "cut") {
       var Dv = [Math.cos(P.cut), Math.sin(P.cut)];
       Lp[k] = cutSide(Lp[k], T, pts[k], Dv, Ws[k]); Rp[k] = cutSide(Rp[k], T, pts[k], Dv, Ws[k]);
     }
     // a serifed diagonal ends level with the baseline or cap line, not square to the stroke
     // only the serifed concept gets level joints; the others keep their own round or cut ends
-    var side = e[2] < 0 ? 0 : 1, pd = P.ends.s === "serif" && joins && !flags[side] ? joins[side] : null;
-    var vert = Math.abs(T[1]) > 0.5;
-    if (pd && vert !== (Math.abs(pd[1]) > 0.5)) {
+    var side = e[2] < 0 ? 0 : 1, pd = jointsOn && joins && !flags[side] ? joins[side] : null;
+    var pdU = pd ? ju[side] : null;
+    var vert = Math.abs(TU[1]) > 0.5;
+    if (pd && vert !== (Math.abs(pdU[1]) > 0.5)) {
       // a corner (E, F, L, Z, the spur of G): square it off by running this stroke out
       // to the far edge of its partner, cut level or plumb
       var pth = Math.atan2(pd[1], pd[0]);
-      var pw = P.W * (P.thin + (1 - P.thin) * Math.pow(Math.abs(Math.sin(pth - P.nib)), P.pow));
+      var pw = P.W * penWidth(pth, P, 0);
       var reach = pw / 2 / Math.max(0.3, vert ? Math.abs(pd[0]) : Math.abs(pd[1]));
       var Dc = vert ? [1, 0] : [0, 1], at = [pts[k][0] + T[0] * reach / Math.abs(vert ? T[1] : T[0]), pts[k][1] + T[1] * reach / Math.abs(vert ? T[1] : T[0])];
       Lp[k] = cutSide(Lp[k], T, at, Dc, Ws[k] + reach * 3); Rp[k] = cutSide(Rp[k], T, at, Dc, Ws[k] + reach * 3);
@@ -565,7 +692,7 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
       e[1] = "corner"; return;
     }
     if (pd && vert) e[1] = "joint";
-    if ((mode === "serif" && Math.abs(T[0]) > 0.1 || e[1] === "joint") && Math.abs(T[1]) > 0.5) {
+    if ((mode === "serif" && Math.abs(TU[0]) > 0.1 || e[1] === "joint") && Math.abs(TU[1]) > 0.5) {
       Lp[k] = cutSide(Lp[k], T, pts[k], [1, 0], Ws[k]); Rp[k] = cutSide(Rp[k], T, pts[k], [1, 0], Ws[k]);
       clipPast(Lp, k, sg, T, [1, 0]); clipPast(Rp, k, sg, T, [1, 0]);
     }
@@ -573,15 +700,20 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
   var poly = Lp.concat(Rp.slice().reverse());
   out.push({ pts: poly, runs: [[0, n - 1], [n, 2 * n - 1]] });
   sig += " ends=" + ends[0][1] + "/" + ends[1][1];
+  // recorded only when crotch is set, so a 0.1 project's masters, which may fall on either side of the acute test, are not newly refused
+  if (P.crotch > 0) sig += " crotch=" + (cr && cr[0].acute ? 1 : 0) + "/" + (cr && cr[1].acute ? 1 : 0);
+  // the handedness of a curl's spiral (1 or -1 per end, 0 for none) is a decision the map must not flip
+  if (curlA || curlB) sig += " curlsg=" + (curlA ? curlInfoA.sg : 0) + "/" + (curlB ? curlInfoB.sg : 0);
   ends.forEach(function (e) {
     var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg], p = pts[k], w = Ws[k];
+    var TU = pu === pts ? T : [tang(k)[0] * sg, tang(k)[1] * sg];
     if (mode === "taper") {
       var Dv = [Math.cos(P.cut), Math.sin(P.cut)];
       // tapered ends also take the wind cut
       var l2 = cutSide(Lp[k], T, p, Dv, w), r2 = cutSide(Rp[k], T, p, Dv, w);
       out.push({ pts: [Lp[k], l2, r2, Rp[k]] });
     } else if (mode === "beak") {
-      var beaks = beakPoly(p, T, w, P);
+      var beaks = beakPoly(p, T, w, P, pu[k][1]);
       sig += " beak" + (sg < 0 ? "A" : "B") + "=" + beaks.length;
       beaks.forEach(function (o) { out.push({ pts: o }); });
     } else if (mode === "flare" && P.tear) {
@@ -606,7 +738,7 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
     } else if (mode === "curl") {
       out.push({ pts: circle(p[0], p[1], P.W * 0.36, P.W * 0.36) });
     } else if (mode === "serif") {
-      var kind = Math.abs(T[1]) > 0.5 && Math.abs(T[0]) > 0.1 ? "diag" : Math.abs(T[1]) > 0.5 ? (T[1] < 0 ? "foot" : "head") : "ball";
+      var kind = Math.abs(TU[1]) > 0.5 && Math.abs(TU[0]) > 0.1 ? "diag" : Math.abs(TU[1]) > 0.5 ? (TU[1] < 0 ? "foot" : "head") : "ball";
       sig += " serif" + (sg < 0 ? "A" : "B") + "=" + kind;
       if (kind === "diag") out.push({ pts: diagSerifPoly(p, T, Lp[k], Rp[k], P) });
       else if (kind !== "ball") out.push({ pts: serifPoly(p, T, w, P, UPPERISH.test(ch)) });
@@ -625,10 +757,22 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds) {
    that shared a moved point moves with it, except a serifed stem end, whose serif covers the joint. */
 var FLAT = { "0": 1, "500": -1, "700": -1, "740": -1 };
 var ROUND = { "510": [500, 1], "-10": [0, -1], "710": [700, 1], "720": [700, 1], "-230": [-230, -1] };
-function hwFlat(P) { return P.W * (P.thin + (1 - P.thin) * Math.pow(Math.abs(Math.sin(P.nib)), P.pow)) / 2; }
-function fitSkeleton(src, P) {
-  if (!P.overshoot) return src;
+function hwFlat(P) {
+  // a level stroke's half width; with an optical knob set it is the corrected width, or a flat bar's outer edge misses the line
+  if (P.optical) return P.W * penWidth(0, P, 0) / 2;
+  return P.W * (P.thin + (1 - P.thin) * Math.pow(Math.abs(Math.sin(P.nib)), P.pow)) / 2;
+}
+function fitSkeleton(src, P, key) {
+  // the x-height map (above) applies before the fit's early return, so a project without the fit still gets its x-height
+  var mapOn = key !== undefined && xhMapped(key, P), fit = !!P.overshoot;
+  if (!fit && !mapOn) return src;
+  // Y maps a literal skeleton y to the drawn one: the identity unless the map is on. The FLAT and ROUND tables keep their
+  // literal keys (a point AT 500 is "on the x-line"), and their TARGETS go through Y.
+  var Y = mapOn ? function (y) { return ymap(y, P.xh); } : function (y) { return y; };
+  // hwRound: the half width of a stroke at a round extreme, where the curve is at its tightest, so the outer edge
+  // lands at the line plus `overshoot` whatever roundGain is; without an optical knob it is hwFlat, as in 0.1
   var hw = hwFlat(P), O = P.overshoot, moved = {}, segs = [];
+  var hwRound = P.optical ? P.W * penWidth(0, P, 1) / 2 : hw;
   function parse(d) {
     var t = d.trim().split(/[\s,]+/), pts = [], i = 0, cmd = "";
     while (i < t.length) {
@@ -639,13 +783,13 @@ function fitSkeleton(src, P) {
   }
   var parsed = src.map(function (st) { return st.d ? parse(st.d) : null; });
   parsed.forEach(function (pp) {
-    if (!pp) return;
+    if (!pp || !fit) return;
     pp.pts.forEach(function (p, j) {
-      var key = String(p.y);
-      if (!(key in FLAT)) return;
+      var fk = String(p.y);
+      if (!(fk in FLAT)) return;
       var prev = pp.pts[j - 1], next = pp.pts[j + 1];
       if ((prev && prev.y === p.y) || (next && next.y === p.y)) {
-        p.ny = p.y + FLAT[key] * hw; moved[p.x + "," + p.y] = p.ny;
+        p.ny = Y(p.y) + FLAT[fk] * hw; moved[p.x + "," + p.y] = p.ny;
         if (next && next.y === p.y) segs.push([Math.min(p.x, next.x), Math.max(p.x, next.x), p.y, p.ny]);
       }
     });
@@ -653,8 +797,10 @@ function fitSkeleton(src, P) {
   return src.map(function (st, si) {
     if (st.r) {
       var top = st.r[1] + st.r[3], bot = st.r[1] - st.r[3];
-      if (String(top) in ROUND && ROUND[top][1] > 0) top = ROUND[top][0] + O - hw;
-      if (String(bot) in ROUND && ROUND[bot][1] < 0) bot = ROUND[bot][0] - O + hw;
+      if (fit && String(top) in ROUND && ROUND[top][1] > 0) top = Y(ROUND[top][0]) + O - hwRound;
+      else if (mapOn) top = Y(top);
+      if (fit && String(bot) in ROUND && ROUND[bot][1] < 0) bot = Y(ROUND[bot][0]) - O + hwRound;
+      else if (mapOn) bot = Y(bot);
       var r = ring(st.r[0], (top + bot) / 2, st.r[2], (top - bot) / 2);
       return r;
     }
@@ -669,9 +815,10 @@ function fitSkeleton(src, P) {
         if (k in moved && !serifEnd) ny = moved[k];
         else if (!serifEnd) segs.forEach(function (s) { if (p.y === s[2] && p.x > s[0] && p.x < s[1]) ny = s[3]; });
       }
-      if (ny === undefined && p.cmd === "C" && String(p.y) in ROUND) {
-        var R = ROUND[p.y]; ny = R[0] + R[1] * (O - hw);
+      if (ny === undefined && fit && p.cmd === "C" && String(p.y) in ROUND) {
+        var R = ROUND[p.y]; ny = Y(R[0]) + R[1] * (O - hwRound);
       }
+      if (ny === undefined && mapOn) ny = Y(p.y);
       if (ny !== undefined) pp.t[p.ix + 1] = String(+ny.toFixed(2));
     });
     return { d: pp.t.join(" "), a: st.a, b: st.b };
@@ -704,7 +851,39 @@ function params(concept, mult, italic) {
   if (!concept.tear && concept.dropAmt !== undefined) {
     throw new Error("params: concept " + concept.id + " sets dropAmt without tear: true; dropAmt only sizes teardrop terminals");
   }
+  // the optical corrections (item 3): a loud refusal outside the range, so a typo is not a silent change
+  [["hzThin", 0.5, 1.5], ["diagThin", 0.5, 1.5], ["roundGain", 0.8, 1.25]].forEach(function (k) {
+    var v = concept[k[0]];
+    if (v !== undefined && !(typeof v === "number" && v > k[1] && v < k[2])) {
+      throw new Error("params: concept " + concept.id + " sets " + k[0] + " to " + JSON.stringify(v) + "; it must be a number strictly between " + k[1] + " and " + k[2] +
+                      " (references/generator.md, section 4)");
+    }
+  });
+  if (concept.xh !== undefined && !(typeof concept.xh === "number" && concept.xh >= 400 && concept.xh <= 600)) {
+    throw new Error("params: concept " + concept.id + " sets xh to " + JSON.stringify(concept.xh) + "; it must be a number from 400 to 600 (references/generator.md, section 4)");
+  }
+  if (concept.serifBracket !== undefined && !(typeof concept.serifBracket === "number" && concept.serifBracket >= 0 && concept.serifBracket <= 1)) {
+    throw new Error("params: concept " + concept.id + " sets serifBracket to " + JSON.stringify(concept.serifBracket) + "; it must be a number from 0 to 1 (references/generator.md, section 4)");
+  }
+  if (concept.apex !== undefined) {
+    throw new Error("params: concept " + concept.id + " sets apex; apex is designed but not built in 0.2 (references/generator.md, 'Designed, not built: apex'); remove it");
+  }
+  if (concept.joints !== undefined && typeof concept.joints !== "boolean") {
+    throw new Error("params: concept " + concept.id + " sets joints to " + JSON.stringify(concept.joints) + "; it must be true or false (references/generator.md, section 4)");
+  }
+  if (concept.crotch !== undefined && !(typeof concept.crotch === "number" && concept.crotch >= 0 && concept.crotch <= 0.6)) {
+    throw new Error("params: concept " + concept.id + " sets crotch to " + JSON.stringify(concept.crotch) + "; it must be a number from 0 to 0.6 (references/generator.md, section 4)");
+  }
   var P = Object.assign({}, concept);
+  P.xh = concept.xh === undefined ? 500 : concept.xh;
+  P.serifBracket = concept.serifBracket === undefined ? 1 : concept.serifBracket;
+  P.hzThin = concept.hzThin === undefined ? 1 : concept.hzThin;
+  P.diagThin = concept.diagThin === undefined ? 1 : concept.diagThin;
+  P.roundGain = concept.roundGain === undefined ? 1 : concept.roundGain;
+  P.optical = !(P.hzThin === 1 && P.diagThin === 1 && P.roundGain === 1);
+  // `cut` is the angle of cut/taper ends and the rotation of leaf dots; unset means 0 rad, a horizontal cut (generator.md section 4).
+  // Left undefined it reached Math.cos() as NaN and every glyph with a cut end had non-finite coordinates.
+  P.cut = concept.cut === undefined ? 0 : concept.cut;
   P.W = concept.W * mult; P.W0 = concept.W;
   if (P.dropAmt === undefined) P.dropAmt = DROP_AMT_DEFAULT;
   // hairlines grow more slowly than stems (W x mult^thinGrow rather than W x mult), or the Bold's
@@ -727,41 +906,51 @@ function glyph(key, P) {
   if (!raw) { c.g[key] = null; return null; }
   // sample counts come from the unfitted skeleton, so every master gets the same points per segment
   var counts = raw.map(function (st) { return st.d ? sampleCounts(st.d) : null; });
-  var src = fitSkeleton(raw, P);
+  var src = fitSkeleton(raw, P, key), mapOn = xhMapped(key, P);
+  // the same skeleton fitted at xh 500: with the map on, the decisions read this one (sampled with the same counts, so point for point)
+  var src500 = mapOn ? fitSkeleton(raw, Object.assign({}, P, { xh: 500 }), key) : src;
   var items = [], trace = [];
   // stroke ends that meet another stroke's end (the points of V, W, A) are joints, not terminals
   // each end records the direction its partner stroke leaves the shared point in
   var ends = [];
+  // the sampled, transformed points of stroke si on the unmapped skeleton; with the map off they are the drawn points, so the default
+  // path is the 0.1 one
+  function unmapped(si) { return samplePath(src500[si].d, counts[si]).map(function (p) { return xf(key, P, p); }); }
   src.forEach(function (st, si) {
     if (st.dot || st.closed) return;
     var q = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); }), m = q.length - 1;
-    ends.push({ p: q[0], si: si, end: "a", dir: unit(q[0], q[Math.min(3, m)]) });
-    ends.push({ p: q[m], si: si, end: "b", dir: unit(q[m], q[Math.max(m - 3, 0)]) });
+    // directions are taken on the unmapped skeleton (qU), positions on the drawn one: mapped coordinates draw, unmapped decide
+    var qU = mapOn ? unmapped(si) : q;
+    ends.push({ p: qU[0], si: si, end: "a", dir: unit(qU[0], qU[Math.min(3, m)]), dirM: unit(q[0], q[Math.min(3, m)]) });
+    ends.push({ p: qU[m], si: si, end: "b", dir: unit(qU[m], qU[Math.max(m - 3, 0)]), dirM: unit(q[m], q[Math.max(m - 3, 0)]) });
   });
   function unit(a, b) { var dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; }
   // the partner is another stroke's end within 2 units; which stroke and which end goes into the
   // branch record, so masters that pair a point differently fail the compatibility check (F005)
   function partner(e, si) {
     var o = ends.filter(function (x) { return x.si !== si && dist(x.p, e) < 2; });
-    return o.length ? { dir: o[0].dir, id: o[0].si + o[0].end } : null;
+    return o.length ? { dir: o[0].dir, dirM: o[0].dirM, id: o[0].si + o[0].end } : null;
   }
   src.forEach(function (st, si) {
     if (st.dot) {
       var r = P.W * P.dot, dy = st.dot[1];
+      // the dot rule reads the UNMAPPED dy: a baseline dot, an x-height dot (the colon's upper dot at 420; the i's at 680 is not one),
+      // else the dot is carried by the map. With the map on, the x-height dot sits at xh, not 500.
       if (P.overshoot && dy < 100) dy = r - 4;
-      else if (P.overshoot && dy > 380 && dy < 460) dy = 500 - r + 4;
+      else if (P.overshoot && dy > 380 && dy < 460) dy = (mapOn ? P.xh : 500) - r + 4;
+      else if (mapOn) dy = ymap(dy, P.xh);
       var q = xf(key, P, [st.dot[0], dy]);
       items.push({ pts: P.leaf ? circle(q[0], q[1], r * 1.3, r * 0.72, P.cut) : circle(q[0], q[1], r, r), runs: [[0, 63]] });
       trace.push({ sig: "dot", minw: Infinity });
       return;
     }
-    var pts = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); });
+    var pts = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); }), ptsU = mapOn ? unmapped(si) : pts;
     // a ring ends where it began; the repeated point would round onto its twin in some masters and
     // not others, so TTGlyphPen would drop it unevenly. Drop it here, the same way in every master.
-    if (st.closed && pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]) pts.pop();
-    var pA = st.closed ? null : partner(pts[0], si), pB = st.closed ? null : partner(pts[pts.length - 1], si);
-    var joins = [pA ? pA.dir : null, pB ? pB.dir : null];
-    strokePolys(pts, !!st.closed, [st.a || "", st.b || ""], P, key, items, joins, trace, [pA ? pA.id : "-", pB ? pB.id : "-"]);
+    if (st.closed && pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]) { pts.pop(); if (ptsU !== pts) ptsU.pop(); }
+    var pA = st.closed ? null : partner(ptsU[0], si), pB = st.closed ? null : partner(ptsU[ptsU.length - 1], si);
+    var joins = [pA ? pA.dirM : null, pB ? pB.dirM : null], joinsU = [pA ? pA.dir : null, pB ? pB.dir : null];
+    strokePolys(pts, !!st.closed, [st.a || "", st.b || ""], P, key, items, joins, trace, [pA ? pA.id : "-", pB ? pB.id : "-"], { pts: ptsU, joins: joinsU });
   });
   // orient: ring loops pair up; the larger loop of each pair fills, the smaller cuts the hole
   var polys = [], runs = [];
@@ -787,7 +976,7 @@ function glyph(key, P) {
     if (q[0] < minX) minX = q[0]; if (q[0] > maxX) maxX = q[0];
     var b = binOf(q[1]); if (b >= 0 && b < NB) { if (q[0] < Lb[b]) Lb[b] = q[0]; if (q[0] > Rb[b]) Rb[b] = q[0]; }
   }); });
-  var top = UPPERISH.test(key) ? 700 : 500, b0 = binOf(0), b1 = binOf(top), Dmax = 0.2 * top;
+  var top = UPPERISH.test(key) ? 700 : P.xh, b0 = binOf(0), b1 = binOf(top), Dmax = 0.2 * top;
   if (P.italic) {
     // the italic measures only the band between the baseline and the x-height or cap height, so f
     // hooks and tails overhang their neighbours instead of being spaced
@@ -840,8 +1029,8 @@ function kern(a, b, P) {
   var c = cache[P.key], id = a.key + "|" + b.key;
   if (id in c.k) return c.k[id];
   var both = a.upper && b.upper, ref = both ? glyph("H", P) : glyph("n", P);
-  var top = (a.upper || b.upper) ? 700 : 500;
-  var rg = pairGap(ref, ref, both ? 700 : 500).mean, g = pairGap(a, b, top), k = 0;
+  var top = (a.upper || b.upper) ? 700 : P.xh;
+  var rg = pairGap(ref, ref, both ? 700 : P.xh).mean, g = pairGap(a, b, top), k = 0;
   if (g.mean !== null && g.mean - rg > 8) k = -0.75 * (g.mean - rg - 8);
   k = Math.max(k, -170);
   // A sparse glyph (hyphen, dash, period, quotes: ink in only a few of the bins between the baseline

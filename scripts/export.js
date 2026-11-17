@@ -163,6 +163,18 @@ function main(argv) {
   const names = Object.keys(drawn), ref = drawn[names[0]];
   if (names.length < 2) { console.error(`export.js: group "${groupName}" has ${names.length} master(s); a variable font needs at least two`); return 1; }
 
+  // --- 1b. every coordinate is finite: a NaN or Infinity (a knob that reached Math.cos() unset) would be written
+  //     as null by JSON.stringify and surface in build.py as a TypeError far from its cause ---------------------------
+  const nonFinite = [];
+  for (const n of Object.keys(drawn)) for (const k of keys) {
+    const g = drawn[n].glyphs[k];
+    if (g && g.polys.some(p => p.some(q => !Number.isFinite(q[0]) || !Number.isFinite(q[1])))) nonFinite.push(`${n}:${k}`);
+  }
+  if (nonFinite.length) {
+    console.error(`export.js: ${nonFinite.length} glyph(s) have non-finite coordinates in group ${groupName}: ${nonFinite.slice(0, 12).join(" ")}. A concept knob is probably unset or out of range; check params() and references/generator.md section 4.`);
+    return 1;
+  }
+
   // --- 2. compatibility: same polygons, same point counts, same edge runs, same branch outcomes ----
   const incompatible = [];
   for (const k of keys) {

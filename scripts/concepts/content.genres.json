@@ -1,0 +1,250 @@
+{
+  "_doc": "Content for the genres page (templates/concepts.genres.js, references/genres.md section 6): content.minimal.json with its concepts block replaced by one entry per recipe id. risk is the recipe's 'reaches it today?' cell from genres.md, without markup; tests/test_genres.py fails when a recipe or a limit drifts from it.",
+  "site": {
+    "name": "Harbour Review",
+    "wordmark": "Harbour Review",
+    "lede": "Photographs and notes from the quay: boats, weather, the café tables and the people who keep them, kept since 2019.",
+    "nav": [
+      "Essays",
+      "Guides",
+      "About",
+      "Feed"
+    ],
+    "kicker": "Harbour Review · display face"
+  },
+  "round": {
+    "title": "The genre recipes of font-design 0.2",
+    "intro": [
+      "Georgia is the display face today. These are generated replacements, set by the same generator that will build the font, on the site's own colours, at the sizes the site uses, with real titles.",
+      "They are sketches, not fonts. Spacing, kerning and terminals are first-pass. Judge the voice, not the polish."
+    ]
+  },
+  "colours": {
+    "paper": "#f4efe6",
+    "plate": "#fdfaf5",
+    "ink": "#22201c",
+    "pencil": "#6b655c",
+    "accent": "#2d6a7a",
+    "accent-lift": "#3d8294",
+    "cloth": "#1d2a3a",
+    "cloth-deep": "#121b27",
+    "cloth-ink": "#f1ebdd",
+    "stamp": "#c9c0a8",
+    "desk": "#e4ddd0",
+    "rule": "rgba(34, 32, 28, 0.16)",
+    "placeholder": "#9aa5ad"
+  },
+  "fonts": {
+    "body": "Georgia, 'Times New Roman', serif",
+    "label": "system-ui, -apple-system, 'Segoe UI', sans-serif"
+  },
+  "comparison": {
+    "name": "Georgia (the face in use today)",
+    "family": "Georgia",
+    "weights": [
+      400,
+      700
+    ],
+    "note": "The face the site sets its titles in today, on the same specimens, so the sketches are judged against what they would replace. In round 1 no file of the new face exists yet: put the site's current display face here, an installed family or a woff2 beside the page as font_url."
+  },
+  "weights": [
+    {
+      "label": "Regular",
+      "mult": 1
+    },
+    {
+      "label": "Medium",
+      "mult": 1.25
+    },
+    {
+      "label": "Bold",
+      "mult": 1.5
+    }
+  ],
+  "bold_mult": 1.5,
+  "medium_mult": 1.25,
+  "storage_key": "harbour-review-face",
+  "lineup_text": "Bracket's Last Stand at the Third Floor",
+  "titles": [
+    "The Quiet Harbour at Dawn",
+    "A Field Guide to Wet Stone"
+  ],
+  "audit": [
+    {
+      "first": true,
+      "finding": "Small capital labels repeat the heading under them.",
+      "fix": "“Latest” sits over “What came in this week”; “Chapters” over “Four ways in”. Keep a label only where it adds a fact.",
+      "font_effect": "Large. With the labels gone, each heading stands alone, so the display face carries section identity by itself at 25 to 35px."
+    },
+    {
+      "first": true,
+      "finding": "Boxed cards that lift on hover.",
+      "fix": "The four chapter cards rise with a shadow. Use photo, numeral, name and count, with no box.",
+      "font_effect": "The chapter names become the only structure, so the Bold at 18px matters."
+    },
+    {
+      "first": false,
+      "finding": "Georgia cannot hold the 16.8px plate titles.",
+      "fix": "The plate titles look lighter than the body text beside them.",
+      "font_effect": "The hardest constraint: at 16.8px one screen pixel is 60 font units, so the Regular's thinnest stroke needs about 45 units."
+    },
+    {
+      "first": false,
+      "finding": "Two date formats.",
+      "fix": "The home page says “3 March 2026”; the grid says “2026-03-03”. Use one spelled-out date.",
+      "font_effect": "None, if dates move to the body face."
+    }
+  ],
+  "guidelines": [
+    {
+      "lead": "Differ from the body face in at least two ways",
+      "text": "out of contrast, stress angle, serif shape and width. Georgia is a sturdy text serif; a similar face looks like a mistake beside it."
+    },
+    {
+      "lead": "Work from 15px to 80px:",
+      "text": "15px chapter numerals, 16.8px titles in a grid, 25 to 35px section headings, 32 to 48px essay titles, an 80px title on cloth, and the wordmark in spaced capitals at 22 to 26px."
+    },
+    {
+      "lead": "Two weights,",
+      "text": "Regular and a clearly heavier Bold. The lowercase matters most: titles are Title Case, and only the wordmark is set in capitals."
+    },
+    {
+      "lead": "Two character traps from the real titles:",
+      "text": "most titles hold a no-break space before the last word, and some type the apostrophe as a straight ' which must draw as a curly one."
+    }
+  ],
+  "concepts": {
+    "didone": {
+      "desc": "Vertical stress, hairline unbracketed serifs and horizontals, ball terminals",
+      "cost": "Not costed",
+      "risk": "partly (2026-11-16): Moderate contrast because of the hairline floor, and equal-weight diagonals on A V W M N v w x y, so it reads as a light modern, not a Didone. The diagonals need an expansion model, which is out of scope",
+      "pick": false
+    },
+    "fatface": {
+      "desc": "A Didone at poster weight, the counters reduced to slits",
+      "cost": "Not costed",
+      "risk": "no (2026-11-16): Stems are about 1/6 of the cap height even at the Bold; W past its range cannot reach 1/3-cap stems without collapsing the counters. It needs new shapes",
+      "pick": false
+    },
+    "scotch": {
+      "desc": "Vertical stress, bracketed serifs, high contrast, brass-foil sharp",
+      "cost": "Not costed",
+      "risk": "reaches (2026-11-16): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15). The italic is refused (section 4)",
+      "pick": false
+    },
+    "clarendon": {
+      "desc": "Bracketed slab serifs, moderate contrast, a bold companion",
+      "cost": "Not costed",
+      "risk": "no (2026-11-16): The serifs are short pointed wedges, not square bracketed slabs, so it reads as a wedge serif. A longer serifLen with serifGrow 0 might fix it; untested. Rendering defects: section 7",
+      "pick": false
+    },
+    "slab": {
+      "desc": "Unbracketed slab serifs, low to moderate contrast",
+      "cost": "Not costed",
+      "risk": "reaches (2026-11-16): Square unbracketed slabs at stem weight, low contrast, in Rockwell or Memphis proportion. Rendering defects: section 7",
+      "pick": false
+    },
+    "grot": {
+      "desc": "A near-uniform stroke, flat apexes, terminals cut across the stroke",
+      "cost": "Not costed",
+      "risk": "partly (2026-11-16): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7)",
+      "pick": false
+    },
+    "geometric": {
+      "desc": "Circles and squares, a monoline stroke, an even colour",
+      "cost": "Not costed",
+      "risk": "no (2026-11-16): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt",
+      "pick": false
+    },
+    "reverse": {
+      "desc": "Thin verticals, thick horizontals, heavy slabs",
+      "cost": "Not costed",
+      "risk": "partly (2026-11-16): Reverse contrast, but light, at typewriter weight; a larger W and a lower thin might reach a French Clarendon (untested). Rendering defects, including the R: section 7",
+      "pick": false
+    },
+    "opsz-text": {
+      "desc": "The small-size cut: wider, taller x-height, less contrast, looser",
+      "cost": "Not costed",
+      "risk": "reaches (2026-11-16): As a pair: a wider, looser text cut with a taller x-height beside a narrower, higher-contrast display cut. The display cut is close to the Didone",
+      "pick": false
+    },
+    "opsz-display": {
+      "desc": "The large-size cut: narrower, lower x-height, more contrast, tighter",
+      "cost": "Not costed",
+      "risk": "reaches (2026-11-16): As a pair: a wider, looser text cut with a taller x-height beside a narrower, higher-contrast display cut. The display cut is close to the Didone",
+      "pick": false
+    }
+  },
+  "specimen": {
+    "heading": "Chapters",
+    "chapters": [
+      {
+        "num": "I",
+        "name": "Tide",
+        "blurb": "Weather, water and the things it leaves."
+      },
+      {
+        "num": "II",
+        "name": "Tables",
+        "blurb": "The cafés, the counters and the people behind them."
+      },
+      {
+        "num": "III",
+        "name": "Boats",
+        "blurb": null
+      },
+      {
+        "num": "IV",
+        "name": "Streets",
+        "blurb": null
+      }
+    ],
+    "essay": {
+      "title": "Offline, Afloat & Adrift: a Note on the Eighty-Seventh Mooring",
+      "date": "3 March 2026",
+      "paragraph": "The tide came in under the pier while the kettle boiled, and by the time the cups were out the boats had turned to face the other way. Nobody mentioned it; it happens twice a day."
+    },
+    "plateline": "Plate 7 · 2 September 2019",
+    "tiles": [
+      {
+        "title": "The Quiet Harbour at Dawn",
+        "date": "14 October 2025",
+        "colour": "#8fa3b1"
+      },
+      {
+        "title": "A Field Guide to Wet Stone",
+        "date": "29 September 2024",
+        "colour": "#6f7d72"
+      },
+      {
+        "title": "Notes from the Third Floor #4",
+        "date": "28 September 2024",
+        "colour": "#9b7b5a"
+      },
+      {
+        "title": "Bracket's Last Stand",
+        "date": "18 March 2024",
+        "colour": "#b8b2a4"
+      },
+      {
+        "title": "SIX WAYS OUT",
+        "date": "30 May 2023",
+        "colour": "#7a6f4e"
+      },
+      {
+        "title": "Offline, Afloat & Adrift",
+        "date": "7 January 2022",
+        "colour": "#c0a27c"
+      }
+    ],
+    "tiles_note": "Swatches stand in for each plate's photograph. Titles are set at the grid's real 16.8px. Six tiles fill the grid's rows at 500px (two columns) and at 1280 and 1600px (six columns).",
+    "chars": "ABCDEFGHIJKLM NOPQRSTUVWXYZ abcdefghijklm nopqrstuvwxyz 0123456789 & ( ) ' : ? . - ! ,"
+  },
+  "recommendation": {
+    "heading": "Recommendation",
+    "paragraphs": [
+      "Take both cuts to a second round as one face: the text cut for everything under 40px and the display cut above. Neither is a candidate on its own.",
+      "The lineup text box and the weight select above redraw every concept; the specimens below are fixed."
+    ]
+  }
+}

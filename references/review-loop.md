@@ -14,14 +14,15 @@ screenshot proves · 10 cost
 ## 1. The round
 
 ```
-build  →  specimen.py  →  shoot.py (pages × widths × 1×/2×, plus --root 150)
+build  →  diff.py (against the previous round's out/, round 2 on)  →  specimen.py
+       →  shoot.py (pages × widths × 1×/2×, plus --root 150)
        →  the 360 px reading on EVERY page with the wired font (narrow.html; section 2)
-       →  a FRESH reviewer reads every crop against the checklist, with the brief template and
-          the operator's goal sentence verbatim
+       →  a FRESH reviewer reads every crop against the checklist, with the brief template, the
+          operator's goal sentence verbatim and the diff (what changed since the last round)
        →  ranked findings, each naming its crop
        →  parameter / skeleton / kerning changes
        →  the host spot-checks two crops itself and runs one mutation of its own
-       →  the suite green  →  next round
+       →  the suite green  →  copy out/ to work/round-N/ (cp -R)  →  next round
 ```
 
 Every round ends with the full suite green. The font is not changed between rounds without a
@@ -31,6 +32,22 @@ protocol was written down.
 ## 2. The tools
 
 - **`scripts/build.py --font font.json`** writes the woff2 the pages load.
+- **`scripts/diff.py`** pixel-diffs two builds, so a round's reviewer is told where the words moved instead of
+  finding it out. Before each build the host copies `out/` to `work/round-N/` (`cp -R`, never `rm`); after
+  the build, `.venv/bin/python3 scripts/diff.py work/diff-N --font font.json --before work/round-N` renders every
+  title (and `review.wordmark`) at every size in `review.sizes` and every named instance of every group, from the old and the new
+  files, and writes `diff.md` (the changed renders, largest share of moved ink first, then "N of M renders
+  unchanged"), `diff.json` and a before / after / diff PNG for each changed render (red: more ink after, blue:
+  less). Use a fresh directory per round; a PNG from an earlier run is not removed. It exits 0 whether or not
+  anything changed, and 2 when either folder lacks a group's file. What it proves: what FreeType drew on
+  this machine from the two files, unhinted, laid out with GPOS kerning (raqm), at these sizes; not CoreText, not
+  Chrome and not the page's CSS. It renders through the one-instruction `fpgm` that `build.py`'s raster checks
+  use, because FreeType autohints the shipped fonts as they are (the neutral roman's `prep` does not prevent
+  it: removing it changed nothing, adding the `fpgm` changed `B` at 16 px by 212 grey levels, measured
+  2026-11-16, trap 2), and the autohinter would add pixel jumps of its own to a diff. A render also counts as changed when the title's advance width moves by more than 0.02 CSS px (a
+  last glyph's advance can move with no ink moving); `diff.md` lists the two widths. A glyph none of the
+  titles uses does not show. To compare the font tables themselves, `ttx -s` the two files and diff the
+  folders; `diff.py` does not.
 - **`scripts/specimen.py`** renders `scripts/specimen.html.tmpl` from `font.json`: the project's
   real titles at every size in `review.sizes`, weights as the site uses them (Medium under
   `medium_below_px`), every surface in `review.surfaces`, the comparison faces (local woff2 or a
@@ -40,7 +57,9 @@ protocol was written down.
   control strings (each lowercase letter x as `nnxnn ooxoo`, each capital as `HHXHH OOXOO`, each figure
   as `00d00 11d11`, each punctuation mark after `r`, `f` and `y`) and a legibility row, `Il1 O0 B8 rn m
   cl d`, at the smallest review size. They hold only characters the font maps (a group whose control
-  letters are unmapped is left out, a word with an unmapped character is dropped).
+  letters are unmapped is left out, a word with an unmapped character is dropped) and a junction row
+  (`1 4 5 v w A M N V W AVAWMNW vwvwv`, in the Bold at the smallest review size; marked `data-fd-junctions`),
+  the glyphs where two strokes meet end to end, where a joint that fills in reads as a blot.
 - **`scripts/shoot.py --serve DIR --font-url PATH --pages ... --widths 500 667 889 1280 1600`**
   serves the built site and the specimen from a self-terminating `http.server` on a free port and
   shoots each page at 1× and 2× (`--force-device-scale-factor=2`). 667 and 889 are where Bract's
@@ -99,6 +118,10 @@ The reviewer reads every crop against these, in this order (Bract's plan, sectio
    the site sets. Say which pairs read as one another (`I` and `l` and `1`, `O` and `0`, `rn` and
    `m`, `cl` and `d`) and whether the site can tolerate it there. Do not ask for a "dyslexia font":
    the research behind this skill found no evidence that one helps.
+9. **Junctions at the smallest size**: the junction row at the smallest review size, in the Bold. Say
+   which of `1 4 5 v w A M N V W` close up or darken where two strokes meet (a blot, a filled crotch) and
+   whether the site can tolerate it at that size. `y` and `k` are not in the row because their strokes
+   cross and do not end on each other.
 
 ## 4. The fresh-reviewer rule
 
@@ -106,7 +129,9 @@ Each round's reviewer is a **new subagent context** that has not seen the build 
 round. Give it `templates/reviewer-brief-design-round.md` filled in: the operator's goal sentence
 **verbatim** (Bract: "a readable and unique font that complements the design and branding"), the
 checklist, the crop directory, the sizes and surfaces, and what changed since the last round
-(parameters and numbers, not verdicts). Do not give it the previous reviewer's findings; a
+(parameters and numbers, not verdicts) and, from round 2, `diff.md` of the last build against this one (the
+reviewer may open the changed renders' PNGs, and must still read every crop against the checklist: a diff
+shows what moved, not whether the new state is good). Do not give it the previous reviewer's findings; a
 reviewer handed a hypothesis tends to return it confirmed. Use the strongest model available; if
 none is above the host, label every verdict "same-model review" (references/fallbacks.md).
 
@@ -125,7 +150,8 @@ itself** and confirms the finding is there (Bract's round 2 measured the `t` foo
 changing it: at 1× its lowest ink row equalled the round letters' overshoot row; the finding was
 accepted as "measured, not a defect"). The host also runs **one mutation of its own** per round on
 a guard the round touched, so a changed test is watched to fail in the same session that changed
-it.
+it. From round 2 on, aim the two spot-checks at the two largest `share` entries of `diff.md`: that is where the
+round's change shows most, and a finding there is cheapest to confirm.
 
 ## 7. Stop rule
 

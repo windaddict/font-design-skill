@@ -568,6 +568,164 @@ def mutations(h):
                            + ' + " sets flareAmt with tear: true; flareAmt has no effect with teardrop terminals, set dropAmt instead");\n  }\n', ''),
         expect="did not throw naming dropAmt")
 
+    # optical corrections (0.2 item 3). Each edit is the weakest change that makes one assertion of
+    # test_optical_corrections_change_only_the_strokes_they_name false; the comment says which.
+    OPT = "test_optical_corrections_change_only_the_strokes_they_name"
+    CW = "closed ? 1 : cwOf ? cwOf[i] : 0"
+    # a: hzThin loses its cos^2 weight, so a plumb stem thins as much as a level bar
+    add("optical-hz-all: hzThin applied without the cos^2 weight", [OPT],
+        lambda: h.rep(GEN, "(1 - (1 - P.hzThin) * c * c)", "(1 - (1 - P.hzThin))"), expect="stem is 90.000 wide")
+    # a: every open stroke takes the full roundGain, so a straight stem swells
+    add("optical-round-straight: curvature weight forced to 1 on open strokes", [OPT],
+        lambda: h.rep(GEN, CW, "closed ? 1 : 1"), expect="stem is 105.000 wide")
+    # d: only rings take the gain, so the open `c` never swells
+    add("optical-round-open-off: curvature weight forced to 0 on open strokes", [OPT],
+        lambda: h.rep(GEN, CW, "closed ? 1 : 0"), expect="off W x (1 + 0.05 x curvature weight)")
+    # d: the cap at 1 is dropped, so the unfitted `c` swells past the full gain where it curves tightest
+    add("optical-round-uncapped: curvature weight not capped at 1", [OPT],
+        lambda: h.rep(GEN, "cwOf.push(Math.min(1, kappa * ROUND_GAIN_RADIUS * (P.W0 || P.W)));", "cwOf.push(kappa * ROUND_GAIN_RADIUS * (P.W0 || P.W));"),
+        expect="off W x (1 + 0.05 x curvature weight)")
+    # e: the diagonal weight is 0, so the `x` stroke keeps its full width
+    add("optical-diag-flat: sin^2(2 theta) weight replaced by 0", [OPT],
+        lambda: h.rep(GEN, "(1 - (1 - P.diagThin) * s2 * s2)", "(1 - (1 - P.diagThin) * 0)"), expect="the `x` stroke (theta")
+    # f: hwFlat takes the pen law without the optical factor, so a flat bar's outer edge misses the line
+    add("optical-fit: hwFlat ignores the optical factor", [OPT],
+        lambda: h.rep(GEN, "  if (P.optical) return P.W * penWidth(0, P, 0) / 2;\n", ""), expect="the `z` bar's top edge is at 495")
+    # g: the corner's partner width takes the pen law without the optical factor, so the stem runs past its bar
+    add("optical-corner: the corner reach ignores the optical factor", [OPT],
+        lambda: h.rep(GEN, "var pw = P.W * penWidth(pth, P, 0);",
+                      "var pw = P.W * (P.thin + (1 - P.thin) * Math.pow(Math.abs(Math.sin(pth - P.nib)), P.pow));"),
+        expect="the `E` stem tops out at")
+    # g, with all three knobs: the corner treats its straight partner as a curve, so the stem runs 2.25 past the bar
+    add("optical-corner-round: the corner reach takes the round gain", [OPT],
+        lambda: h.rep(GEN, "var pw = P.W * penWidth(pth, P, 0);", "var pw = P.W * penWidth(pth, P, 1);"), expect="the `E` stem tops out at")
+    # f, with all three knobs: the fit treats the level bar as a curve, so its outer edge sits 2.25 outside the line
+    add("optical-fit-round: hwFlat takes the round gain", [OPT],
+        lambda: h.rep(GEN, "return P.W * penWidth(0, P, 0) / 2;", "return P.W * penWidth(0, P, 1) / 2;"), expect="the `z` bar's top edge is at")
+    # d: the documented radius constant changes, which moves every partly weighted sample of the fitted `c`
+    add("optical-radius: ROUND_GAIN_RADIUS 2.5 becomes 2", [OPT],
+        lambda: h.rep(GEN, "var ROUND_GAIN_RADIUS = 2.5;", "var ROUND_GAIN_RADIUS = 2;"), expect="off W x (1 + 0.05 x curvature weight)")
+    # c: a ring is no longer round by definition, so the `o` keeps its full width at the right extreme
+    add("optical-ring-off: curvature weight of a closed stroke is 0", [OPT],
+        lambda: h.rep(GEN, "penWidth(th, P, closed ? 1 :", "penWidth(th, P, closed ? 0 :"), expect="the `o` is 100.000 thick at its right extreme")
+    # c: the optical flag ignores roundGain, so roundGain alone is a dead knob (the dead-knob shape of issue #24)
+    add("optical-flag-omits-round: roundGain alone does not switch the optical path on", [OPT],
+        lambda: h.rep(GEN, "P.optical = !(P.hzThin === 1 && P.diagThin === 1 && P.roundGain === 1);", "P.optical = !(P.hzThin === 1 && P.diagThin === 1);"),
+        expect="the `o` is 100.000 thick at its right extreme")
+    # c2: the round fit takes the straight-bar half width again (the 0.2 first version), so under roundGain a round
+    # top overshoots by the configured overshoot plus hw x (roundGain - 1)
+    add("optical-overshoot-round: the round fit uses the level half width", [OPT],
+        lambda: h.rep(GEN, "var hwRound = P.optical ? P.W * penWidth(0, P, 1) / 2 : hw;", "var hwRound = hw;"), expect="the `o` spans")
+    # x-height (0.2 item 4). Each edit is the weakest change that makes one assertion of the named test false.
+    XL = "test_xh_moves_the_lowercase_lines_and_leaves_the_capitals"
+    # a: the round targets stay at the literal 500 (the ring and the open round extremes), so the `o` top does not follow xh
+    def xh_round_literal():
+        h.rep(GEN, "top = Y(ROUND[top][0]) + O - hwRound;", "top = ROUND[top][0] + O - hwRound;")
+        h.rep(GEN, "bot = Y(ROUND[bot][0]) - O + hwRound;", "bot = ROUND[bot][0] - O + hwRound;")
+        h.rep(GEN, "ny = Y(R[0]) + R[1] * (O - hwRound);", "ny = R[0] + R[1] * (O - hwRound);")
+    add("xh-round-literal: ROUND targets stay at the literal lines", [XL], xh_round_literal, expect="the `o` spans")
+    # c: flat strokes move inward from the literal 500, not from the new x-line
+    add("xh-flat-literal: FLAT targets stay at the literal lines", [XL],
+        lambda: h.rep(GEN, "p.ny = Y(p.y) + FLAT[fk] * hw;", "p.ny = p.y + FLAT[fk] * hw;"), expect="the `z` bar's top edge")
+    # f: the map reaches capitals, figures and the apostrophe
+    add("xh-caps-too: the map applied to UPPERISH keys and the apostrophe", [XL],
+        lambda: h.rep(GEN, 'function xhMapped(key, P) { return P.xh !== 500 && !UPPERISH.test(key) && key !== "\'"; }',
+                      "function xhMapped(key, P) { return P.xh !== 500; }"), expect="do not follow xh")
+    # g: the band between the x-line and the ascender is left unmapped, so the i dot (680) stays where it was
+    add("xh-band-unmapped: 500 < y < 740 left unmapped", [XL],
+        lambda: h.rep(GEN, "  return xh + (y - 500) * (740 - xh) / 240;\n}\nfunction xhMapped", "  return y;\n}\nfunction xhMapped"), expect="the `i` dot is at")
+    # g: the dot rule reads the MAPPED dot position (review F006): at xh 600 the colon's upper dot (420) reads 504 and misses it
+    add("xh-dot-mapped: the dot rule reads the mapped position", [XL],
+        lambda: h.rep(GEN, "else if (P.overshoot && dy > 380 && dy < 460) dy = (mapOn ? P.xh : 500) - r + 4;",
+                      "else if (P.overshoot && (mapOn ? ymap(dy, P.xh) : dy) > 380 && (mapOn ? ymap(dy, P.xh) : dy) < 460) dy = (mapOn ? P.xh : 500) - r + 4;"),
+        expect="the colon's dots are centred at")
+    # the decisions read the drawn coordinates instead of the unmapped ones (review F004, F005)
+    add("xh-branch-mapped: every decision reads the drawn skeleton", ["test_xh_does_not_change_any_branch_record"],
+        lambda: h.rep(GEN, "var pu = U ? U.pts : pts, ju = U ? U.joins : joins;", "var pu = pts, ju = joins;"), expect="xh changed a branch record")
+    # the curl test is decided on the drawn tail again (no shipped face curls, so only the test's all-curl variant can see it)
+    add("xh-curl-mapped: the curl decision reads the drawn skeleton", ["test_xh_does_not_change_any_branch_record"],
+        lambda: h.rep(GEN, "if (Math.abs(crossD) < 0.06) return 0;", "if (Math.abs(cross) < 0.06) return 0;"), expect="xh changed a branch record")
+    # the apostrophe alone is mapped, so the six quote glyphs the builder derives from it move
+    add("xh-apostrophe-mapped: the apostrophe follows the map", [XL],
+        lambda: h.rep(GEN, 'function xhMapped(key, P) { return P.xh !== 500 && !UPPERISH.test(key) && key !== "\'"; }',
+                      "function xhMapped(key, P) { return P.xh !== 500 && !UPPERISH.test(key); }"), expect="the apostrophe moved")
+    # spacing: the glyph's sidebearing band stays 500
+    add("xh-band-500: the sidebearing band of a lowercase glyph stays 500", ["test_xh_sets_the_spacing_band"],
+        lambda: h.rep(GEN, "var top = UPPERISH.test(key) ? 700 : P.xh, b0 = binOf(0)", "var top = UPPERISH.test(key) ? 700 : 500, b0 = binOf(0)"),
+        expect="the `o` left sidebearing")
+    # spacing: the kern's band stays 500
+    def kern_band_500():
+        h.rep(GEN, "var top = (a.upper || b.upper) ? 700 : P.xh;", "var top = (a.upper || b.upper) ? 700 : 500;")
+        h.rep(GEN, "pairGap(ref, ref, both ? 700 : P.xh).mean", "pairGap(ref, ref, both ? 700 : 500).mean")
+    add("xh-kern-band-500: the kern's band stays 500", ["test_xh_sets_the_spacing_band"], kern_band_500, expect="the `a|v` kern is")
+    add("xh-range-removed: params() accepts any xh", ["test_xh_outside_its_range_is_refused"],
+        lambda: h.rep(GEN, 'if (concept.xh !== undefined && !(typeof concept.xh === "number" && concept.xh >= 400 && concept.xh <= 600)) {', "if (false) {"),
+        expect="did not refuse it by name")
+    # serifBracket
+    BL = "test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count"
+    add("bracket-ignored: the blend factor is forced to 1", [BL],
+        lambda: h.rep(GEN, "P.serifBracket = concept.serifBracket === undefined ? 1 : concept.serifBracket;", "P.serifBracket = 1;"),
+        expect="at serifBracket 0 the serif spans")
+    add("bracket-count: the slab is drawn as a six-point rectangle", [BL],
+        lambda: h.rep(GEN, "function serifBlend(x, y, w, L, h, sy, b) {\n",
+                      "function serifBlend(x, y, w, L, h, sy, b) {\n  if (b === 0) return [[x - w / 2, y + sy * h], [x - L, y + sy * h], [x - L, y], "
+                      "[x + L, y], [x + L, y + sy * h], [x + w / 2, y + sy * h]];\n"),
+        expect="no 26-point serif")
+    add("bracket-diag: the diagonal serif is not given the blend", [BL],
+        lambda: h.rep(GEN, "  if (bk !== 1) { // blended with a slab", "  if (false) { // blended with a slab"), expect="v 26-point serif at y 500")
+    add("bracket-range-removed: params() accepts any serifBracket", ["test_serifbracket_outside_zero_to_one_is_refused"],
+        lambda: h.rep(GEN, 'if (concept.serifBracket !== undefined && !(typeof concept.serifBracket === "number" && concept.serifBracket >= 0 '
+                           '&& concept.serifBracket <= 1)) {', "if (false) {"),
+        expect="did not refuse it by name")
+    # junctions and crotch (0.2 item 9)
+    JL, CL = "test_joints_opt_in_cuts_a_sans_joint_level", "test_crotch_thins_only_the_inner_edge_of_an_acute_joint"
+    add("joints-ignored: the joint pass reads ends.s only", [JL],
+        lambda: h.rep(GEN, 'var jointsOn = P.ends.s === "serif" || P.joints === true;', 'var jointsOn = P.ends.s === "serif";'),
+        expect="with joints the V's joint end is at y")
+    add("joints-keep-disk: a joint whose end is a disk still draws the disk", [JL],
+        lambda: h.rep(GEN, 'if (pd && vert) e[1] = "joint";', 'if (pd && vert) e[1] = mode === "disk" ? "disk" : "joint";'),
+        expect="a terminal is still drawn at a joint")
+    add("crotch-both-edges: wl and wr both thinned", [CL],
+        lambda: h.rep(GEN, "if (c[1].left) wl *= fc; else wr *= fc;", "wl *= fc; wr *= fc;"), expect="the outer edge moved by")
+    add("crotch-everywhere: every end of every stroke thins", [CL],
+        lambda: h.rep(GEN, "var acute = isJoint && -(t[0] * sg * pdU[0] + t[1] * sg * pdU[1]) > 0.3;", "var acute = true;"), expect="differs between crotch 0 and 0.3")
+    add("crotch-corners: the acute test is dropped, so a corner thins too", [CL],
+        lambda: h.rep(GEN, "var acute = isJoint && -(t[0] * sg * pdU[0] + t[1] * sg * pdU[1]) > 0.3;", "var acute = !!pdU;"), expect="E differs between crotch 0 and 0.3")
+    add("crotch-corner-as-joint: a corner counts as a joint", [CL],
+        lambda: h.rep(GEN, "var isJoint = !!pdU && Math.abs(t[1]) > 0.5 && Math.abs(pdU[1]) > 0.5;", "var isJoint = !!pdU;"),
+        expect="glyphs with an acute joint in their record")
+    add("crotch-obtuse: every joint counts, not only the acute ones", [CL],
+        lambda: h.rep(GEN, "t[1] * sg * pdU[1]) > 0.3;", "t[1] * sg * pdU[1]) > -0.9;"), expect="differs between crotch 0 and 0.3")
+    add("crotch-floor: the reach grows to 2 W0, into the hairline interior", [CL],
+        lambda: h.rep(GEN, "var crotchLen = tearL, cr = null;", "var crotchLen = 2 * (P.W0 || P.W), cr = null;"), expect="hairline minimum")
+    add("apex-accepted: params() no longer refuses apex", ["test_apex_is_refused_until_built"],
+        lambda: h.rep(GEN, "  if (concept.apex !== undefined) {\n    throw", "  if (false) {\n    throw"), expect="apex was not refused")
+    add("optical-fit-overcorrect: round extremes are fitted with a curvature weight of 2", ["test_open_curve_extremes_stay_within_the_documented_bound_of_the_overshoot"],
+        lambda: h.rep(GEN, "var hwRound = P.optical ? P.W * penWidth(0, P, 1) / 2 : hw;", "var hwRound = P.optical ? P.W * penWidth(0, P, 2) / 2 : hw;"),
+        expect="beyond the bound")
+    # G1, G2: a decision reads the drawn coordinates again
+    XD = "test_no_decision_reads_a_mapped_coordinate"
+    add("xh-beak-mapped: the beak gate reads the drawn points", [XD],
+        lambda: h.rep(GEN, "pu.every(function (q) { return Math.abs(q[1] - pu[0][1]) < 0.5; })", "pts.every(function (q) { return Math.abs(q[1] - pts[0][1]) < 0.5; })"),
+        expect="xh changed a branch record on a synthetic glyph")
+    def partner_mapped():
+        h.rep(GEN, 'ends.push({ p: qU[0], si: si, end: "a",', 'ends.push({ p: q[0], si: si, end: "a",')
+        h.rep(GEN, 'ends.push({ p: qU[m], si: si, end: "b",', 'ends.push({ p: q[m], si: si, end: "b",')
+        h.rep(GEN, "partner(ptsU[0], si), pB", "partner(pts[0], si), pB")
+        h.rep(GEN, "partner(ptsU[ptsU.length - 1], si)", "partner(pts[pts.length - 1], si)")
+    add("xh-partner-mapped: the pairing of two ends reads the drawn endpoints", [XD], partner_mapped, expect="xh changed a branch record on a synthetic glyph")
+    add("optical-null-accepted: diagThin: null is accepted", ["test_the_optical_knobs_refuse_values_outside_their_ranges"],
+        lambda: h.rep(GEN, "if (v !== undefined && !(typeof v === \"number\" && v > k[1] && v < k[2])) {",
+                      "if (v !== undefined && !(k[0] === \"diagThin\" && v === null) && !(typeof v === \"number\" && v > k[1] && v < k[2])) {"),
+        expect="diagThin=null: params() did not refuse it by name")
+    add("crotch-token-always: the crotch token is written whether or not crotch is set", ["test_an_unset_crotch_leaves_the_0_1_branch_record"],
+        lambda: h.rep(GEN, "if (P.crotch > 0) sig += ", "sig += "), expect="records are not in the 0.1 form with crotch unset")
+    add("xh-curl-handedness: the spiral's handedness reads the drawn cross product", ["test_no_decision_reads_a_mapped_coordinate"],
+        lambda: h.rep(GEN, "var sg = crossD > 0 ? 1 : -1, N", "var sg = cross > 0 ? 1 : -1, N"), expect="xh changed a branch record on a synthetic glyph")
+    # the range refusals are removed, so a typo changes every stroke silently
+    add("optical-range-removed: params() accepts any hzThin, diagThin, roundGain", ["test_the_optical_knobs_refuse_values_outside_their_ranges"],
+        lambda: h.rep(GEN, "if (v !== undefined && !(typeof v === \"number\" && v > k[1] && v < k[2])) {", "if (false) {"), expect="params() did not refuse it by name")
+
     # F011: the missing-character scan reports nothing
     add("F011: missingCharacters returns []", ["test_export_refuses_a_required_character_without_a_skeleton"],
         lambda: h.rep(EXPORT, "    if (!have.has(ch)) out.push(ch);\n  }\n  return out;", "    if (!have.has(ch)) out.push(ch);\n  }\n  return [];"),

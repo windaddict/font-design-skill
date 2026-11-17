@@ -14,8 +14,10 @@ HTML page from specimen.html.tmpl. Every string from the config is HTML-escaped 
 
 Sections, in page order: FIRST the proof rows, the spacing control strings (every lowercase between nn and oo, every
 capital between HH and OO, every figure between 00 and 11, each punctuation mark after r, f and y; rows marked
-data-fd-spacing="lower|upper|figures|punct") and a legibility row `Il1 O0 B8 rn m cl d` at the smallest review size
-(marked data-fd-legibility), each built only from characters the font maps. They come first because a review shot
+data-fd-spacing="lower|upper|figures|punct"), a legibility row `Il1 O0 B8 rn m cl d` at the smallest review size
+(marked data-fd-legibility) and a junction row `1 4 5 v w A M N V W AVAWMNW vwvwv` in the Bold at the smallest review
+size (marked data-fd-junctions: the glyphs whose strokes meet end to end, where a joint fills at small sizes), each
+built only from characters the font maps. They come first because a review shot
 is shoot.DEFAULT_HEIGHT (2400) CSS px tall and the rest of the page is much longer (at 500 px wide it passes 9,000):
 <html> carries data-fd-proof-bottom, the page-px bottom of the last proof row, which a dumped DOM compares with the
 captured height. Then readable (every review size on every surface; weight 500 under medium_below_px, else 400;
@@ -69,6 +71,9 @@ KERN_SHORT = "AT LT Ta Ty Va Wa Yo r. 74"
 # and the punctuation set the proof sets after r, f and y. See spacing_rows().
 PUNCT_AFTER = ".,'’:;!?-–—…)\""
 LEGIBILITY = "Il1 O0 B8 rn m cl d"  # the pairs a reader confuses at the smallest size; see legibility_row()
+# The glyphs whose branch record carries a `joint` end, measured with node over gen.js on a serif concept (plan-0.2 section 0):
+# `1 4 5 v w A M N V W`. `y` and `k` are NOT joints (their strokes cross or start mid-stroke). The words repeat the joints in runs.
+JUNCTIONS = "1 4 5 v w A M N V W AVAWMNW vwvwv"  # see junction_tokens()
 GLYPH_ROW = "Bracket's Stand / Keepers’ Walk / \"Update\" / “Update” / ‘quay’ / #4 / C++ / *Update* / Salt & Stone … 2019–2026 — fin"
 
 
@@ -192,6 +197,11 @@ def legibility_tokens(allowed):
     return [w for w in LEGIBILITY.split() if all(c in allowed for c in w)]
 
 
+def junction_tokens(allowed):
+    """The tokens of the junction row whose every character the font maps (the row is `1 4 5 v w A M N V W AVAWMNW vwvwv`)."""
+    return [w for w in JUNCTIONS.split() if all(c in allowed for c in w)]
+
+
 def surface_style(s):
     return f'style="background:{e(s["background"])}; color:{e(s["foreground"])}"'
 
@@ -255,6 +265,10 @@ def build(cfg, titles, group_name, font_url, italic_url, source, font_file=None,
     if legible:
         out.append(lbl(f"Legibility at the smallest size ({small:g}px, weight {small_w}): which letters and figures read apart"))
         out.append(row("f", small, e(" ".join(legible)), small_w, lh=1.4, attrs='data-fd-legibility="true"'))
+    joints = junction_tokens(allowed)
+    if joints:
+        out.append(lbl(f"Junctions at the smallest size ({small:g}px, Bold {wmax:g}): where two strokes meet end to end, a joint that fills reads as a blot"))
+        out.append(row("f", small, e(" ".join(joints)), wmax, lh=1.4, attrs='data-fd-junctions="true"'))
     out.append("</section>\n")
     # 1. readable
     for s in surfaces:

@@ -4,12 +4,12 @@ description: Design, build and ship a custom display typeface for a website as a
 license: MIT
 compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
 metadata:
-  version: 0.1.0
+  version: 0.2.0
 ---
 
 # font-design
 
-**Version 0.1.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
+**Version 0.2.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
 frontmatter and the README badge are checked against it by `tests/test_versions_and_skill.py`. **Say
 this version number when you begin**, so the operator knows which copy answered.
 
@@ -347,7 +347,8 @@ then the same with `--root 150` for a reader's enlarged default (a shot without 
 `--font-url` is a picture, not evidence) → a **fresh** reviewer (new subagent context,
 `templates/reviewer-brief-design-round.md`, the operator's goal sentence verbatim, the crops) →
 findings ranked by visibility at 1× on a real page → changes → **you spot-check two crops yourself and
-run one mutation of your own** → next round. **Serve the built site root** (Bract: `static-pages/`),
+run one mutation of your own** → next round. From round 2, copy `out/` to `work/round-N/` before each
+build and run `scripts/diff.py` against it; the reviewer brief names its `diff.md`. **Serve the built site root** (Bract: `static-pages/`),
 and write the specimen under that same root, so the root-relative `/fonts/<file>` the stylesheet and
 the specimen use resolves to the same woff2 the pages load; keep the specimen out of the commit.
 The specimen's FIRST section holds the proof rows the reviewer reads in every round (a default review shot is 2400 CSS px tall and the rest of the specimen is longer; the page records `data-fd-proof-bottom` and `smoke.sh` step 9 checks it is within the capture): spacing control
@@ -450,6 +451,7 @@ Do not ship while any of these holds (finding F015):
 | `scripts/fallback-metrics.py` | The CSS `size-adjust` and three overrides for a `local()` fallback face (Georgia, Times New Roman, Arial, or any `--fallback NAME=PATH`), from the built font and the fallback's file | The arithmetic on advances and hhea metrics at one `--location`, kerning excluded and the visitor's copy of the fallback not seen: a starting point to confirm with a screenshot of the swap |
 | `scripts/shoot.py` | Self-terminating server + headless Chrome (found through `$CHROME`, the macOS app, the Windows install paths, then PATH names); shot tokens; DOM sentinel + beacon (recorded only from the Chrome that carries the shot's cookie); `--family` and `--font-url` name what each shot must prove | A PNG is evidence only if page and font were served 200 for that shot, the named face was used (a loaded `FontFace` of the family and of the element's style and weight range, on an element `checkVisibility()` and the document bounds count as visible), Chrome exited 0; the page under test is trusted to be the operator's own (its script could send the beacon itself); a shot without `--family` and `--font-url` is a picture, not evidence, and so is a shot of an installed family, which has no `FontFace` to prove |
 | `scripts/opsz.py` + `opsz.html` | Which `opsz` the browser applies under `font-optical-sizing: auto` | Chrome headless on this machine; Safari and Firefox unmeasured |
+| `scripts/diff.py` | Which renders of the titles changed between two builds, at every review size and named instance: `diff.md`, `diff.json` and a before/after/diff PNG per changed render (`.venv/bin/python3 scripts/diff.py OUT --font font.json --before DIR`) | FreeType through Pillow with the `fpgm` that stops autohinting, on one machine; not a browser render |
 | `scripts/specimen.py` | The review specimen from `font.json`: real titles, sizes, surfaces, comparison faces, spacing control strings and the legibility row (only characters the font maps); italic rows marked `data-fd-probe="italic"`; refuses a page that shows a character the built font's cmap lacks (`--allow-missing` writes it with a footer note) | What it shows is what one renderer drew; the charset check covers the family's own rows, only when the font file is found |
 | `scripts/narrow.html` | 360 px overflow check inside an iframe, measured at the inner load event and again once the inner fonts settled, after a HEAD request for the inner page's status, a count of failed faces and (with `?family=`) a loaded face of the family | `scrollWidth` vs `clientWidth` of a page served 200 with every face loaded; only a `data-fd-narrow-stage="fonts"` reading counts, and a 404, a failed face or a missing family reads `error`, never `false` |
 | `scripts/mine-sizes.py`, `scripts/mine-charset.py` | Sizes and floor from the CSS; the character set of the text the display selectors set in the built pages, with its traps; `--family` finds every selector whose rule sets the family first; `mine-charset.py --css` adds the characters any `text-transform` rule makes the browser draw inside that text (the selector's own rule, a descendant's or a class's) | Reads `clamp()`, `rem`, `px` rules and the named or found selectors, `@media` included; a family inherited from `body`, a `font:` shorthand or a custom property is not seen; text set by an inline style, by script or by a selector the tool cannot read is not seen, so the set is not exact; without `--css` a `text-transform` is not seen, and a transform rule it cannot read is named in the output |
@@ -465,6 +467,7 @@ Do not ship while any of these holds (finding F015):
 - `references/variable-font-build.md` — masters, avar, opsz, decimation, the self-check table with exact guarantees, `font.json` key by key, `--static`.
 - `references/traps.md` — 35 traps: symptom, cause, detection, the guard that ships, where it bit.
 - `references/review-loop.md` — the round protocol, the checklist, the fresh-reviewer rule, the stop rule.
+- `references/genres.md` — which typeface genres the generator reaches (a candidate recipe each, in `templates/concepts.genres.js`), which it cannot, and the limit of each; read it at phase 3.
 - `references/concept-pipeline.md` — rounds 1–3, the content JSON, artifact constraints, the name check.
 - `references/testing.md` — every test with its mutation; choosing the weakest mutation; the survivors and why.
 - `references/fallbacks.md` — when the strongest model, Impasse, Codex, frontend-design, Chrome or artifacts are absent.
