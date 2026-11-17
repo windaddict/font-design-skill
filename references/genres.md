@@ -98,7 +98,8 @@ where a genre's known shortfall is written down.
 
 ```
 node scripts/concepts/build-page.js --template round1 --concepts templates/concepts.genres.js --content scripts/concepts/content.genres.json out/smoke/pages/genres.html
-.venv/bin/python3 scripts/shoot.py out/smoke/shots-genres --serve out/smoke/pages --pages genres.html --widths 500 1280 --scales 1 --dump-dom
+mkdir -p out/smoke/pages/fonts && cp examples/neutral/out/Sampler-VF.woff2 out/smoke/pages/fonts/
+.venv/bin/python3 scripts/shoot.py out/smoke/shots-genres --serve out/smoke/pages --pages genres.html --widths 500 1280 --scales 1 --dump-dom --family Sampler --font-url /fonts/Sampler-VF.woff2
 ```
 
 `scripts/concepts/content.genres.json` is `content.minimal.json` with its `concepts` block replaced by one
@@ -106,9 +107,10 @@ entry per recipe id: the minimal file's block names `text` and `display`, which 
 beside these ids, and the round-1 template shows a recipe's limit only from `concepts.<id>.risk`, never
 from the recipe's own `desc`. Each `risk` is the recipe's "reaches it today?" cell from the table above,
 without markup, and `tests/test_genres.py` fails when a recipe or a cell and the file disagree. No
-`--family`: the comparison face is Georgia, an installed family, so the shot
-proves only that a face other than Chrome's default serif drew the probe string
-(`concept-pipeline.md` section 4). Then a fresh strong-model reviewer reads the shots with a brief
+`--family`: the comparison face is the built neutral Sampler, a woff2 beside the page (smoke step 8
+copies it to `pages/fonts/`), not an installed family, because Georgia is missing on a Linux runner and
+the page's probe then fails the shot; with `--family Sampler --font-url /fonts/Sampler-VF.woff2` the
+shot proves the face was drawn. Then a fresh strong-model reviewer reads the shots with a brief
 derived from `templates/reviewer-brief-concepts.md` and answers, per recipe, "does this read as the
 genre named, and what is the first thing that says it does not?".
 

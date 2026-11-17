@@ -154,8 +154,9 @@ print("face switch observed:", sorted(faces))
 EOF
     # 8b. the genres page executes in Chrome and every recipe renders: per recipe, its <section id="concept-<id>"> in the dumped
     #     DOM holds drawn paths (>= 10, each a real outline, none with NaN or Infinity); data-fd-rendered alone only sums glyphs
-    #     over the whole page. (its comparison face is Georgia, so no --family)
-    "$PY" "$HERE/shoot.py" "$OUT/shots-genres" --serve "$OUT/pages" --pages genres.html --widths 500 1280 --scales 1 --dump-dom
+    #     over the whole page. Its comparison face is the built Sampler that step 8 copied beside the pages (an installed Georgia
+    #     was missing on the Linux runner, and the page's own probe failed the shot), so --family proves it was drawn.
+    "$PY" "$HERE/shoot.py" "$OUT/shots-genres" --serve "$OUT/pages" --pages genres.html --widths 500 1280 --scales 1 --dump-dom --family Sampler --font-url "$FONT_URL"
     "$PY" - "$HERE" "$OUT/shots-genres" "$HERE/concepts/content.genres.json" <<'EOF'
 import json, pathlib, re, sys
 sys.path.insert(0, sys.argv[1])

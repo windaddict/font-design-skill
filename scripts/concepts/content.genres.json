@@ -39,13 +39,14 @@
     "label": "system-ui, -apple-system, 'Segoe UI', sans-serif"
   },
   "comparison": {
-    "name": "Georgia (the face in use today)",
-    "family": "Georgia",
+    "name": "Sampler (built)",
+    "family": "Sampler",
+    "font_url": "fonts/Sampler-VF.woff2",
     "weights": [
       400,
       700
     ],
-    "note": "The face the site sets its titles in today, on the same specimens, so the sketches are judged against what they would replace. In round 1 no file of the new face exists yet: put the site's current display face here, an installed family or a woff2 beside the page as font_url."
+    "note": "The built neutral Sampler, beside the page as a woff2, so the page renders the same on every machine (an installed family such as Georgia is missing on a Linux CI runner, and the page's own probe then reports the comparison font missing). The genre recipes are judged against each other here, not against this face."
   },
   "weights": [
     {

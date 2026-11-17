@@ -57,11 +57,13 @@ have, and the builder refuses them). Its `risk` fields are the limits from the `
 
 ```
 node scripts/concepts/build-page.js --template round1 --concepts templates/concepts.genres.js --content scripts/concepts/content.genres.json out/pages/genres.html
-.venv/bin/python3 scripts/shoot.py out/shots-genres --serve out/pages --pages genres.html --widths 500 1280 --scales 1 --dump-dom
+mkdir -p out/pages/fonts && cp examples/neutral/out/Sampler-VF.woff2 out/pages/fonts/
+.venv/bin/python3 scripts/shoot.py out/shots-genres --serve out/pages --pages genres.html --widths 500 1280 --scales 1 --dump-dom --family Sampler --font-url /fonts/Sampler-VF.woff2
 ```
 
-No `--family`: the comparison face of the minimal content is an installed family (Georgia), so the
-shot proves only that the page executed and a face other than the default serif drew its probe string.
+The comparison face of `content.genres.json` is the built neutral Sampler, a woff2 beside the page, so copy
+`examples/neutral/out/Sampler-VF.woff2` to `out/pages/fonts/` first and add `--family Sampler --font-url
+/fonts/Sampler-VF.woff2`; an installed family such as Georgia is missing on Linux and the page's probe fails.
 The page shows a concept's text only from `content.concepts.<id>` (`desc`, `cost`, `risk`), never from
 the concept's own `desc`; `content.genres.json` already does that for the recipes.
 
