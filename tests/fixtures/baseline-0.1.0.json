@@ -111,6 +111,80 @@
         "neutral/italic": "b41849f28111bc672e3efe965ae0edaf2426dec92debd6a13beb1d358123635d",
         "neutral/roman": "91830549ea7b710d9e16cbc95c24f0ee203de1736bdd50f3c42f597c68e2dbb9"
       }
+    },
+    "linux/20": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "8d434b3c762155e05b84bc98b8e4fd95139ab6db33e0bf5f082e9573068b2e78",
+          "manifest_sha256": "74b7e524432735f4997abd4ec9c6495ebb55f3d3391e00d7f0093c522fa4781c",
+          "ttf_sha256": "46a69ef1ba37fcb96d639908bceb1e86615c711c78030b5d09fa81add883171a"
+        },
+        "driftwood/italic": {
+          "export_sha256": "51e6f24489653560219fa4e07b5db39f68b093d4589b307f38f2517114400e9c",
+          "manifest_sha256": "b87057b744348e1e20e2e05362cb2c5d921b78c484858fb8c5c68ab11b3a31d7",
+          "ttf_sha256": "aee935d110ddee04af38936540da644819abb1d18bd2525ca36b265b14b9f279"
+        },
+        "driftwood/roman": {
+          "export_sha256": "9cfabd5009f5a00445840b82117d93b11ae41a4a08a982985edcd2f8b02f8ad2",
+          "manifest_sha256": "b87057b744348e1e20e2e05362cb2c5d921b78c484858fb8c5c68ab11b3a31d7",
+          "ttf_sha256": "a1b59d30c5731ccc0be40c15b3a2537e397b023f0fe4704633e4dd31177098eb"
+        },
+        "neutral/italic": {
+          "export_sha256": "8f91e2d2668d84e7dadec2b29c974a197373eac72f4bb2abb2a60cf654478e6c",
+          "manifest_sha256": "6046d209feaf6f8d0a25886d053955b6950014f3816a3b73f3555be6f77cdb4e",
+          "ttf_sha256": "ca4898a2ddf9a81cebb84a6b03a590555452c9a7e73f0008f9726163e3ad2972"
+        },
+        "neutral/roman": {
+          "export_sha256": "c73257b458efba150a9290dd1b6b58c0f0be11c364a753e7151db4e2e8c655db",
+          "manifest_sha256": "6046d209feaf6f8d0a25886d053955b6950014f3816a3b73f3555be6f77cdb4e",
+          "ttf_sha256": "c2107c533ef46cd26bc3c08c128bc0ebca5e5b50c7a45d7f4e014eb550122c12"
+        }
+      },
+      "woff2": {
+        "bract/roman": "b60cf54d42fddff4418cdb5502c3ffaf72dc621ddffacde71e9368afba16aff5",
+        "driftwood/italic": "e15eb5f4a7597407b79f56238e19805792e2612ffceed0b22e228b85e1056baf",
+        "driftwood/roman": "c80b6922d2655b935e28e4d965618123406ac617854dc29da9cce3e9a78c45c5",
+        "neutral/italic": "235827dad792a5d240d999de5d429bceccfc10fe8164f617144ac22d237bfb8d",
+        "neutral/roman": "ec0dfbc78ab895d9d25c587b7d29503a11f5d3a2521d6f5c345e80a8f6f67405"
+      }
+    },
+    "linux/22": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "8d434b3c762155e05b84bc98b8e4fd95139ab6db33e0bf5f082e9573068b2e78",
+          "manifest_sha256": "74b7e524432735f4997abd4ec9c6495ebb55f3d3391e00d7f0093c522fa4781c",
+          "ttf_sha256": "46a69ef1ba37fcb96d639908bceb1e86615c711c78030b5d09fa81add883171a"
+        },
+        "driftwood/italic": {
+          "export_sha256": "51e6f24489653560219fa4e07b5db39f68b093d4589b307f38f2517114400e9c",
+          "manifest_sha256": "b87057b744348e1e20e2e05362cb2c5d921b78c484858fb8c5c68ab11b3a31d7",
+          "ttf_sha256": "aee935d110ddee04af38936540da644819abb1d18bd2525ca36b265b14b9f279"
+        },
+        "driftwood/roman": {
+          "export_sha256": "9cfabd5009f5a00445840b82117d93b11ae41a4a08a982985edcd2f8b02f8ad2",
+          "manifest_sha256": "b87057b744348e1e20e2e05362cb2c5d921b78c484858fb8c5c68ab11b3a31d7",
+          "ttf_sha256": "a1b59d30c5731ccc0be40c15b3a2537e397b023f0fe4704633e4dd31177098eb"
+        },
+        "neutral/italic": {
+          "export_sha256": "8f91e2d2668d84e7dadec2b29c974a197373eac72f4bb2abb2a60cf654478e6c",
+          "manifest_sha256": "6046d209feaf6f8d0a25886d053955b6950014f3816a3b73f3555be6f77cdb4e",
+          "ttf_sha256": "ca4898a2ddf9a81cebb84a6b03a590555452c9a7e73f0008f9726163e3ad2972"
+        },
+        "neutral/roman": {
+          "export_sha256": "c73257b458efba150a9290dd1b6b58c0f0be11c364a753e7151db4e2e8c655db",
+          "manifest_sha256": "6046d209feaf6f8d0a25886d053955b6950014f3816a3b73f3555be6f77cdb4e",
+          "ttf_sha256": "c2107c533ef46cd26bc3c08c128bc0ebca5e5b50c7a45d7f4e014eb550122c12"
+        }
+      },
+      "woff2": {
+        "bract/roman": "b60cf54d42fddff4418cdb5502c3ffaf72dc621ddffacde71e9368afba16aff5",
+        "driftwood/italic": "e15eb5f4a7597407b79f56238e19805792e2612ffceed0b22e228b85e1056baf",
+        "driftwood/roman": "c80b6922d2655b935e28e4d965618123406ac617854dc29da9cce3e9a78c45c5",
+        "neutral/italic": "235827dad792a5d240d999de5d429bceccfc10fe8164f617144ac22d237bfb8d",
+        "neutral/roman": "ec0dfbc78ab895d9d25c587b7d29503a11f5d3a2521d6f5c345e80a8f6f67405"
+      }
     }
   },
   "schema": "font-design/baseline-digests/v2"
