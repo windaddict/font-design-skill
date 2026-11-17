@@ -19,6 +19,15 @@ picks · 7 the name check · 8 building a page
 | 2, the mock-ups | `round2-template.html` | the shortlist set into mock-ups of the redesigned pages (after the audit's fixes), with a sticky face picker and a glance card per concept; headline slots carry the site's sizes and weights | the reviewer plus the frontend-design plugin when installed; the reviewer revises the leading concept (Bract: Medium for the small titles, serifs that grow with weight, heavier hairlines) | the operator names the finalists |
 | 3, the head-to-head | `round3-template.html` | the finalists on the mock pages with the picker; a verdict box and a ranking; a two-cut face that switches at `DISPLAY_FROM`; the comparison face (the one the site uses today) as a CSS face | the reviewer ranks and says how to pick; targeted fixes are sketched here (Bract's display cut "D2": stems 8 % heavier, hairlines thinner, serifs longer) before any build | the operator chooses the design and the **name** |
 
+**Name each round-1 concept's genre** from `references/genres.md` beside its brand name (Foil: a
+Scotch roman; Blind: close to a Clarendon), and build the spectrum so that **at least three genres
+appear**: the vocabulary is what lets the operator and the reviewer say "a slab" and mean the same
+parameter set. `templates/concepts.genres.js` has a recipe per genre the generator was tried against (`genres.md` says which it reaches);
+start from one rather than from numbers. Where a genre is out of reach (a Tuscan, a circular `O`),
+`genres.md` says so, and the spectrum does not pretend. The concept's own `desc` is **not** shown on
+the page: the round-1 template reads only `content.concepts.<id>` (`desc`, `cost`, `risk`), so put
+the genre and its known limit there.
+
 Round 1 is wide on purpose: about six concepts named for the brand, **closest to the face in use
 first, most organic last**, so the operator sees the range before the recommendation. Bract's six
 ran from Foil (a Scotch roman, vertical stress) through Burin (engraved captions) to Bine (curling

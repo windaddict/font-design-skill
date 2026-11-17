@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 import pytest
 from conftest import REPO
@@ -756,7 +757,7 @@ def test_specimen_writes_the_proof_rows_before_every_other_section(tmp_path):
 def test_chrome_the_specimens_proof_rows_lie_inside_the_default_shot_height(tmp_path, width):
     """The specimen is laid out in real Chrome at `width` and shot at the DEFAULT height; the dumped DOM carries
     data-fd-proof-bottom, the page-px bottom of the last proof row (written by the specimen's own script after the fonts
-    settle), which must be positive, count five rows (four spacing kinds and the legibility row) and be at most
+    settle), which must be positive, count six rows (four spacing kinds, the legibility row and the junction row) and be at most
     shoot.DEFAULT_HEIGHT, so the review PNG contains them. A page whose rows end below the capture fails. Weakest mutation
     watched red: the control strings set at 90px instead of 24 (the section then runs past 2400 at 500 wide); the page's own
     script hard-coding the bottom as 100 while the rows sit past 2400 (the page's figure then disagrees with the test's own)."""
@@ -773,7 +774,7 @@ def test_chrome_the_specimens_proof_rows_lie_inside_the_default_shot_height(tmp_
     # an independent measurement: the test appends its OWN script to the written page (the page's script wrote data-fd-proof-bottom,
     # which cannot be the only evidence of where the rows are)
     page = (site / "specimen.html").read_text(encoding="utf-8")
-    probe = ("<script>(function(){function m(){var e=document.querySelectorAll('[data-fd-spacing],[data-fd-legibility]'),b=0;"
+    probe = ("<script>(function(){function m(){var e=document.querySelectorAll('[data-fd-spacing],[data-fd-legibility],[data-fd-junctions]'),b=0;"
              "for(var i=0;i<e.length;i++){var r=e[i].getBoundingClientRect();b=Math.max(b,r.top+r.height+window.pageYOffset);}"
              "document.documentElement.setAttribute('data-test-bottom',String(Math.round(b)));}"
              "m();window.addEventListener('load',m);if(document.fonts&&document.fonts.ready){document.fonts.ready.then(m);}})();</script></body>")
@@ -785,7 +786,7 @@ def test_chrome_the_specimens_proof_rows_lie_inside_the_default_shot_height(tmp_
     assert r.returncode == 0, r.stdout[-800:] + r.stderr[-800:]
     dom = next((tmp_path / "shots").glob("*.dom.html")).read_text(encoding="utf-8")
     attrs = shoot.html_attrs(dom)
-    assert attrs.get("data-fd-proof-count") == "5", attrs.get("data-fd-proof-count")
+    assert attrs.get("data-fd-proof-count") == "6", attrs.get("data-fd-proof-count")
     bottom = int(attrs["data-fd-proof-bottom"])
     measured = int(attrs["data-test-bottom"])
     assert 0 < measured <= shoot.DEFAULT_HEIGHT, \
@@ -810,3 +811,77 @@ def test_specimen_shown_chars_reads_the_family_rows_only():
     import specimen
     roman, italic = specimen.shown_chars(sections)
     assert roman == set("A&B12") and italic == set("Ita")
+
+
+# ---------------------------------------------------------------- run_chrome(): a Chrome that hangs or dies in teardown
+def fake_chrome(tmp_path):
+    """A stand-in browser: writes the file named by --screenshot=, prints a complete DOM, then does what
+    $FAKE_CHROME_THEN says (hang: sleep; exit2: exit 2, the code Chrome's macOS shutdown watchdog uses;
+    partial-hang / partial-exit2: the same without the closing </html>)."""
+    sh = tmp_path / "fake-chrome"
+    sh.write_text('#!/bin/sh\nfor a in "$@"; do case "$a" in --screenshot=*) printf PNG > "${a#--screenshot=}";; esac; done\n'
+                  'printf \'<!DOCTYPE html>\\n<html><head></head><body data-fake="1"></body>\'\n'
+                  'case "$FAKE_CHROME_THEN" in partial-*) ;; *) printf \'</html>\\n\';; esac\n'
+                  'case "$FAKE_CHROME_THEN" in *watchdog1) echo "Teardown watchdog expired; recording dump and terminating." >&2; exit 1;;\n'
+                  '                            *watchdog) echo "Teardown watchdog expired; recording dump and terminating." >&2; exit 2;; esac\n'
+                  'case "$FAKE_CHROME_THEN" in *hang) sleep 1000;; *exit2) exit 2;; *exit1) exit 1;; esac\n')
+    sh.chmod(0o755)
+    return str(sh)
+
+
+@pytest.mark.parametrize("then, said", [("hang", "Chrome had not exited 1s after writing the screenshot and the DOM"),
+                                        ("watchdog", "Chrome exited 2 (its teardown watchdog) 1s after")])
+def test_shoot_keeps_a_complete_shot_when_chrome_hangs_or_dies_in_its_teardown(tmp_path, monkeypatch, capsys, then, said):
+    """One of the two CI failures of 2026-11-17 (PR #2): Chrome 157 on macOS wrote the screenshot and the
+    whole ~100 MB DOM of a hostile concept page, then stalled in its own teardown until its 10-second
+    shutdown watchdog logged "Teardown watchdog expired" and _exit-ed with 2, and the helpers it left
+    behind held stdout open; shoot.py waited the full timeout and reported the shot as not taken with
+    both outputs on disk. Now a complete shot (PNG present, stdout ending in </html>) is kept after
+    EXIT_GRACE seconds when Chrome hangs (killed, with its process group) or when it exits 2 with that
+    watchdog line on stderr, and the departure is printed. Red on the code before the fix: 'hang'
+    raised "Chrome took over 3s", 'watchdog' raised "Chrome exited 2"."""
+    monkeypatch.setattr(shoot, "EXIT_GRACE", 1.0, raising=False)
+    monkeypatch.setenv("FAKE_CHROME_THEN", then)
+    t0 = time.monotonic()
+    res = shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake_chrome(tmp_path), dump_dom=True, timeout=3)
+    assert time.monotonic() - t0 < 3, "the complete shot was not kept before the timeout"
+    assert (tmp_path / "x.png").read_bytes() == b"PNG"
+    assert 'data-fake="1"' in pathlib.Path(res["dom"]).read_text() and res["verified"] is False
+    err = capsys.readouterr().err
+    assert said in err and "both outputs are complete and are used" in err, err
+
+
+@pytest.mark.parametrize("then, error", [("partial-hang", "Chrome took over 2s"), ("partial-watchdog", "Chrome exited 2 and wrote a screenshot"),
+                                         ("exit2", "Chrome exited 2 and wrote a screenshot"), ("exit1", "Chrome exited 1 and wrote a screenshot"),
+                                         ("watchdog1", "Chrome exited 1 and wrote a screenshot")])
+def test_shoot_still_fails_a_chrome_that_hangs_or_dies_before_the_dom_is_complete_or_for_another_reason(tmp_path, monkeypatch, then, error):
+    """The grace above is for a COMPLETE shot and the WATCHDOG exit only: with the DOM cut short (no closing
+    </html>) a hang is still the timeout and the watchdog exit is still a failed shot, and a complete DOM
+    followed by an exit 2 without the watchdog line, or by any other exit code with or without it, is still a failed shot
+    (a renderer that died leaves a complete DOM of an error page). The first version accepted every
+    non-zero exit after a complete DOM, and test_the_mock_slot_sizes_take_effect_in_chrome[round3]
+    then passed shoot.py and failed on a DOM without the slot (fix branch CI, job 134106502866).
+    Weakest mutations watched red: complete() returning True on any stdout; the exit-code and
+    watchdog-line conditions dropped."""
+    monkeypatch.setattr(shoot, "EXIT_GRACE", 1.0, raising=False)
+    monkeypatch.setenv("FAKE_CHROME_THEN", then)
+    with pytest.raises(RuntimeError, match=error):
+        shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake_chrome(tmp_path), dump_dom=True, timeout=2)
+
+
+def test_shoot_dom_only_asks_chrome_for_no_screenshot_and_keeps_the_dom(tmp_path, monkeypatch):
+    """The other CI failure of 2026-11-17 (PR #2), the frequent one: asked for a screenshot of a hostile
+    concept page (96-124 MB of SVG path data) under --virtual-time-budget, Chrome on the macOS runners
+    stalled before taking it in about half of all attempts, every process idle until the timeout, and
+    never did without --screenshot (12 of 12 clean) or without the budget (12 of 12). dom_only=True
+    drops --screenshot from the command, keeps --dump-dom, requires no PNG, and returns png None. The
+    fake records its arguments. Red before the fix: shoot() had no dom_only parameter."""
+    sh = tmp_path / "fake-chrome"
+    sh.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$(dirname "$0")/args.txt"\n'
+                  'printf \'<!DOCTYPE html>\\n<html><head></head><body data-fake="1"></body></html>\\n\'\n')
+    sh.chmod(0o755)
+    res = shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=str(sh), dom_only=True, timeout=5)
+    args = (tmp_path / "args.txt").read_text().splitlines()
+    assert not any(a.startswith("--screenshot") for a in args) and "--dump-dom" in args, args
+    assert res["png"] is None and 'data-fake="1"' in pathlib.Path(res["dom"]).read_text()
+    assert not (tmp_path / "x.png").exists()

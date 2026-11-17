@@ -41,7 +41,11 @@ function render(el, text, P, size, opt) {
   svg.setAttribute("viewBox", (-padL) + " 0 " + vbW.toFixed(0) + " " + H);
   svg.setAttribute("width", (vbW * size / 1000).toFixed(1)); svg.setAttribute("height", (H * size / 1000).toFixed(1));
   svg.style.marginLeft = (-padL * size / 1000).toFixed(1) + "px";
-  path.setAttribute("fill", "currentColor"); path.setAttribute("d", d.join(""));
+  var dAll = d.join("");
+  // Chrome stops an SVG path at its first NaN, so a non-finite coordinate makes whole words vanish without any script error;
+  // surface it where the smoke run and the shot tool read (data-fd-error)
+  if (/NaN|Infinity/.test(dAll)) document.documentElement.setAttribute("data-fd-error", "render: a drawn path contains NaN or Infinity (a concept knob is unset or out of range)");
+  path.setAttribute("fill", "currentColor"); path.setAttribute("d", dAll);
   svg.appendChild(path);
   while (el.firstChild) el.removeChild(el.firstChild);
   el.appendChild(svg);

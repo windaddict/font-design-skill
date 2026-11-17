@@ -27,9 +27,13 @@ face}}, {{body face}} or a stock face; complements {{the brand sources}}.
   intermediate instances ({{wght 550 / opsz 60}}), a kerning row, an NBSP-wrap row, a quotes row, the
   spacing control strings (each lowercase between nn and oo, each capital between HH and OO, each figure
   between 00 and 11, each punctuation mark after r, f and y) and the legibility row `Il1 O0 B8 rn m cl d`
-  at {{the smallest size}}.
+  at {{the smallest size}}, and the junction row `1 4 5 v w A M N V W AVAWMNW vwvwv` in the Bold at the
+  same size.
 - The font's configuration: `{{font.json}}`; the masters and floors: `{{manifest.json}}`.
-- What changed since round {{N−1}}, as parameters and numbers: {{e.g. "serifGrow 0.6 → 0.35; the
+- What changed since round {{N−1}}: `{{diff dir}}/diff.md` ({{N}} of {{M}} renders changed; the changed renders
+  sorted by the share of ink that moved) and its before / after / diff PNGs, `{{diff dir}}/<group>-<instance>-<size>px-<title>.png`
+  (red: more ink after, blue: less). They are FreeType renders of the project's titles on one machine,
+  unhinted: not Chrome, not the page. {{For round 1: "first build, no diff".}} Then the parameter changes, as numbers: {{e.g. "serifGrow 0.6 → 0.35; the
   fold pin added; the t's top end s → x; the a bowl joins at 290"}}. {{For round 1: "first build".}}
 
 ## The checklist, in order
@@ -58,6 +62,9 @@ face}}, {{body face}} or a stock face; complements {{the brand sources}}.
 8. **Legibility at {{the smallest size}}**: the row `Il1 O0 B8 rn m cl d`: say which pairs read as one
    another and whether {{the site}} can tolerate that at that size. Do not ask for a dyslexia-specific
    face (the research behind this skill found no evidence that one helps).
+9. **Junctions at {{the smallest size}}**: the junction row, in the Bold: say which of `1 4 5 v w A M N V W`
+   close up or darken where two strokes meet (a blot, a filled crotch) and whether {{the site}} can tolerate
+   that at that size. `y` and `k` are not in the row: their strokes cross, they do not end on each other.
 
 ## What to produce
 

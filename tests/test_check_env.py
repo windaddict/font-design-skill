@@ -67,7 +67,7 @@ def test_check_env_reports_everything_found_and_exits_zero(toolchain):
     r = check_env(toolchain[2])
     assert r.returncode == 0, r.stdout + r.stderr
     for line in ("found    node v22.1.0", "found    chrome " + str(toolchain[1]), "found    bash", "found    platform", "found    fonttools", "found    pillow",
-                 "check-env: all 9 required pieces found"):
+                 "found    raqm", "check-env: all 12 required pieces found"):
         assert line in r.stdout, f"{line!r} missing from:\n{r.stdout}"
 
 
@@ -348,3 +348,34 @@ def test_the_fontbakery_fix_command_uses_absolute_quoted_paths(scripts_copy, too
     r = run_as(scripts_copy / "scripts" / "check-env.py", blocked=["fontbakery"], env=toolchain[2])
     line = next(ln for ln in r.stdout.splitlines() if ln.startswith("optional: fontbakery"))
     assert f"install -r '{scripts_copy}/requirements-dev.txt'" in line and f"'{scripts_copy}/.venv/bin/pip'" in line, line
+
+
+RAQM_WRAPPER = """
+import runpy, sys
+from PIL import features
+real = features.check
+features.check = lambda name, *a, **k: False if name == "raqm" else real(name, *a, **k)
+sys.platform = {platform!r}
+sys.argv = [{script!r}]
+runpy.run_path({script!r}, run_name="__main__")
+"""
+
+
+@pytest.mark.parametrize("platform,fix", [("darwin", "brew install fribidi"), ("linux", "apt install libfribidi0")])
+def test_check_env_names_a_missing_raqm_with_the_fix_for_the_os(toolchain, platform, fix):
+    """Review of 0.2 / first macOS CI run: diff.py refused because the runner's Pillow had no raqm (the wheel carries the engine and loads
+    libfribidi at run time, which a bare macOS runner lacks). It is a REQUIRED piece because the review loop runs diff.py from round 2. With
+    Pillow's `features.check("raqm")` made to say no and the platform faked, the report names raqm, the fix for that OS, and exits 1.
+    Mutation watched red: check_raqm returning (True, ...) when the feature is absent."""
+    code = RAQM_WRAPPER.format(platform=platform, script=str(CHECK))
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=toolchain[2])
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "MISSING  raqm: this Pillow lacks the raqm layout engine" in r.stdout and fix in r.stdout, r.stdout
+    assert "check-env: 1 required piece(s) missing" in r.stdout, r.stdout
+
+
+def test_check_env_reports_raqm_found_when_pillow_has_it(toolchain):
+    """The found line, and the count it adds to. Skipped nowhere: the skill's own requirements install Pillow, and a Pillow without raqm is
+    the failure this piece reports, so on such a machine this test is the one that goes red."""
+    r = check_env(toolchain[2])
+    assert "found    raqm" in r.stdout, r.stdout

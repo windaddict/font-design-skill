@@ -15,7 +15,23 @@ listening and nothing to kill.
 
 What a counted shot proves (every item is checked; any failure is reported and the exit code is 1):
   1. Chrome exited 0 and the PNG exists. Any PNG of the same name is deleted before the run, so a
-     file left by an earlier run can never pass as this run's result.
+     file left by an earlier run can never pass as this run's result. One exception, logged when it
+     happens: with --dump-dom, once Chrome has written the screenshot and the whole DOM (stdout ends
+     in </html>), it has EXIT_GRACE seconds to exit; a Chrome that then hangs is killed and a Chrome
+     that then exits non-zero is accepted, because both outputs already exist and the fault is in
+     Chrome's teardown, not in the page. Chrome 157 on macOS tears down a ~100 MB DOM (the hostile
+     concept pages) so slowly that its own 10-second shutdown watchdog fires ("Teardown watchdog
+     expired; recording dump and terminating.", exit 2) and the helpers it leaves behind hold stdout
+     open; before this exception shoot.py waited the full timeout (300 s) with both outputs on disk
+     and reported the shot as not taken (2026-11-17, the CI hang on PR #2).
+     --dom-only takes no screenshot at all: Chrome prints the DOM and exits, the PNG is never asked
+     for, and the result's png is None. It exists for tests/test_tools_and_templates.py's hostile
+     pages, whose DOM serialises to 96-124 MB of SVG path data: asked for a screenshot of such a page
+     under --virtual-time-budget, Chrome 156/157 on the macOS CI runners stalled before taking it in
+     about half of all attempts (every process idle, no PNG, no DOM, until the timeout; 7 of 12 and
+     8 of 12 in two probes), and never did in 24 probes without --screenshot or without the budget.
+     The cause inside Chrome is not known (release builds carry no symbols); the two outputs of a
+     --dom-only run, the DOM and the served-200 proof, are the only ones that test reads.
   2. The page URL carried a unique token (?shot=<id>) and the server answered THAT request 200.
      With --jobs above 1 several Chromes run at once; the token is what ties a response to a shot.
   3. A sentinel script, injected into every .html response, ran in the page after document.fonts.ready
@@ -148,6 +164,10 @@ CHROME_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-b
 BEACON_PATH = "/__fd/beacon"
 TOOL_PREFIX = "/__fd/"  # narrow.html and opsz.html are served from this folder under this prefix
 BEACON_WAIT = 3.0  # seconds to wait for a beacon after Chrome exits (it is a loopback GET)
+EXIT_GRACE = 20.0  # seconds Chrome gets to exit after the screenshot and the whole DOM are written (item 1); then it is killed
+DOM_END = b"</html>\n"  # --dump-dom prints the serialised document and a newline; outerHTML always ends in </html>
+RESULT_CODE_HUNG = 2  # content::RESULT_CODE_HUNG, what Chrome's macOS shutdown watchdog _exits with (chrome/browser/shutdown_watchdog_mac.cc)
+TEARDOWN_WATCHDOG = "Teardown watchdog expired"  # the line that watchdog logs to stderr before it exits
 SHOT_COOKIE = "fd_shot"  # set by every .html response carrying ?shot=; ties this Chrome's later requests to the shot
 SHOT_TOKEN_OK = re.compile(r"^[A-Za-z0-9._-]{1,80}$")  # what may go into the Set-Cookie header
 # Returned by translate_path for a request that escapes its root. It lies under os.devnull, which is
@@ -564,12 +584,88 @@ def self_test_failures(beacon=None, dom_html=None):
     return out
 
 
+class ChromeRun:
+    """What run_chrome() returns: the exit code, decoded stdout and stderr, whether `complete` was
+    reached, and whether shoot.py killed the process group after the grace period."""
+
+    def __init__(self, returncode, stdout, stderr, complete, killed):
+        self.returncode, self.stdout, self.stderr, self.complete, self.killed = returncode, stdout, stderr, complete, killed
+
+
+def run_chrome(cmd, timeout, complete=None):
+    """Runs Chrome and collects its output. Without `complete` this is subprocess.run with a timeout
+    (TimeoutExpired after `timeout` seconds). With `complete`, a function of the last bytes of stdout
+    so far, the run also counts as finished as soon as complete() is true: Chrome then has EXIT_GRACE
+    seconds to exit on its own, after which its whole process group is killed (the helpers inherit
+    the stdout pipe, and a renderer left behind by a browser that _exit-ed would otherwise hold the
+    pipe open until the timeout). The timeout applies only while the output is incomplete.
+    Raises OSError when the binary cannot be started."""
+    out, err, eof = [], [], threading.Event()
+    state = {"tail": b"", "done_at": None, "n": 0}
+
+    def read(pipe, sink, is_out):
+        # os.read returns what is there; BufferedReader.read(n) would block until n bytes or EOF, and
+        # the tail of a hanging Chrome's output would never be seen
+        for chunk in iter(lambda: os.read(pipe.fileno(), 1 << 20), b""):
+            sink.append(chunk)
+            if is_out:
+                state["tail"] = (state["tail"] + chunk)[-len(DOM_END):]
+                state["n"] += len(chunk)
+        if is_out:
+            eof.set()
+
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    threads = [threading.Thread(target=read, args=(p.stdout, out, True), daemon=True),
+               threading.Thread(target=read, args=(p.stderr, err, False), daemon=True)]
+    for t in threads:
+        t.start()
+    t0 = time.monotonic()
+    killed = False
+    while True:
+        rc = p.poll()
+        now = time.monotonic()
+        if complete is not None and state["done_at"] is None and state["n"] and complete(state["tail"]):
+            state["done_at"] = now
+        if rc is not None and eof.is_set():
+            break
+        if state["done_at"] is not None:
+            if now - state["done_at"] > EXIT_GRACE:
+                killed = True
+                kill_group(p)
+                break
+        elif now - t0 > timeout:
+            kill_group(p)
+            raise subprocess.TimeoutExpired(cmd, timeout)
+        time.sleep(0.05)
+    for t in threads:
+        t.join(timeout=10)
+    if complete is not None and state["done_at"] is None and state["n"] and complete(state["tail"]):
+        state["done_at"] = time.monotonic()  # the last chunk landed between the check and the exit
+    return ChromeRun(p.returncode, b"".join(out).decode("utf-8", "replace"), b"".join(err).decode("utf-8", "replace"),
+                     state["done_at"] is not None, killed)
+
+
+def kill_group(p):
+    """SIGKILL to Chrome's whole process group (it was started as a session leader), then reap it."""
+    try:
+        os.killpg(p.pid, 9)
+    except ProcessLookupError:
+        pass
+    try:
+        p.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
 def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
-          shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None):
+          shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None, dom_only=False):
     """One headless Chrome capture, verified. Returns a dict (png, dom, shot, font, width_face,
     width_fallback, font_status, probe). Raises RuntimeError naming the first failed proof; see the
     module header for the list. `server` is the one from serve(); without it only the Chrome exit
-    and the PNG are checked, and the function says so in the result ("verified": False)."""
+    and the PNG are checked, and the function says so in the result ("verified": False).
+    `dom_only` asks Chrome for the DOM and no screenshot (see --dom-only in the header): png is None
+    in the result, dump_dom is implied, and item 1 is "Chrome exited 0 and printed the DOM"."""
+    dump_dom = dump_dom or dom_only
     if width < MIN_WIDTH:
         raise ValueError(f"width {width} is below Chrome headless's {MIN_WIDTH}px minimum layout width; "
                          f"for a narrower reading shoot scripts/narrow.html with ?url=<page>&width={width}")
@@ -587,18 +683,28 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
     with tempfile.TemporaryDirectory(dir=profile_root) as profile:
         cmd = [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                f"--user-data-dir={profile}", f"--window-size={width},{height}",
-               f"--force-device-scale-factor={scale}", "--virtual-time-budget=5000",
-               f"--screenshot={target}"]
+               f"--force-device-scale-factor={scale}", "--virtual-time-budget=5000"]
+        if not dom_only:
+            cmd.append(f"--screenshot={target}")
         if dump_dom:
             cmd.append("--dump-dom")
         cmd.append(url)
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            r = run_chrome(cmd, timeout, complete=(lambda tail: (dom_only or target.is_file()) and tail.endswith(DOM_END)) if dump_dom else None)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Chrome took over {timeout}s for {url} at {width}@{scale}x") from None
         except OSError as exc:  # not executable, wrong architecture, deleted since discovery
             raise RuntimeError(f"Chrome could not be started ({type(exc).__name__}: {exc}): {chrome}; set $CHROME to a working browser binary") from None
-    if r.returncode != 0 or not target.is_file():
+    teardown_hung = r.complete and (r.killed or (r.returncode == RESULT_CODE_HUNG and TEARDOWN_WATCHDOG in r.stderr))
+    if teardown_hung:
+        # item 1's exception: both outputs exist and the fault is in Chrome's teardown; say so and go on. Any other
+        # non-zero exit after a complete DOM stays a failure: a renderer that died leaves a complete DOM of an
+        # error page behind, and accepting it would pass a shot of nothing
+        print(f"shoot.py: {'Chrome had not exited' if r.killed else f'Chrome exited {r.returncode} (its teardown watchdog)'} "
+              f"{EXIT_GRACE:g}s after writing the screenshot and the DOM for {url} at {width}@{scale}x"
+              f"{' and was killed' if r.killed else ''}; both outputs are complete and are used "
+              f"(a teardown hang, not a page fault): {r.stderr[-300:]!r}", file=sys.stderr)
+    elif r.returncode != 0 or (not dom_only and not target.is_file()):
         raise RuntimeError(f"Chrome exited {r.returncode} and wrote {'a' if target.is_file() else 'no'} screenshot "
                            f"for {url} at {width}@{scale}x: {r.stderr[-400:]}")
     dom_text = None
@@ -607,7 +713,7 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
             raise RuntimeError(f"--dump-dom produced no DOM for {url}; the screenshot is kept but the run is not verified")
         dom_text = r.stdout
         dom_path.write_text(dom_text, encoding="utf-8")
-    result = {"png": str(target), "dom": str(dom_path) if dom_path else None, "shot": shot_id,
+    result = {"png": None if dom_only else str(target), "dom": str(dom_path) if dom_path else None, "shot": shot_id,
               "font": None, "width_face": None, "width_fallback": None, "font_status": None, "probe": None,
               "verified": server is not None}
     if server is None:
@@ -725,6 +831,8 @@ def main(argv=None):
     ap.add_argument("--probe", metavar="SELECTOR", help="with --family: the elements that must be drawn in it "
                     "(default: every visible element whose computed font-family names it first)")
     ap.add_argument("--dump-dom", action="store_true", help="also save the DOM Chrome laid out as <name>.dom.html")
+    ap.add_argument("--dom-only", action="store_true", help="save the DOM and take no screenshot (no PNG): for a test that reads the DOM of a page "
+                    "too large to screenshot reliably; see the header")
     ap.add_argument("--no-sentinel", action="store_true", help="serve .html byte-identical; no beacon, no font proof: a picture, not evidence")
     ap.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help="CSS px captured")
     ap.add_argument("--bands", default=DEFAULT_BANDS, help="crops as name:top:bottom,... in CSS px, or 'none'")
@@ -784,7 +892,7 @@ def main(argv=None):
         url, png, width, scale = job
         try:
             res = shoot(url, png, width, scale, height=args.height, profile_root=out, server=server,
-                        require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome)
+                        require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome, dom_only=args.dom_only)
             return res, scale
         except (RuntimeError, ValueError) as exc:  # one failed page must not end the run; it is reported at the end
             failed.append(str(exc))
@@ -794,10 +902,11 @@ def main(argv=None):
             for res, scale in pool.map(one, jobs):
                 if res:
                     results.append(res)
-                    written.append(res["png"])
+                    if res["png"]:
+                        written.append(res["png"])
+                        written += crop_bands(res["png"], scale, bands)
                     if res["dom"]:
                         written.append(res["dom"])
-                    written += crop_bands(res["png"], scale, bands)
     finally:
         server.shutdown()
     for w in written:

@@ -8,7 +8,7 @@
      font.json (its `review` block and `titles`). Real titles at every size the site uses, with the
      weights the site uses, on each surface; the face beside its comparison faces; the opsz crossing;
      intermediate instances; a kerning row; an NBSP wrap row; the quote and symbol glyphs; the spacing
-     control strings and the legibility row. Serve the
+     control strings, the legibility row and the junction row. Serve the
      output with scripts/shoot.py from a directory that also holds the font at the --font-url path.
      The italic rows carry the data-fd-probe marker, set to italic, for shoot.py's element probe; labels inside a
      surface section carry that surface's foreground colour. $NOTES holds the charset-check notes
@@ -44,7 +44,7 @@ $NOTES</section>
    the captured height. Read again once the fonts have settled, because a late font changes the wrapping. */
 (function () {
   function mark() {
-    var els = document.querySelectorAll("[data-fd-spacing], [data-fd-legibility]"), bottom = 0;
+    var els = document.querySelectorAll("[data-fd-spacing], [data-fd-legibility], [data-fd-junctions]"), bottom = 0;
     for (var i = 0; i < els.length; i++) bottom = Math.max(bottom, els[i].getBoundingClientRect().bottom + window.scrollY);
     document.documentElement.setAttribute("data-fd-proof-count", String(els.length));
     document.documentElement.setAttribute("data-fd-proof-bottom", String(Math.ceil(bottom)));

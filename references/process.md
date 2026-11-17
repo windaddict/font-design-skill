@@ -36,7 +36,7 @@ in `references/examples/`.
 **Do.** Say the skill version. Classify the change under the operator's process: a site-wide face
 is a significant change (it touches public URLs the stylesheet links, and it is a new feature), so
 the full plan → review → build → review order applies. Check the tools and state which are present:
-`node` (≥ 20), a Python ≥ 3.11 venv with fonttools 4.68.*, brotli, skia-pathops and pillow, Chrome,
+`node` (≥ 20), a Python ≥ 3.10 venv with fonttools 4.68.*, brotli, skia-pathops, pillow, uharfbuzz and unicodedata2, Chrome,
 Impasse, the frontend-design plugin, the strongest model. For anything missing read
 `references/fallbacks.md` and say what the gap costs before starting.
 
@@ -146,9 +146,10 @@ and recorded in the guidelines and `requirements.json` before phase 3 draws a co
 ## 3. Phase 3 — Round 1, the spectrum
 
 **Inputs.** The guidelines, the fixed pages, the brand sources. **Reference:**
-`references/concept-pipeline.md`, `references/generator.md`.
+`references/concept-pipeline.md`, `references/generator.md`, `references/genres.md`.
 
-**Do.** Create `concepts.js` (`templates/concepts.example.js` is the shape) with about six
+**Do.** Name each round-1 concept's genre from `references/genres.md` beside its brand name, and cover at
+least three genres; the table says which genres the generator reaches and which it cannot. Create `concepts.js` (`templates/concepts.example.js` is the shape) with about six
 concepts named for the brand, each a parameter set, closest to the face in use first and most
 organic last. Build
 the round-1 page with `scripts/concepts/build-page.js` from a content JSON of real titles, the
@@ -285,6 +286,9 @@ back to the concept, not to the budget.
 ## 8. Phase 8 — Design-review loop (≤ 6 rounds)
 
 **Reference:** `references/review-loop.md`.
+
+Keep each round's `out/` (`cp -R` to `work/round-N/`) and run `scripts/diff.py` against it after the
+next build; give the reviewer `diff.md`, so "what changed" arrives as pictures, not as the host's summary.
 
 **Do.** build → `specimen.py --font font.json --requirements requirements.json --font-url /fonts/<file> <site root>/review/specimen.html`
 → `shoot.py OUT --serve <site root> --pages ... --family <Family> --font-url /fonts/<file>` (pages ×

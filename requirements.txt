@@ -3,3 +3,9 @@ fonttools==4.68.*
 brotli
 skia-pathops
 pillow
+# Two packages fontTools uses when they are installed and that change the built bytes: uharfbuzz serialises GPOS and GSUB with
+# HarfBuzz's repacker (blocking it changed every example's TTF digest, measured 2026-11-17), and unicodedata2 replaces the
+# standard library's Unicode tables. fontbakery (requirements-dev.txt) installs both, so pinning them here keeps a build from the
+# README's install identical to CI's and to the recorded compatibility digests.
+uharfbuzz==0.57.*
+unicodedata2==18.0.*

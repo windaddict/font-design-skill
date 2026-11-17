@@ -15,6 +15,7 @@ reference.
 | `round1-template.html` | the spectrum: optional audit section, guidelines, "all N side by side" with a text input and a weight select, one full specimen per concept on the site's surfaces, a character row, a recommendation footer |
 | `round2-template.html` | the shortlist on three mock pages of a FIXED generic layout (home, article, contents: hop-safari's redesign): a sticky face picker, a glance card per concept, headline slots as `.r[data-t][data-size][data-w][data-min][data-fit][data-lh][data-caps]` whose sizes come from `content.slot_sizes` (required for rounds 2 and 3; a slot left out keeps its hop-safari default and is named on stderr), images only from `img/` |
 | `round3-template.html` | the head-to-head: the verdict box (`#verdict`, from the content JSON's `verdict`), a ranking, the two-cut face switching at `DISPLAY_FROM`, `localStorage` memory of the pick, the comparison CSS face |
+| `content.genres.json` | the genres page's content: the minimal content with one `concepts` entry per recipe in `templates/concepts.genres.js`, the limit in `risk` |
 | `content.example.json` | neutral sample content: titles, chapters, lede, colours, image list, slot sizes, a verdict |
 
 ## Run a round
@@ -44,6 +45,27 @@ page without `--family`, with `--dump-dom`, and read the page's own `data-fd-fon
 face other than the default serif drew the probe string, not that it was Georgia;
 `references/concept-pipeline.md` section 4). Switch faces with `--query face=<id>` (`?face=<id>` in
 a browser).
+
+## Render the genre recipes
+
+`templates/concepts.genres.js` holds one recipe per typeface genre the generator was tried against
+(`references/genres.md` says which it reaches, partly reaches or does not). Build a round-1 page of all of them, to read what each reaches, with
+`content.genres.json`: `content.minimal.json` with its `concepts` block replaced by one entry per
+recipe id (the minimal file's `text` and `display` entries name concepts the genres file does not
+have, and the builder refuses them). Its `risk` fields are the limits from the `genres.md` table;
+`tests/test_genres.py` keeps them in step.
+
+```
+node scripts/concepts/build-page.js --template round1 --concepts templates/concepts.genres.js --content scripts/concepts/content.genres.json out/pages/genres.html
+mkdir -p out/pages/fonts && cp examples/neutral/out/Sampler-VF.woff2 out/pages/fonts/
+.venv/bin/python3 scripts/shoot.py out/shots-genres --serve out/pages --pages genres.html --widths 500 1280 --scales 1 --dump-dom --family Sampler --font-url /fonts/Sampler-VF.woff2
+```
+
+The comparison face of `content.genres.json` is the built neutral Sampler, a woff2 beside the page, so copy
+`examples/neutral/out/Sampler-VF.woff2` to `out/pages/fonts/` first and add `--family Sampler --font-url
+/fonts/Sampler-VF.woff2`; an installed family such as Georgia is missing on Linux and the page's probe fails.
+The page shows a concept's text only from `content.concepts.<id>` (`desc`, `cost`, `risk`), never from
+the concept's own `desc`; `content.genres.json` already does that for the recipes.
 
 ## Publish as an artifact
 

@@ -41,8 +41,12 @@ a skeleton, a cut).
 
 Then, for this round:
 
-- **Round 1**: a shortlist (three or four) with one sentence each on why; which concepts to drop and
-  why; **how to pick** among the shortlist (what to look at, at which size); the risk of each.
+- **Round 1**: for each concept, **the genre you see** (Didone, Scotch roman, Clarendon, slab,
+  grotesque, geometric, humanist, or none of them; the vocabulary is `references/genres.md`) and **where
+  the render falls short of it**, in one sentence naming the letter or the stroke. Then a shortlist
+  (three or four) with one sentence each on why; which concepts to drop and why; **how to pick** among
+  the shortlist (what to look at, at which size); the risk of each. If the page names a genre beside a
+  concept, say whether you agree before you use it.
 - **Round 2**: the leading concept and the revisions it needs, as parameters; which finalists to
   carry; whether a Medium or a second cut is needed and at which size.
 - **Round 3**: a ranking with reasons; the one recommendation; the targeted fixes to sketch before

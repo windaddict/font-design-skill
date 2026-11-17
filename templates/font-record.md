@@ -146,6 +146,10 @@ Each round: build → `shoot.py` ({{pages, widths, scales}}, plus the specimen) 
 against the checklist in `{{docs/plan-<face>.md}}` section {{7}} → changes → next build. Every
 build ended with the full suite green.
 
+Each round from the second also ran `scripts/diff.py` against the previous round's `out/` (kept at
+`{{work/round-N/}}`, diff output at `{{work/diff-N/}}`; neither is tracked): FreeType renders of the titles at the
+review sizes, unhinted, not browser evidence. {{Per round: N of M renders changed, and which two the host spot-checked.}}
+
 - **Round 1.** {{Findings; changes.}}
 - **Round 2.** {{Findings; changes.}}
 - **Round {{N}}.** Stop: {{why}}.

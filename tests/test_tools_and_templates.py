@@ -315,11 +315,51 @@ def test_specimen_renders_from_the_neutral_config_without_a_browser(tmp_path):
 
 
 def proof_rows(html):
-    """{"spacing:<kind>" or "legibility": (px, weight, text)} read from a written specimen page."""
+    """{"spacing:<kind>", "legibility" or "junctions": (px, weight, text)} read from a written specimen page."""
     import html as html_mod
-    pat = r'<p class="f" data-fd-(?:spacing="(\w+)"|(legibility)="true")[^>]*style="font-size:([\d.]+)px; font-weight:(\d+)[^"]*">(.*?)</p>'
+    pat = r'<p class="f" data-fd-(?:spacing="(\w+)"|(legibility|junctions)="true")[^>]*style="font-size:([\d.]+)px; font-weight:(\d+)[^"]*">(.*?)</p>'
     return {("spacing:" + kind if kind else leg): (float(px), int(w), html_mod.unescape(inner))
             for kind, leg, px, w, inner in re.findall(pat, html, re.S)}
+
+
+def test_the_specimen_carries_the_junction_row(tmp_path):
+    """The junction row sets the glyphs whose strokes meet end to end (measured with node over gen.js on a serif concept, plan-0.2
+    section 0: `1 4 5 v w A M N V W`; `y` and `k` are not joints) and two runs of them, in the Bold, at the smallest review size,
+    marked data-fd-junctions, and it comes BEFORE the readable rows like every proof row. The expected text, size and weight are
+    written here from the config, not read from specimen.py. With a font file that lacks `5` and `W`, the tokens that need them are
+    dropped and the others stay. Weakest mutations watched red 2026-11-16: the row's tokens built from an empty list (no row);
+    the row set at weight 400; the row set at the largest size."""
+    from fontTools import subset
+    from fontTools.ttLib import TTFont
+    cfg = json.loads((NEUTRAL / "font.json").read_text())
+    wght_max = next(a["max"] for a in cfg["groups"]["roman"]["axes"] if a["tag"] == "wght")
+    base = [sys.executable, str(REPO / "scripts" / "specimen.py"), "--font", str(NEUTRAL / "font.json"), "--requirements", str(NEUTRAL / "requirements.json"),
+            "--group", "roman", "--font-url", "/fonts/Sampler-VF.woff2"]
+    out = tmp_path / "specimen.html"
+    r = run([*base, str(out)])
+    assert r.returncode == 0, r.stderr
+    html = out.read_text(encoding="utf-8")
+    size, weight, text = proof_rows(html)["junctions"]
+    assert text == "1 4 5 v w A M N V W AVAWMNW vwvwv", text
+    assert size == min(cfg["review"]["sizes"]) and weight == wght_max, (size, weight)
+    assert "y" not in text and "k" not in text, "y and k have no end-to-end joint and do not belong in the row"
+    assert 0 < html.index('data-fd-junctions="true"') < html.index("Readable on"), "the junction row is a proof row and must precede the readable rows"
+    assert "[data-fd-junctions]" in html, "the page's proof-bottom script must count the junction row, or a shot can cut it off unnoticed"
+    src = NEUTRAL / "out" / "Sampler-VF.woff2"
+    if not src.is_file():
+        pytest.fail("the neutral example is not built; the dropped-token half of this test needs examples/neutral/out/Sampler-VF.woff2 (build it)")
+    font = TTFont(src)
+    opts = subset.Options()
+    opts.layout_features, opts.notdef_outline = ["*"], True
+    sub = subset.Subsetter(opts)
+    sub.populate(unicodes=[cp for cp in font.getBestCmap() if chr(cp) not in "5W"])
+    sub.subset(font)
+    font.flavor = "woff2"
+    part = tmp_path / "Part.woff2"
+    font.save(part)
+    r = run([*base, "--font-file", str(part), "--allow-missing", str(tmp_path / "part.html")])
+    assert r.returncode == 0, r.stderr
+    assert proof_rows((tmp_path / "part.html").read_text(encoding="utf-8"))["junctions"][2] == "1 4 v w A M N V vwvwv"
 
 
 def test_the_proof_rows_hold_only_characters_the_font_file_maps(tmp_path):
@@ -390,7 +430,13 @@ def test_hostile_text_is_inert_in_chrome(template, tmp_path):
     through shoot.py and reads the DOM Chrome built: the page ran and drew glyphs, the hostile strings
     are present as TEXT (the serialised DOM carries them entity-escaped), no element carries an
     onerror handler, no script beyond the template's own two exists, nothing set data-fd-pwned (the
-    fixture's inline script would), and no runtime error was recorded."""
+    fixture's inline script would), and no runtime error was recorded.
+    --dom-only, not --dump-dom: the hostile page's DOM is 96-124 MB of SVG path data (6,106-7,790
+    glyphs at ~1,200 path points each, because the fixture prefixes ~190 hostile characters to all
+    185 strings), and asked to screenshot it under --virtual-time-budget Chrome 156/157 on the macOS
+    CI runners stalled before the screenshot in about half of all attempts ("Chrome took over 300s",
+    10 of 14 macOS jobs on PR #2, 2026-11-17). Without --screenshot it never stalled in 12 probes.
+    Nothing here reads the PNG."""
     chrome = chrome_or_skip()
     adv = json.loads((REPO / "tests" / "fixtures" / "content-adversarial.json").read_text(encoding="utf-8"))
     fixed = json.loads(json.dumps(adv).replace('"img/../x.jpg"', "null"))
@@ -402,11 +448,12 @@ def test_hostile_text_is_inert_in_chrome(template, tmp_path):
     assert r.returncode == 0, r.stderr
     shots = tmp_path / "shots"
     r = subprocess.run([sys.executable, str(REPO / "scripts" / "shoot.py"), str(shots), "--serve", str(pages), "--pages", f"{template}.html",
-                        "--widths", "1280", "--scales", "1", "--dump-dom", "--no-sentinel", "--bands", "none"],
+                        "--widths", "1280", "--scales", "1", "--dom-only", "--no-sentinel", "--bands", "none"],
                        capture_output=True, text=True, cwd=REPO, env={**os.environ, "CHROME": chrome})
     assert r.returncode == 0, r.stderr[-1500:]
     doms = list(shots.glob("*.dom.html"))
     assert len(doms) == 1, doms
+    assert not list(shots.glob("*.png")), "--dom-only must not take a screenshot"
     dom = doms[0].read_text(encoding="utf-8")
     assert int(re.search(r'data-fd-rendered="(\d+)"', dom).group(1)) > 0, "the page did not draw"
     # the hostile TEXT itself contains the attribute name, so the check is on the <html> element
@@ -472,8 +519,10 @@ def test_the_review_checklist_and_the_reviewer_brief_ask_for_the_proof_rows():
     CHECKLIST ITEMS (not at any mention: the legibility string also appears in the list of specimen rows, so a
     whole-file search survived deleting it from the item): the item that starts "Spacing, then kerning" must name
     the control-string patterns and the rule that spacing is reported before any kern, and the item that starts
-    "Legibility" must hold the row verbatim and say "smallest". Mutations watched red: the row's last word dropped
-    from the item; "before any kern" reworded."""
+    "Legibility" must hold the row verbatim and say "smallest"; the item "Junctions" must name the glyphs and say
+    "smallest"; and the brief's "What changed since round" bullet must name `diff.md`. Mutations watched red: the row's
+    last word dropped from the item; "before any kern" reworded; (2026-11-16) `diff.md` removed from the brief's slot; the
+    junction glyph list shortened in the brief."""
     for path in (REPO / "references" / "review-loop.md", REPO / "templates" / "reviewer-brief-design-round.md"):
         text = path.read_text(encoding="utf-8")
         items = {m.group(1): re.sub(r"\s+", " ", m.group(0)) for m in re.finditer(r"^\d+\. \*\*(Spacing|Legibility)[^\n]*(?:\n(?!\d+\. |\n|## )[^\n]*)*", text, re.M)}
@@ -481,6 +530,11 @@ def test_the_review_checklist_and_the_reviewer_brief_ask_for_the_proof_rows():
         for need in ("nn", "oo", "HH", "OO", "00", "11", "before any kern"):
             assert need in items["Spacing"], f"{path.name}: the spacing item does not mention {need!r}: {items['Spacing']}"
         assert "Il1 O0 B8 rn m cl d" in items["Legibility"] and "smallest" in items["Legibility"], f"{path.name}: {items['Legibility']}"
+        junction = re.search(r"^\d+\. \*\*Junctions[^\n]*(?:\n(?!\d+\. |\n|## )[^\n]*)*", text, re.M)
+        assert junction and "1 4 5 v w A M N V W" in junction.group(0) and "smallest" in junction.group(0), f"{path.name}: no junction checklist item naming the glyphs"
+    brief = (REPO / "templates" / "reviewer-brief-design-round.md").read_text(encoding="utf-8")
+    changed = re.search(r"^- What changed since round[^\n]*(?:\n(?!- |\n|#)[^\n]*)*", brief, re.M)
+    assert changed and "diff.md" in changed.group(0), "the brief's 'what changed' slot must name diff.md, the per-round visual diff the reviewer is told to read"
 
 
 def test_specimen_refuses_a_font_url_that_could_end_the_style_block(tmp_path):

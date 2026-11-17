@@ -55,7 +55,9 @@ like on PATH. `scripts/check-env.py` reports whether it found one. If none is fo
 - there is no browserless specimen: `scripts/specimen.py` writes HTML only. Use `scripts/build.py`'s
   own FreeType rasters (Pillow) as the only rendering evidence, render a title with Pillow's
   `ImageFont.truetype` on the built woff2/TTF by hand, and state that it proves FreeType rendering
-  only, not CoreText, DirectWrite or any browser;
+  only, not CoreText, DirectWrite or any browser. `scripts/diff.py` still runs without Chrome: it needs no
+  browser, and its before / after renders are the same kind of evidence (FreeType, unhinted, on this machine),
+  never browser evidence. It does need Pillow's raqm layout engine (so that GPOS kerning applies): without it `diff.py` refuses naming the fix, `scripts/check-env.py` reports it as a required piece (`brew install fribidi` on macOS, `apt install libfribidi0` on Debian/Ubuntu), and the fallback is the by-hand Pillow render above;
 - the design-review loop **cannot stop on "no defect at 1× on a real page"**, because no real page
   was rendered; it ends as "not browser-reviewed", recorded as an open item in the record;
 - `scripts/opsz.py` cannot run, so the `opsz` endpoints are "assumed CSS px, unmeasured" in the

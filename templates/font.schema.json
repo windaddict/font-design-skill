@@ -68,7 +68,7 @@
     "review": {
       "type": "object", "required": ["sizes", "surfaces"], "additionalProperties": false,
       "properties": {
-        "sizes": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 }, "minItems": 1, "description": "CSS px the site sets the face at; specimen.py renders every one" },
+        "sizes": { "type": "array", "items": { "type": "number", "exclusiveMinimum": 0 }, "minItems": 1, "description": "CSS px the site sets the face at; specimen.py and diff.py render every one" },
         "medium_below_px": { "type": "number", "minimum": 0, "description": "sizes under this use weight 500 in the specimen (0: never)" },
         "surfaces": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["name", "background", "foreground"], "additionalProperties": false,
           "properties": { "name": { "type": "string" }, "background": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }, "foreground": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } } } },

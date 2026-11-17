@@ -1,6 +1,6 @@
 # font-design — a Claude Code skill for making a website its own typeface
 
-![version](https://img.shields.io/badge/version-0.1.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
+![version](https://img.shields.io/badge/version-0.2.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
 
 A skill that designs, builds and ships a custom display typeface for a website as a self-hosted
 variable web font. The face is generated from centre-line skeletons by a parametric generator, chosen
@@ -43,9 +43,10 @@ cd ~/.claude/skills/font-design
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
-Requirements: Node ≥ 20; Python ≥ 3.10 with `fonttools==4.68.*`, `brotli`, `skia-pathops`, `pillow`
+Requirements: Node ≥ 20; Python ≥ 3.10 with `fonttools==4.68.*`, `brotli`, `skia-pathops`, `pillow`, `uharfbuzz`, `unicodedata2`
 (CI runs 3.12; 3.10 and 3.11 are not run by anything here); Chrome or Chromium for the review tools
-(`$CHROME` or the per-OS default); bash. **Platforms: macOS and Linux are supported. Native Windows is
+(`$CHROME` or the per-OS default); bash; a Pillow with the raqm layout engine for `scripts/diff.py` (the wheel carries it and needs libfribidi:
+`brew install fribidi` on macOS, `apt install libfribidi0` on Debian/Ubuntu). **Platforms: macOS and Linux are supported. Native Windows is
 not (the scripts are bash and the venv path is `.venv/bin/python3`); on Windows use WSL.**
 `.venv/bin/python3 scripts/check-env.py` reports what is missing, with the command that fixes each piece. Optional but recommended:
 the Impasse skill (independent review), the `frontend-design` plugin (aesthetic audit), and the
