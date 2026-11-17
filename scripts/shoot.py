@@ -15,7 +15,15 @@ listening and nothing to kill.
 
 What a counted shot proves (every item is checked; any failure is reported and the exit code is 1):
   1. Chrome exited 0 and the PNG exists. Any PNG of the same name is deleted before the run, so a
-     file left by an earlier run can never pass as this run's result.
+     file left by an earlier run can never pass as this run's result. One exception, logged when it
+     happens: with --dump-dom, once Chrome has written the screenshot and the whole DOM (stdout ends
+     in </html>), it has EXIT_GRACE seconds to exit; a Chrome that then hangs is killed and a Chrome
+     that then exits non-zero is accepted, because both outputs already exist and the fault is in
+     Chrome's teardown, not in the page. Chrome 157 on macOS tears down a ~100 MB DOM (the hostile
+     concept pages) so slowly that its own 10-second shutdown watchdog fires ("Teardown watchdog
+     expired; recording dump and terminating.", exit 2) and the helpers it leaves behind hold stdout
+     open; before this exception shoot.py waited the full timeout (300 s) with both outputs on disk
+     and reported the shot as not taken (2026-11-17, the CI hang on PR #2).
   2. The page URL carried a unique token (?shot=<id>) and the server answered THAT request 200.
      With --jobs above 1 several Chromes run at once; the token is what ties a response to a shot.
   3. A sentinel script, injected into every .html response, ran in the page after document.fonts.ready
@@ -148,6 +156,8 @@ CHROME_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-b
 BEACON_PATH = "/__fd/beacon"
 TOOL_PREFIX = "/__fd/"  # narrow.html and opsz.html are served from this folder under this prefix
 BEACON_WAIT = 3.0  # seconds to wait for a beacon after Chrome exits (it is a loopback GET)
+EXIT_GRACE = 20.0  # seconds Chrome gets to exit after the screenshot and the whole DOM are written (item 1); then it is killed
+DOM_END = b"</html>\n"  # --dump-dom prints the serialised document and a newline; outerHTML always ends in </html>
 SHOT_COOKIE = "fd_shot"  # set by every .html response carrying ?shot=; ties this Chrome's later requests to the shot
 SHOT_TOKEN_OK = re.compile(r"^[A-Za-z0-9._-]{1,80}$")  # what may go into the Set-Cookie header
 # Returned by translate_path for a request that escapes its root. It lies under os.devnull, which is
@@ -564,6 +574,79 @@ def self_test_failures(beacon=None, dom_html=None):
     return out
 
 
+class ChromeRun:
+    """What run_chrome() returns: the exit code, decoded stdout and stderr, whether `complete` was
+    reached, and whether shoot.py killed the process group after the grace period."""
+
+    def __init__(self, returncode, stdout, stderr, complete, killed):
+        self.returncode, self.stdout, self.stderr, self.complete, self.killed = returncode, stdout, stderr, complete, killed
+
+
+def run_chrome(cmd, timeout, complete=None):
+    """Runs Chrome and collects its output. Without `complete` this is subprocess.run with a timeout
+    (TimeoutExpired after `timeout` seconds). With `complete`, a function of the last bytes of stdout
+    so far, the run also counts as finished as soon as complete() is true: Chrome then has EXIT_GRACE
+    seconds to exit on its own, after which its whole process group is killed (the helpers inherit
+    the stdout pipe, and a renderer left behind by a browser that _exit-ed would otherwise hold the
+    pipe open until the timeout). The timeout applies only while the output is incomplete.
+    Raises OSError when the binary cannot be started."""
+    out, err, eof = [], [], threading.Event()
+    state = {"tail": b"", "done_at": None, "n": 0}
+
+    def read(pipe, sink, is_out):
+        # os.read returns what is there; BufferedReader.read(n) would block until n bytes or EOF, and
+        # the tail of a hanging Chrome's output would never be seen
+        for chunk in iter(lambda: os.read(pipe.fileno(), 1 << 20), b""):
+            sink.append(chunk)
+            if is_out:
+                state["tail"] = (state["tail"] + chunk)[-len(DOM_END):]
+                state["n"] += len(chunk)
+        if is_out:
+            eof.set()
+
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    threads = [threading.Thread(target=read, args=(p.stdout, out, True), daemon=True),
+               threading.Thread(target=read, args=(p.stderr, err, False), daemon=True)]
+    for t in threads:
+        t.start()
+    t0 = time.monotonic()
+    killed = False
+    while True:
+        rc = p.poll()
+        now = time.monotonic()
+        if complete is not None and state["done_at"] is None and state["n"] and complete(state["tail"]):
+            state["done_at"] = now
+        if rc is not None and eof.is_set():
+            break
+        if state["done_at"] is not None:
+            if now - state["done_at"] > EXIT_GRACE:
+                killed = True
+                kill_group(p)
+                break
+        elif now - t0 > timeout:
+            kill_group(p)
+            raise subprocess.TimeoutExpired(cmd, timeout)
+        time.sleep(0.05)
+    for t in threads:
+        t.join(timeout=10)
+    if complete is not None and state["done_at"] is None and state["n"] and complete(state["tail"]):
+        state["done_at"] = time.monotonic()  # the last chunk landed between the check and the exit
+    return ChromeRun(p.returncode, b"".join(out).decode("utf-8", "replace"), b"".join(err).decode("utf-8", "replace"),
+                     state["done_at"] is not None, killed)
+
+
+def kill_group(p):
+    """SIGKILL to Chrome's whole process group (it was started as a session leader), then reap it."""
+    try:
+        os.killpg(p.pid, 9)
+    except ProcessLookupError:
+        pass
+    try:
+        p.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
 def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
           shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None):
     """One headless Chrome capture, verified. Returns a dict (png, dom, shot, font, width_face,
@@ -593,12 +676,18 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
             cmd.append("--dump-dom")
         cmd.append(url)
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            r = run_chrome(cmd, timeout, complete=(lambda tail: target.is_file() and tail.endswith(DOM_END)) if dump_dom else None)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Chrome took over {timeout}s for {url} at {width}@{scale}x") from None
         except OSError as exc:  # not executable, wrong architecture, deleted since discovery
             raise RuntimeError(f"Chrome could not be started ({type(exc).__name__}: {exc}): {chrome}; set $CHROME to a working browser binary") from None
-    if r.returncode != 0 or not target.is_file():
+    if r.complete and (r.returncode != 0 or r.killed):
+        # item 1's exception: both outputs exist and the fault is in Chrome's teardown; say so and go on
+        print(f"shoot.py: {'Chrome had not exited' if r.killed else f'Chrome exited {r.returncode}'} "
+              f"{EXIT_GRACE:g}s after writing the screenshot and the DOM for {url} at {width}@{scale}x"
+              f"{' and was killed' if r.killed else ''}; both outputs are complete and are used "
+              f"(a teardown hang, not a page fault): {r.stderr[-300:]!r}", file=sys.stderr)
+    elif r.returncode != 0 or not target.is_file():
         raise RuntimeError(f"Chrome exited {r.returncode} and wrote {'a' if target.is_file() else 'no'} screenshot "
                            f"for {url} at {width}@{scale}x: {r.stderr[-400:]}")
     dom_text = None

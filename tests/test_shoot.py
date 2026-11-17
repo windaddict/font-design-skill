@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 import pytest
 from conftest import REPO
@@ -810,3 +811,48 @@ def test_specimen_shown_chars_reads_the_family_rows_only():
     import specimen
     roman, italic = specimen.shown_chars(sections)
     assert roman == set("A&B12") and italic == set("Ita")
+
+
+# ---------------------------------------------------------------- run_chrome(): a Chrome that hangs or dies in teardown
+def fake_chrome(tmp_path):
+    """A stand-in browser: writes the file named by --screenshot=, prints a complete DOM, then does what
+    $FAKE_CHROME_THEN says (hang: sleep; exit2: exit 2, the code Chrome's macOS shutdown watchdog uses;
+    partial-hang / partial-exit2: the same without the closing </html>)."""
+    sh = tmp_path / "fake-chrome"
+    sh.write_text('#!/bin/sh\nfor a in "$@"; do case "$a" in --screenshot=*) printf PNG > "${a#--screenshot=}";; esac; done\n'
+                  'printf \'<!DOCTYPE html>\\n<html><head></head><body data-fake="1"></body>\'\n'
+                  'case "$FAKE_CHROME_THEN" in partial-*) ;; *) printf \'</html>\\n\';; esac\n'
+                  'case "$FAKE_CHROME_THEN" in *hang) sleep 1000;; *exit2) exit 2;; esac\n')
+    sh.chmod(0o755)
+    return str(sh)
+
+
+@pytest.mark.parametrize("then, said", [("hang", "Chrome had not exited 1s after writing the screenshot and the DOM"), ("exit2", "Chrome exited 2 1s after")])
+def test_shoot_keeps_a_complete_shot_when_chrome_hangs_or_dies_in_its_teardown(tmp_path, monkeypatch, capsys, then, said):
+    """The CI hang of 2026-11-17 (PR #2): Chrome 157 on macOS wrote the screenshot and the whole ~100 MB
+    DOM of a hostile concept page, then stalled in its own teardown until its 10-second shutdown
+    watchdog _exit-ed it with code 2, and the helpers it left behind held stdout open; shoot.py waited
+    the full 300 s and reported the shot as not taken with both outputs on disk. Now a complete
+    shot (PNG present, stdout ending in </html>) is kept after EXIT_GRACE seconds whether Chrome hangs
+    (killed, with its process group) or exits non-zero, and the departure is printed. Red on the code
+    before the fix: 'hang' raised "Chrome took over 3s", 'exit2' raised "Chrome exited 2"."""
+    monkeypatch.setattr(shoot, "EXIT_GRACE", 1.0, raising=False)
+    monkeypatch.setenv("FAKE_CHROME_THEN", then)
+    t0 = time.monotonic()
+    res = shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake_chrome(tmp_path), dump_dom=True, timeout=3)
+    assert time.monotonic() - t0 < 3, "the complete shot was not kept before the timeout"
+    assert (tmp_path / "x.png").read_bytes() == b"PNG"
+    assert 'data-fake="1"' in pathlib.Path(res["dom"]).read_text() and res["verified"] is False
+    err = capsys.readouterr().err
+    assert said in err and "both outputs are complete and are used" in err, err
+
+
+@pytest.mark.parametrize("then, error", [("partial-hang", "Chrome took over 2s"), ("partial-exit2", "Chrome exited 2 and wrote a screenshot")])
+def test_shoot_still_fails_a_chrome_that_hangs_or_dies_before_the_dom_is_complete(tmp_path, monkeypatch, then, error):
+    """The grace above is for a COMPLETE shot only: with the DOM cut short (no closing </html>) a hang is
+    still the timeout and a non-zero exit is still a failed shot. Weakest mutation watched red:
+    complete() returning True on any stdout."""
+    monkeypatch.setattr(shoot, "EXIT_GRACE", 1.0, raising=False)
+    monkeypatch.setenv("FAKE_CHROME_THEN", then)
+    with pytest.raises(RuntimeError, match=error):
+        shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake_chrome(tmp_path), dump_dom=True, timeout=2)

@@ -146,6 +146,16 @@ default did change, as a fix: an unset `cut` is now 0 rad, where 0.1 drew non-fi
 - The macOS CI job lacked libfribidi, which Pillow's raqm layout engine loads at run time, so `diff.py` refused. CI
   installs it before pip and asserts `features.check('raqm')`; `check-env.py` reports raqm as a required piece with
   the fix per OS (`brew install fribidi`, `apt install libfribidi0`).
+- `scripts/shoot.py` kept waiting for Chrome after the shot was done. `test_hostile_text_is_inert_in_chrome` timed out
+  ("Chrome took over 300s") in 10 of 14 macOS CI jobs and 4 of 22 Linux ones, on 0.2 and, by the same mechanism, on
+  0.1 (whose single CI run was lucky). The hostile pages serialise to 96–124 MB of SVG path data; Chrome writes the
+  screenshot and the whole DOM in ~12 s on the runner, then stalls in its own teardown (on macOS its 10-second
+  shutdown watchdog logs "Teardown watchdog expired; recording dump and terminating." and `_exit`s with 2, and the
+  helpers it leaves behind hold stdout open), and `subprocess.run` waited for the pipe to close. `run_chrome()` now
+  reads stdout as it arrives; once the PNG exists and the DOM ends in `</html>` Chrome has `EXIT_GRACE` (20 s) to exit,
+  after which its process group is killed, and a non-zero exit after a complete shot is accepted; both departures are
+  printed. An incomplete DOM still fails as before. `tests/test_shoot.py` runs a fake Chrome through all four cases;
+  the two "keep" cases were red on the old code with the exact CI messages.
 
 ### Known issues
 
