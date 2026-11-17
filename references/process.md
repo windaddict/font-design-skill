@@ -36,7 +36,7 @@ in `references/examples/`.
 **Do.** Say the skill version. Classify the change under the operator's process: a site-wide face
 is a significant change (it touches public URLs the stylesheet links, and it is a new feature), so
 the full plan → review → build → review order applies. Check the tools and state which are present:
-`node` (≥ 20), a Python ≥ 3.11 venv with fonttools 4.68.*, brotli, skia-pathops and pillow, Chrome,
+`node` (≥ 20), a Python ≥ 3.10 venv with fonttools 4.68.*, brotli, skia-pathops, pillow, uharfbuzz and unicodedata2, Chrome,
 Impasse, the frontend-design plugin, the strongest model. For anything missing read
 `references/fallbacks.md` and say what the gap costs before starting.
 

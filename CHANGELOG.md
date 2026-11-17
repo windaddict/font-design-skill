@@ -135,6 +135,11 @@ default did change, as a fix: an unset `cut` is now 0 rad, where 0.1 drew non-fi
   fonts is stated per platform and Node major. The `record-baseline` workflow records the 0.1.0 code on Linux (Node
   20 and 22) beside the branch's own digests, by hand or on a pull request that changes the generator, and
   `tests/baseline_digest.py --merge` merges an entry and refuses one without a baseline revision.
+- The built bytes depended on whether `uharfbuzz` was installed (fontTools serialises GPOS and GSUB with HarfBuzz's
+  repacker when it is; blocking it changed every example's TTF digest). FontBakery installs it, so CI and this
+  machine had it and a build from `requirements.txt` alone did not: the first Linux record was made without it
+  and could not match CI. `requirements.txt` now pins `uharfbuzz` and `unicodedata2` (which fontTools also uses
+  when present), `check-env.py` checks both, and the Linux digests were re-recorded with them.
 - The macOS CI job lacked libfribidi, which Pillow's raqm layout engine loads at run time, so `diff.py` refused. CI
   installs it before pip and asserts `features.check('raqm')`; `check-env.py` reports raqm as a required piece with
   the fix per OS (`brew install fribidi`, `apt install libfribidi0`).

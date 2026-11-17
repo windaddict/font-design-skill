@@ -26,6 +26,7 @@ on:
       - scripts/export.js
       - scripts/build.py
       - tests/baseline_digest.py
+      - requirements.txt
       - .github/workflows/record-baseline.yml
 
 jobs:

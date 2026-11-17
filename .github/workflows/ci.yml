@@ -45,7 +45,11 @@ jobs:
       # runner has none, and Homebrew's `libraqm` is not what supplies it (this repo's author's Mac has fribidi and no libraqm, and raqm works).
       - name: install libfribidi (macOS; Pillow's raqm loads it at run time)
         if: runner.os == 'macOS'
-        run: brew install fribidi
+        # A setup-python interpreter does not search Homebrew's lib directory when Pillow opens libfribidi (the first CI run with
+        # fribidi installed still reported no raqm), so the fallback search path names it for every later step.
+        run: |
+          brew install fribidi
+          echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
       - name: install
         run: pip install -r requirements-dev.txt
       - name: Pillow must report the raqm layout engine (diff.py refuses without it)

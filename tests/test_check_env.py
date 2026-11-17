@@ -67,7 +67,7 @@ def test_check_env_reports_everything_found_and_exits_zero(toolchain):
     r = check_env(toolchain[2])
     assert r.returncode == 0, r.stdout + r.stderr
     for line in ("found    node v22.1.0", "found    chrome " + str(toolchain[1]), "found    bash", "found    platform", "found    fonttools", "found    pillow",
-                 "found    raqm", "check-env: all 10 required pieces found"):
+                 "found    raqm", "check-env: all 12 required pieces found"):
         assert line in r.stdout, f"{line!r} missing from:\n{r.stdout}"
 
 

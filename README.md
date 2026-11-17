@@ -43,7 +43,7 @@ cd ~/.claude/skills/font-design
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
-Requirements: Node ≥ 20; Python ≥ 3.10 with `fonttools==4.68.*`, `brotli`, `skia-pathops`, `pillow`
+Requirements: Node ≥ 20; Python ≥ 3.10 with `fonttools==4.68.*`, `brotli`, `skia-pathops`, `pillow`, `uharfbuzz`, `unicodedata2`
 (CI runs 3.12; 3.10 and 3.11 are not run by anything here); Chrome or Chromium for the review tools
 (`$CHROME` or the per-OS default); bash; a Pillow with the raqm layout engine for `scripts/diff.py` (the wheel carries it and needs libfribidi:
 `brew install fribidi` on macOS, `apt install libfribidi0` on Debian/Ubuntu). **Platforms: macOS and Linux are supported. Native Windows is

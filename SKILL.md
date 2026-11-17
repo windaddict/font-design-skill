@@ -2,7 +2,7 @@
 name: font-design
 description: Design, build and ship a custom display typeface for a website as a self-hosted variable web font — a parametric face drawn for the brand, chosen through three rounds of concept pages. Use whenever the operator wants to draw, make or build a custom, unique, bespoke, own or brand typeface or font; wants a headline, display, title or hero font drawn for them rather than chosen from a catalogue; wants their own font instead of a Google Font or a stock face; wants a wordmark or logo-derived letterform, a variable font with weight or optical-size axes, or an italic or new weight for such a face; or asks to "make a font like Bract or Driftwood", to tune, extend or re-review such a face, or to run the concept-page spectrum for a new look. The trigger is the intent to draw or build a face, not the words headline, display or hero alone. Not for recommending, picking or pairing an existing font, including a headline, display or hero font (use frontend-design), for body-text faces, or for CSS-only typography fixes.
 license: MIT
-compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
+compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow, uharfbuzz, unicodedata2), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
 metadata:
   version: 0.2.0
 ---
@@ -42,7 +42,7 @@ supervision between gates and stops at every gate.
 2. **Check the tools and say which are present.** Run the check, do not assume:
    - `node --version` (≥ 20); the skill's own venv at `<skill dir>/.venv`, made with
      `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` in the skill directory
-     (fonttools 4.68.x, brotli, skia-pathops, pillow); Chrome (`$CHROME` or the per-OS default
+     (fonttools 4.68.x, brotli, skia-pathops, pillow, uharfbuzz, unicodedata2); Chrome (`$CHROME` or the per-OS default
      `scripts/shoot.py` searches); the Impasse skill (`~/.claude/skills/impasse`); the
      `frontend-design` plugin; and the strongest model the Agent tool offers (named "Fable" in this
      repo's records; use whatever is strongest where you are).

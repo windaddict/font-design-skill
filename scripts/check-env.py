@@ -41,7 +41,10 @@ MIN_NODE = 20
 # import `PIL` and still lack `PIL.Image`, which is the module the screenshot crops use)
 PACKAGES = [("fonttools", ["fontTools.ttLib", "fontTools.varLib.instancer", "fontTools.designspaceLib", "fontTools.fontBuilder"]),
             ("brotli", ["brotli"]), ("skia-pathops", ["pathops"]),
-            ("pillow", ["PIL.Image", "PIL.ImageDraw", "PIL.ImageFont", "PIL.ImageChops"])]
+            ("pillow", ["PIL.Image", "PIL.ImageDraw", "PIL.ImageFont", "PIL.ImageChops"]),
+            # fontTools uses these two when present and they change the built bytes (requirements.txt says how), so a missing or
+            # different one is a different font, not a missing feature
+            ("uharfbuzz", ["uharfbuzz"]), ("unicodedata2", ["unicodedata2"])]
 
 
 def venv_fix():
