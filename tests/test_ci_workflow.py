@@ -3,8 +3,8 @@
 WHAT IT'S FOR: re-review finding code-b F010. The `test` job built the neutral example and ran the font
 suite on it; the `chrome` job ran `smoke.sh --full --from 6`, which skips steps 1-5 (the export and build of
 all three fixtures, the reproducibility check, the font suite and `mutate.py`). So CI could pass with the
-precedent fixtures broken and every guard decorative. The workflow cannot be executed here (it has never run
-on GitHub, see CHANGELOG), so this reads the file: a check on text, stated as such, kept because the text is
+precedent fixtures broken and every guard decorative. The workflow cannot be executed by the suite (it runs only on
+GitHub), so this reads the file: a check on text, stated as such, kept because the text is
 what GitHub runs. The `test` job must run `scripts/smoke.sh` without `--from`, which is steps 1-7.
 """
 import re
@@ -84,3 +84,18 @@ def test_every_workflow_parses_as_yaml():
         except yaml.YAMLError as exc:
             pytest.fail(f"{path.name} is not valid YAML: {exc}")
         assert isinstance(doc, dict) and "jobs" in doc, f"{path.name} has no jobs"
+
+
+def test_the_lint_job_runs_eslint_pinned_and_shellcheck_on_smoke():
+    """Issue #3: `npm run check` only proved each file parses. The lint job runs ESLint (eslint.config.js) over
+    scripts/*.js and scripts/concepts/*.js and shellcheck over scripts/smoke.sh. ESLint comes through npx, so its
+    version must be exact: an unpinned npx resolves whatever is newest on the day, and a new release's rule
+    changes would turn CI red on an unchanged tree. Reads the text, as the tests above do. Mutations watched red:
+    either run line removed from the lint job; `eslint@10` for the exact version; lint:sh pointed at another file."""
+    import json
+    job = job_text("lint")
+    for script in ("lint:js", "lint:sh"):
+        assert f"npm run {script}" in job, f"the lint job never runs npm run {script}"
+    scripts = json.loads((REPO / "package.json").read_text(encoding="utf-8"))["scripts"]
+    assert re.fullmatch(r"npx --yes eslint@\d+\.\d+\.\d+", scripts["lint:js"]), f"lint:js must pin an exact ESLint: {scripts['lint:js']!r}"
+    assert scripts["lint:sh"].split() == ["shellcheck", "scripts/smoke.sh"], scripts["lint:sh"]

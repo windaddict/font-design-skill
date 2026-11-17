@@ -1,6 +1,6 @@
 name: ci
 
-# WHAT IT'S FOR: proves the skill's scripts run on a machine that is not the author's. Two jobs:
+# WHAT IT'S FOR: proves the skill's scripts run on a machine that is not the author's. Three jobs:
 #   test   - the matrix, two operating systems because the raster self-checks depend on the FreeType
 #            build inside the Pillow wheel, and a difference should be visible, not hidden. No browser.
 #            It runs scripts/smoke.sh steps 1-7: every group of the three fixtures exported and built
@@ -17,14 +17,31 @@ name: ci
 #            it was never executed off the author's Mac, and a Linux Chrome is a third rasteriser that
 #            catches a tool regression even though nobody reads its PNGs for design. They are uploaded
 #            as an artifact for the case where someone does.
-# This workflow has not been executed by its author on GitHub; it was validated by a careful read and
-# the first push will be its first run.
+#   lint   - one Linux job: ESLint over scripts/*.js and scripts/concepts/*.js (eslint.config.js; run through
+#            npx with a pinned version, so the skill keeps no npm dependencies) and shellcheck over
+#            scripts/smoke.sh (preinstalled on ubuntu-latest). The test job's lint step keeps ruff and
+#            node --check.
 
 on:
   push:
   pull_request:
 
 jobs:
+  lint:
+    name: ubuntu / eslint and shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: eslint (scripts/*.js, scripts/concepts/*.js)
+        run: npm run lint:js
+      - name: shellcheck (scripts/smoke.sh)
+        run: |
+          shellcheck --version
+          npm run lint:sh
+
   test:
     name: ${{ matrix.os }} / node ${{ matrix.node }}
     runs-on: ${{ matrix.os }}

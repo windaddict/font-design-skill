@@ -3,6 +3,16 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [Unreleased]
+
+### Added
+- **JavaScript and shell lint** (issue #3). A `lint` CI job runs ESLint 10.14.0 (pinned, through npx; `eslint.config.js`, correctness rules only)
+  over `scripts/*.js` and `scripts/concepts/*.js`, and shellcheck over `scripts/smoke.sh`, as `npm run lint:js` and `npm run lint:sh`. Both
+  pass the 0.2.0 tree unchanged. Detail and guards: `references/testing.md` section 8.
+
+### Fixed
+- `package.json` said 0.1.0 in the 0.2.0 release. `test_version_is_the_same_everywhere` now checks it too.
+
 ## [0.2.0] — 2026-11-16
 
 Five changes from the font research review (`docs/plan-0.2.md`, items 3, 4, 9, 2 and 10), planned by Fable,
