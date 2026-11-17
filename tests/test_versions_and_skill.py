@@ -6,6 +6,7 @@ cannot tell which copy answered. SKILL.md stays under 500 lines (the authoring g
 loads into context) and must name only reference files that exist; a long reference carries a table
 of contents so a reader can find the section the skill sends them to.
 """
+import json
 import re
 
 from conftest import REPO
@@ -29,6 +30,8 @@ def test_version_is_the_same_everywhere():
     first = re.search(r"^## \[?(\d+\.\d+\.\d+)", changelog, re.M)
     assert first and first.group(1) == version, f"CHANGELOG top entry is {first and first.group(1)}, VERSION is {version}"
     assert f"**Version {version}**" in text, "SKILL.md body must state its version so the operator hears which copy answered"
+    package = json.loads((REPO / "package.json").read_text(encoding="utf-8"))
+    assert package["version"] == version, f"package.json says {package['version']}, VERSION is {version}"
 
 
 def test_frontmatter_has_name_and_a_pushy_description():

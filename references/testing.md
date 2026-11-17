@@ -502,3 +502,15 @@ Added after the first CI run (2026-11-17):
   runs `diff.py` from round 2, so a machine without it fails in the middle of phase 8) with the fix per OS. Guards: `tests/test_check_env.py`
   (RED under a `check_raqm` that always passes) and `tests/test_ci_workflow.py` (RED under each of: the brew step removed, moved after pip, its macOS
   condition removed, the assertion turned into a print, a workflow that is not valid YAML).
+
+Added with the lint job (issue #3, 2026-11-17):
+
+- **`npm run check` proved only that each `.js` file parses.** The `lint` job in `ci.yml` now runs `npm run lint:js`, ESLint's correctness rules
+  (`eslint.config.js`: `no-undef`, `no-unused-vars`, `no-unreachable`, `valid-typeof` and the rest of eslint:recommended's error class; style is not
+  linted) over `scripts/*.js` and `scripts/concepts/*.js`, and `npm run lint:sh`, shellcheck over `scripts/smoke.sh`. ESLint runs through
+  `npx --yes eslint@10.14.0`, so the skill still has no npm dependencies; the version is exact because npx otherwise resolves the newest release on
+  the day. `render.js` names gen.js's spliced functions (`glyph`, `kern`, `layWord`, `wrap`) as globals, so a misspelling of them still fails.
+  Both passed the 0.2.0 tree with no findings. Planted mistakes watched red: an undefined name in `gen.js`, an unused variable in `render.js`, a
+  misspelt `typeof` string in `build-page.js`. Guards: `test_the_lint_job_runs_eslint_pinned_and_shellcheck_on_smoke` (RED under each run line
+  removed, `eslint@10` for the exact version, `lint:sh` pointed at another file) and `test_version_is_the_same_everywhere`, which now holds
+  `package.json`'s version to `VERSION` (RED on the 0.2.0 tree, where `package.json` still said 0.1.0).
