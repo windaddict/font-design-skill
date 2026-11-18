@@ -2,7 +2,8 @@
 
 WHAT IT'S FOR: the skill assumes a strongest model for the design reviews, Impasse for the
 independent plan and diff reviews, the frontend-design plugin for the aesthetic pass, Chrome for
-the screenshots, claude.ai artifacts for the concept pages, and a Mac. Each can be absent. This
+the screenshots, Playwright for the platform run's Firefox legs, claude.ai artifacts for the concept
+pages, and a Mac. Each can be absent. This
 file says, for each, what the skill still does, what it must say it did not do, and what it must
 never do silently. Read it in "Before you start", when the tool check reports a gap.
 
@@ -92,9 +93,38 @@ Native Windows is not supported: `smoke.sh` and the documented commands are bash
 the README inside the WSL shell). **Inside WSL, install Chrome or Chromium in the Linux distribution**: the
 Windows install paths `shoot.py` lists come from environment variables (`ProgramFiles`, `LocalAppData`) that WSL
 normally does not set, and `/mnt/c` paths are not candidates, so a Windows Chrome is not searched for from WSL (set
-`$CHROME` yourself if you must). The review screenshots are then the Linux Chrome's, and a Windows rendering (DirectWrite
-hinting, the `prep` program) is not checked by anything here: record "not checked on Windows" with the
+`$CHROME` yourself if you must). The review screenshots are then the Linux Chrome's.
+
+A Windows rendering (DirectWrite hinting, the `prep` program) is not checked unless the platform run was
+made (`references/review-loop.md` section 2), and then only as headless Chrome and Playwright's Firefox on a
+GitHub-hosted Windows Server runner, with the limits in `references/review-loop.md` section 9. That run needs
+GitHub Actions on the site's repository, not a Windows machine. With a run, the record names it: "checked on
+Windows: run <id>, <what the smallest rows showed>". Without one, record "not checked on Windows" with the
 claim it limits (trap 21).
+
+The template's steps run in Git Bash on the Windows runner, and its `env` block carries three settings
+for that: `PYTHONUTF8: "1"` (Python there otherwise reads text as cp1252), and `MSYS_NO_PATHCONV` with
+`MSYS2_ARG_CONV_EXCL` (Git Bash otherwise rewrites a `/fonts/X.woff2` argument into a Windows path). Keep
+them when you edit the copy.
+
+## No Playwright
+
+The platform run's legs need `playwright==1.64.1` from `requirements-platform.txt`: every leg shoots through
+Playwright (`--launcher playwright` for Chrome), and the Firefox legs also download Playwright's Firefox. On the
+operator's machine Chrome needs no Playwright: without `--launcher`, `shoot.py` starts it from its command line,
+which lays out at the full width everywhere it was measured except a Windows runner. On the operator's machine, `shoot.py --browser firefox` without the package
+exits 3 with `SKIPPED, NOT PASSED` and the install command (`.venv/bin/pip install -r requirements-platform.txt`,
+then `.venv/bin/python3 -m playwright install firefox`), and `scripts/check-env.py` lists it as optional. A
+skipped Firefox leg is not a pass: the Chrome legs stand on their own, and the record says Firefox was not
+checked. A Playwright that is installed without its Firefox browser fails the shot (exit 1): the leg was asked
+for and did not run.
+
+Known issue: Playwright 1.64.1's Firefox failed to launch on the author's Mac with "Could not find profile
+folder" (2026-11-17, cause unknown). Judge the Firefox leg on the runner. If the macOS Firefox leg fails there
+too, the workflow's matrix excludes it, with the reason in a comment.
+
+WebKit is designed, not built: `shoot_playwright.py` refuses it. Playwright's WebKit is not Safari, and Safari
+itself would need `safaridriver`, a different tool.
 
 ## Linux host
 

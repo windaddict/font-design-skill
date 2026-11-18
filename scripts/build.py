@@ -230,7 +230,7 @@ def load_config(font_path, out_dir_override=None):
     font_path = pathlib.Path(font_path).resolve()
     check(font_path.is_file(), f"no such font.json: {font_path}")
     try:
-        cfg = json.loads(font_path.read_text())
+        cfg = json.loads(font_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CheckFailed(f"{font_path} is not valid JSON: {exc}") from exc
     for k in REQUIRED_KEYS:
@@ -937,7 +937,7 @@ def generator_params(cfg, group):
     italic = group["_angle"] if group["italic"] else False
     spec = {"concepts": str(cfg["_concepts"]), "italic": italic,
             "masters": {n: {"concept": m["concept"], "mult": m["mult"]} for n, m in group["masters"].items()}}
-    r = subprocess.run([node, "-e", PARAMS_JS, str(HERE / "gen.js"), json.dumps(spec)], cwd=HERE, capture_output=True, text=True)
+    r = subprocess.run([node, "-e", PARAMS_JS, str(HERE / "gen.js"), json.dumps(spec)], cwd=HERE, capture_output=True, text=True, encoding="utf-8")
     check(r.returncode == 0, f"gen.js params() failed for group {group['_name']}: {r.stderr.strip()[-300:]}")
     try:
         return json.loads(r.stdout)
@@ -947,7 +947,7 @@ def generator_params(cfg, group):
 
 def load_requirements(path):
     try:
-        req = json.loads(pathlib.Path(path).read_text())
+        req = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise CheckFailed(f"cannot read the requirements file {path}: {exc}") from exc
     check(isinstance(req, dict), f"{path}: a requirements file is a JSON object")
@@ -964,7 +964,7 @@ def load_masters(path, cfg, group_name, requirements=None):
     The module header lists what is recomputed and what is still taken from the JSON."""
     group = cfg["groups"][group_name]
     try:
-        data = json.loads(pathlib.Path(path).read_text())
+        data = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CheckFailed(f"{path} is not valid JSON: {exc}") from exc
     check(data.get("schema") == EXPORT_SCHEMA, f"{path}: schema is {data.get('schema')!r}, expected {EXPORT_SCHEMA!r}")
@@ -1061,7 +1061,7 @@ def run_export(cfg, group_name, out_json, eps, requirements_path=None):
     if requirements_path is not None:
         cmd += ["--requirements", str(requirements_path)]
     cmd.append(str(out_json))
-    r = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True, encoding="utf-8")
     sys.stderr.write(r.stderr)
     check(r.returncode == 0, f"export.js exited {r.returncode} for group {group_name}")
     if requirements_path is not None:
@@ -1194,7 +1194,7 @@ def build_group(cfg, group_name, eps, masters_path, tmp, ttf_out=None, requireme
             log(f"build.py: kept the {group_name} export at {keep}")
         data = load_masters(masters_path, cfg, group_name)
     else:
-        own_eps = json.loads(pathlib.Path(masters_path).read_text()).get("eps")
+        own_eps = json.loads(pathlib.Path(masters_path).read_text(encoding="utf-8")).get("eps")
         log(f"build.py: group {group_name}: reusing {masters_path} (re-checked; its own eps {own_eps} applies, not --eps)")
         data = load_masters(masters_path, cfg, group_name, requirements)
     masters = data["masters"]
@@ -1240,7 +1240,7 @@ def tool_versions():
     import pathops
     import PIL
     node = shutil.which("node")
-    node_version = subprocess.run([node, "--version"], capture_output=True, text=True).stdout.strip() if node else None
+    node_version = subprocess.run([node, "--version"], capture_output=True, text=True, encoding="utf-8").stdout.strip() if node else None
     if not node_version:
         log("build.py: could not read the node version for the manifest")
     return {"node": node_version, "fonttools": fonttools_version, "brotli": brotli.__version__,
@@ -1282,7 +1282,7 @@ def read_previous_manifest(path):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CheckFailed(f"the existing manifest {path} is not valid JSON ({exc}); fix or remove it before building") from exc
 

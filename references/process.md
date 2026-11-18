@@ -304,7 +304,13 @@ which `narrow.html` writes only for an inner page served 200 with no failed face
 of the family, and `error` otherwise; phase 1 measured the old face, and a wider face overflows a
 title that fit, `smoke.sh` step 11 shows it on the fixture site) → a **fresh** reviewer with `templates/reviewer-brief-design-round.md` and the goal
 sentence verbatim → ranked findings naming their crops, an overflow ranked first → changes → the host
-spot-checks two crops and runs one mutation of its own → suite green → next round.
+spot-checks two crops and runs one mutation of its own → suite green → next round. After the round
+that would end the loop (or round 6), and at any round the operator asks for, ask the operator to make
+the platform run once for the face (`references/review-loop.md` section 2: `gh workflow run platform-shots.yml`,
+then `gh run download -n platform-shots-compare`) and read `compare.md` top-down, "Refused" and
+"Mismatched" first, then the smallest sizes. A stroke that breaks up at 1× on a real page in any leg is a
+1× finding; one that reads lighter but whole goes in the record. A round that changes `thin`, the floors
+or the smallest sizes re-runs it.
 
 **Gate.** Stop when a round reports nothing visible at 1× on a real page and the suite is green; or
 at round 6 when what remains is visible only at 2× or in the specimen, recorded as open items for
@@ -332,6 +338,10 @@ the record. **Then commit everything together** in one commit: the woff2, the ma
 (`font.json`, `requirements.json`, `concepts.js`, the copied `scripts/`), the stylesheet and
 templates, the tests and the docs. **Deploy only on the operator's word.** Live checks: the font
 served 200, the preload present, a headless shot of the live page with `--family` and `--font-url`.
+
+The record's Windows line has two forms (`templates/font-record.md`): the platform run's id, date, browsers
+and what the smallest rows showed, or "not checked on Windows" with the claim it limits. The platform run is
+not a publication blocker and is not in section 11's list.
 
 **Gate.** The operator says deploy. Bract's diff review: 8 findings; re-review: 5; all fixed.
 

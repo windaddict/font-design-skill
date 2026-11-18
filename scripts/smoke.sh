@@ -7,7 +7,8 @@
 # steps (what the CI chrome job runs from step 6 on): the three concept rounds built and executed in
 # Chrome with a face switch, a font-load assertion and the comparison face proved visibly set in
 # Sampler, the specimen shot at two widths and an enlarged root with its italic rows proved to resolve
-# to the italic FontFace, the opsz measurement, the 360 px overflow check on a concept page, which passes
+# to the italic FontFace, one leg of the platform shots (the specimen 6000 px tall with --rows --meta, every
+# row inside the capture, and compare-shots.py on that leg), the opsz measurement, the 360 px overflow check on a concept page, which passes
 # only on a "fits" reading taken after the inner page's fonts settled, and (step 11) the phase-8 narrow
 # reading on the fixture site with the Sampler font wired in, which must take the fonts-stage reading
 # on both pages and must REPORT the index page's overflow (the frontispiece title that fits in Georgia
@@ -186,7 +187,7 @@ EOF
   fi
 
   if want 9; then
-    step "9. the specimen (italic rows must resolve to the italic FontFace) and the opsz measurement on the neutral font"
+    step "9. the specimen (italic rows must resolve to the italic FontFace), one platform-shots leg with compare-shots.py, and the opsz measurement on the neutral font"
     mkdir -p "$OUT/review/fonts"
     cp "$NEUTRAL/out/Sampler-VF.woff2" "$NEUTRAL/out/Sampler-Italic-VF.woff2" "$OUT/review/fonts/"
     "$PY" "$HERE/specimen.py" --font "$NEUTRAL/font.json" --requirements "$NEUTRAL/requirements.json" --group roman --font-url "$FONT_URL" --italic-url /fonts/Sampler-Italic-VF.woff2 "$OUT/review/specimen.html"
@@ -212,6 +213,28 @@ for d in doms:
     # the proof rows (spacing strings, legibility) must lie inside the captured height, or the review PNG does not contain them
     bottom = int(a.get("data-fd-proof-bottom", 0))
     assert a.get("data-fd-proof-count") == "6" and 0 < bottom <= DEFAULT_HEIGHT, f"{d.name}: proof rows end at {bottom} px of a {DEFAULT_HEIGHT} px capture ({a.get('data-fd-proof-count')} rows)"
+EOF
+    # 9b. one leg of the platform shots (templates/platform-shots.yml), on this machine: the specimen at 1280 and 6000 px tall with
+    #     --rows --meta, every row inside the capture (the specimen's last ink is near 5,400 px at 1280, so the default 2400 would cut
+    #     most rows: plan F004), and compare-shots.py run on that single leg, so the comparison tool executes on every CI push.
+    "$PY" "$HERE/shoot.py" "$OUT/shots-specimen-leg" --serve "$OUT/review" --pages specimen.html --widths 1280 --scales 1 --height 6000 --bands none --family Sampler --font-url "$FONT_URL" --font-url /fonts/Sampler-Italic-VF.woff2 --rows --meta "$OUT/shots-specimen-leg/meta-specimen.json"
+    "$PY" "$HERE/compare-shots.py" "$OUT/compare-specimen" "$OUT/shots-specimen-leg" --min-legs 1
+    "$PY" - "$OUT/shots-specimen-leg" "$OUT/compare-specimen/compare.md" <<'EOF'
+import json, pathlib, sys
+leg, md = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+files = sorted(leg.glob("*.rows.json"))
+assert files, f"shoot.py --rows wrote no .rows.json in {leg}"
+compared = md.read_text(encoding="utf-8")
+for f in files:
+    doc = json.loads(f.read_text(encoding="utf-8"))
+    rows = doc["rows"]
+    assert rows, f"{f.name}: no rows recorded"
+    assert doc["scroll_x"] == 0 and doc["scroll_y"] == 0, f"{f.name}: the page scrolled ({doc['scroll_x']}, {doc['scroll_y']}): boxes are not PNG coordinates"
+    below = [r["key"] for r in rows if r["captured"] is not True]
+    assert not below, f'{f.name}: rows not "captured": true at --height 6000: {below}'
+    absent = [r["key"] for r in rows if r["key"] not in compared]
+    assert not absent, f"{md}: compare-shots.py did not list these rows of the single leg: {absent}"
+    print(f"{f.name}: {len(rows)} rows, every one captured and listed in compare.md")
 EOF
     "$PY" "$HERE/opsz.py" "$OUT/opsz" --serve "$OUT/review" --font-url "$FONT_URL" --family Sampler --axis 24 72 --title "The Quiet Harbour at Dawn 48" --px 24 48 72
   fi

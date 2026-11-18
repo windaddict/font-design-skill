@@ -3,14 +3,85 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
-## [Unreleased]
+## [0.3.0] — 2026-11-17
+
+The cross-platform rendering check (`docs/plan-platform-shots.md`), planned by Fable, reviewed before code by an
+independent cross-provider reviewer (15 findings, all reconciled in the plan's section 14; the operator ruled the
+Firefox leg in), and built by five agents in parallel. It answers the question every font record carried as
+"not checked on Windows": how the face draws under DirectWrite/ClearType, and on macOS and Linux, in Chrome and
+Firefox. **What a result proves:** how headless Chrome and Playwright's Firefox drew the face on GitHub-hosted
+Windows Server, macOS and Ubuntu runners, as each leg's `meta*.json` records them; not a reader's laptop (display,
+scaling and ClearType tuning differ), not Safari, not phones. It is a record line, not a publication blocker.
+
+**Acceptance run:** platform-shots run 44238569295 on the neutral fixture (Sampler), commit 4b7085d: all six legs
+verified, 6 legs accepted, 208 row images, 0 rows mismatched, missing, below the capture or refused. At 16.8 px
+Windows Chrome 156 drew ClearType with colour fringes, Windows Firefox 157 drew greyscale, Linux Chrome 158 drew
+subpixel, both macOS browsers drew greyscale, and no stroke broke up in any leg. Earlier runs on the same pull
+request found the faults fixed in this release: Git Bash path rewriting and cp1252 on Windows, a relative screenshot
+path Chrome on Windows would not write, Chrome's command line on Windows measuring the page 16 px narrower than it
+captured, Firefox's 1/16 px font sizes, and the sentinel starting before an external stylesheet had loaded.
 
 ### Added
+- **`templates/platform-shots.yml`**: a manually started GitHub Actions workflow a site copies into
+  `.github/workflows/`. Three OSes × two browsers; each leg shoots the review specimen (6000 CSS px tall, so
+  every row is captured) and the site's named pages with the full `shoot.py` proofs; one job then compares the
+  legs. Slots in `env:` (`FD_SCRIPTS`, `FD_SERVE`, `FD_BUILD`, `FD_FAMILY`, `FD_FONT_URLS`, `FD_PAGES`,
+  `FD_FONT_JSON`, `FD_SCALES`); an empty `FD_FONT_JSON` gives pages-only legs, for a face the skill did not build.
+  Free on a public repository; about $0.40 a run on a private one (GitHub's per-minute prices read 2026-11-17,
+  jobs rounded up to whole minutes; macOS is most of it).
+- **`scripts/compare-shots.py`**: one PNG per row stacking every leg's crop at `--zoom` (nearest-neighbour, so
+  subpixel colour stays visible), labels from each leg's meta (OS, browser from the user agent, scale, Windows
+  ClearType from `FontSmoothingType`), an ink figure measured against the crop's own background, and `compare.md`
+  with the smallest sizes first. Rows pair across legs by key and by text, size, weight and style; a leg without
+  its record is refused and the others are still compared.
+- **`scripts/shoot_playwright.py`** and `requirements-platform.txt` (`playwright==1.64.1`, optional): `shoot.py
+  --browser firefox` drives Firefox through Playwright against the same server, tokens, cookie and sentinel proofs
+  as Chrome. Without Playwright it exits 3, `SKIPPED, NOT PASSED`. On macOS Firefox could not open its profile
+  under `~/Library/Application Support/Firefox`; `launch_env()` points `CFFIXED_USER_HOME` at a reused folder
+  (the cause inferred from that workaround, not traced). `check-env.py` reports Playwright as optional.
+- **`shoot.py --launcher playwright`**: Chrome driven by Playwright (the Chrome binary `shoot.py` found). The platform
+  workflow uses it on every leg: on a Windows runner Chrome's command line laid the page out at 1264 px for a 1280 px
+  shot, so its row boxes were cropped from the wrong place (run 44227825840). A rows file measured on a page more than
+  2 px wider or narrower than its shot now fails the shot in `shoot.py` and is refused by `compare-shots.py`.
+- `compare-shots.py` pairs font sizes that agree to 1/16 px: Firefox reports 16.8125px where Chrome says 16.8px, and
+  run 44227825840 dropped every such row as a mismatch; all legs' sizes must lie within 1/16 px of each other.
+- From the Impasse review of that change: Chrome through Playwright keeps its sandbox and `--disable-gpu`, as the
+  command line does; `--rows` needs `--family` and `--font-url`; `compare-shots.py` refuses a PNG whose size is not
+  the shot its rows file describes; the Chrome legs run the Playwright Chrome test natively.
+- The sentinel starts at `load`, not `DOMContentLoaded`. It is injected before the page's stylesheets, and Chrome
+  through Playwright reached `DOMContentLoaded` before an external stylesheet had declared the family, so it reported
+  the font missing and only then fetched it (run 44236884579, every Chrome leg's `index.html`).
+- **`shoot.py`**: `--rows` (each `data-fd-row` and probed element's viewport box, written to `<stem>.rows.json`
+  only after every proof passed; a scrolled shot is refused), `--meta FILE` (platform, browser user agent, Windows
+  font-smoothing registry values, every verified shot, the failures), fractional `--scales` (`@1.25x`), repeatable
+  `--font-url`, `--browser`. Windows teardown: `taskkill /T /F` before the parent is killed, a bounded wait for
+  stdout EOF, and a profile folder whose failed cleanup is a logged departure, not a crash.
+- **`specimen.py`**: every family row carries a unique `data-fd-row` key; a duplicate key refuses the page.
+- **`.github/workflows/platform-shots.yml`**: the template filled for the neutral fixture, run on pull requests
+  that touch these tools: the release proof that they run on Windows and macOS.
+
+### Designed, not built
+- **WebKit.** Playwright's WebKit is not Safari, and the macOS runner bills the most; a `safaridriver` leg is the
+  better future item (plan section 2.4).
+
+### Changed
+- The "not checked on Windows" wording in `SKILL.md`, `references/` and the record template becomes a two-way
+  record line: the run's result, or "not checked" with the claim it limits. Traps row 21 records the one
+  Driftwood observation (2026-11-17).
+
+### Added (folded in from the unreleased lint work)
 - **JavaScript and shell lint** (issue #3). A `lint` CI job runs ESLint 10.14.0 (pinned, through npx; `eslint.config.js`, correctness rules only)
   over `scripts/*.js` and `scripts/concepts/*.js`, and shellcheck over `scripts/smoke.sh`, as `npm run lint:js` and `npm run lint:sh`. Both
   pass the 0.2.0 tree unchanged. Detail and guards: `references/testing.md` section 8.
 
 ### Fixed
+- From the Impasse review of the finished diff: `compare-shots.py` reads a Windows leg's `leg\x.png` path on the
+  Linux compare job, and refuses a meta or rows file of the wrong JSON shape instead of crashing; `shoot.py` fails a
+  font path when any response for it was not 200 (one 200 among them passed before); the specimen shot fails a row
+  below its capture (`--require-captured`) instead of leaving it out; the skill's workflow also runs when
+  `specimen.html.tmpl` changes.
+- On Windows, `shoot.py` now gives Chrome an absolute `--screenshot` path; Chrome there wrote nothing for a
+  relative one. `build.py` reads and writes its files as UTF-8, not the Windows default cp1252.
 - `package.json` said 0.1.0 in the 0.2.0 release. `test_version_is_the_same_everywhere` now checks it too.
 
 ## [0.2.0] — 2026-11-16

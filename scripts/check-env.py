@@ -15,7 +15,9 @@ It uses only the standard library and no Python 3.10 syntax, so an old interpret
 that it is too old. Chrome is found by shoot.py's own find_chrome() (imported, so this and every screenshot
 agree on which browser): $CHROME, the macOS app, the Windows install paths, then google-chrome, chromium and
 the like on PATH. FontBakery is listed as optional: phase 7's gate uses it and it is installed from
-requirements-dev.txt.
+requirements-dev.txt. Playwright is listed as optional too: the Firefox leg of the platform shots
+(shoot.py --browser firefox) uses it and it is installed from requirements-platform.txt, with its Firefox
+by `python -m playwright install firefox`.
 
 Exact guarantee: each line says what THIS process saw: this interpreter's version and imports, `node` and
 `bash` as PATH resolves them here, and the Chrome file find_chrome() returns. A piece that is present but
@@ -229,6 +231,50 @@ def check_fontbakery():
     return f"optional: fontbakery {dist_version('fontbakery', m)}"
 
 
+def platform_pin():
+    """The `playwright==X` line of requirements-platform.txt, as 'X', or None when the file or the line is missing."""
+    try:
+        text = open(os.path.join(SKILL, "requirements-platform.txt"), encoding="utf-8").read()
+    except OSError:
+        return None
+    m = re.search(r"^playwright==([^\s#;]+)", text, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def check_playwright():
+    """The optional Firefox leg of the platform shots (scripts/shoot_playwright.py): the playwright package, its version
+    against requirements-platform.txt, and whether its Firefox is installed. Optional: without it shoot.py --browser firefox
+    exits 3 (SKIPPED, NOT PASSED) and the Chrome legs are unaffected. The Firefox path is the one Playwright's own registry
+    reports (p.firefox.executable_path, which starts Playwright's driver once); a path that names no file means
+    `playwright install firefox` has not been run for this version."""
+    pip = shlex.quote(SKILL + "/.venv/bin/pip")
+    py = shlex.quote(SKILL + "/.venv/bin/python3")
+    reqs = shlex.quote(os.path.join(SKILL, "requirements-platform.txt"))
+    install = f"{pip} install -r {reqs}; then {py} -m playwright install firefox"
+    try:
+        spec = importlib.util.find_spec("playwright")
+    except (ImportError, ValueError):
+        spec = None
+    if spec is None:
+        return f"optional: playwright not installed (the Firefox leg of the platform shots is skipped until it is): {install}"
+    try:
+        m = importlib.import_module("playwright.sync_api")
+    except Exception as exc:  # optional, so a broken install is reported, not fatal
+        return f"optional: playwright is installed but fails to import ({type(exc).__name__}: {exc}); reinstall it: {install}"
+    have, pin = dist_version("playwright", m), platform_pin()
+    if pin and have != pin:
+        return f"optional: playwright {have} is installed, requirements-platform.txt pins {pin}: {install}"
+    try:
+        with m.sync_playwright() as p:
+            firefox = p.firefox.executable_path
+    except Exception as exc:  # the driver did not start: report the package and say the browser could not be read
+        return (f"optional: playwright {have} (whether its Firefox is installed could not be read: "
+                f"{type(exc).__name__}: {str(exc)[:200]})")
+    if not os.path.isfile(firefox):
+        return f"optional: playwright {have} is installed but its Firefox is not (the Firefox leg fails until it is): {py} -m playwright install firefox"
+    return f"optional: playwright {have}, Firefox {firefox}"
+
+
 def main():
     results = [check_platform(), check_python(), *check_packages(), check_raqm(), check_node(), check_chrome(), check_bash()]
     missing = 0
@@ -239,6 +285,7 @@ def main():
             missing += 1
             print(f"MISSING  {what}\n         fix: {fix}")
     print(check_fontbakery())
+    print(check_playwright())
     if missing:
         print(f"check-env: {missing} required piece(s) missing")
         return 1

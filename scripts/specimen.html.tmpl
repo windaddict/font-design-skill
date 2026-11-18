@@ -11,7 +11,8 @@
      control strings, the legibility row and the junction row. Serve the
      output with scripts/shoot.py from a directory that also holds the font at the --font-url path.
      The italic rows carry the data-fd-probe marker, set to italic, for shoot.py's element probe; labels inside a
-     surface section carry that surface's foreground colour. $NOTES holds the charset-check notes
+     surface section carry that surface's foreground colour. Every row in the family carries data-fd-row (a key unique on
+     the page) for shoot.py --rows and compare-shots.py. $NOTES holds the charset-check notes
      (empty when the shown text was checked against the font file and nothing was missing).
      Every value below was HTML-escaped by specimen.py; this file is a string.Template, not a page.
      Copyright 2026 John Knox. MIT licence. From the Bract review specimen (2026-11-15). -->

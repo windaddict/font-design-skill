@@ -1,0 +1,262 @@
+name: platform-shots
+
+# WHAT IT'S FOR: the release proof that the cross-platform rendering shots work: templates/platform-shots.yml
+# with its slots filled for the neutral fixture (Sampler wired into tests/fixtures/site-sample, as smoke.sh
+# step 11 wires it), run on Windows, macOS and Linux in Chrome and in Playwright's Firefox, and compared by
+# scripts/compare-shots.py. tests/test_ci_workflow.py holds this file equal to the template apart from the
+# filled slots and two additions: the pull_request trigger below, and a per-leg pytest step that runs the
+# shoot.py tests for the Windows teardown, fractional scales, the meta file and the rows natively on each
+# runner (plan F010), which nothing else executes on Windows.
+#
+# WHAT IT PROVES: that the tool runs and its proofs pass on each GitHub-hosted image in each browser; the
+# Sampler PNGs are a fixture's, so what they show is about the tool working, not about a face. It proves
+# nothing about a reader's machine (the template's header states the exact guarantee).
+# COST: free (standard runners on a public repository, GitHub's billing page read 2026-11-17).
+# TRIGGERS: by hand, and on a pull request that changes the tool, the template or this file (workflow_dispatch
+# needs the file on the default branch for a first run). Never on push. Not a merge gate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pages:
+        description: "pages to shoot, space-separated (default: FD_PAGES)"
+        required: false
+        default: ""
+      scales:
+        description: "device scales, space-separated (default: FD_SCALES)"
+        required: false
+        default: ""
+      font_urls:
+        description: "root-relative woff2 paths, space-separated (default: FD_FONT_URLS)"
+        required: false
+        default: ""
+      family:
+        description: "the font family each shot must prove (default: FD_FAMILY)"
+        required: false
+        default: ""
+      browsers:
+        description: "browsers to run: chrome, firefox or both"
+        required: false
+        default: "chrome firefox"
+  pull_request:
+    paths:
+      - scripts/shoot.py
+      - scripts/shoot_playwright.py
+      - scripts/specimen.py
+      - scripts/specimen.html.tmpl
+      - scripts/compare-shots.py
+      - templates/platform-shots.yml
+      - requirements-platform.txt
+      - tests/test_shoot.py
+      - .github/workflows/platform-shots.yml
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash # Git Bash on Windows: one set of lines for the three systems
+
+env:
+  # Python on a Windows runner reads and writes text as cp1252 unless told otherwise; the skill's files are UTF-8.
+  PYTHONUTF8: "1"
+  # Git Bash on Windows rewrites an argument that starts with / into a Windows path before Python sees it
+  # (/fonts/X.woff2 became C:/Program Files/Git/fonts/X.woff2); these two turn that off.
+  MSYS_NO_PATHCONV: "1"
+  MSYS2_ARG_CONV_EXCL: "*"
+  FD_SCRIPTS: scripts
+  FD_SERVE: out/platform/site
+  FD_BUILD: |
+    python -m pip install -r requirements.txt
+    python scripts/build.py --font examples/neutral/font.json
+    mkdir -p out/platform/site/fonts
+    cp -R tests/fixtures/site-sample/. out/platform/site/
+    cp examples/neutral/out/Sampler-VF.woff2 examples/neutral/out/Sampler-Italic-VF.woff2 out/platform/site/fonts/
+    cat >> out/platform/site/css/site.css <<'CSS'
+    @font-face { font-family: 'Sampler'; src: url('/fonts/Sampler-VF.woff2') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }
+    @font-face { font-family: 'Sampler'; src: url('/fonts/Sampler-Italic-VF.woff2') format('woff2'); font-weight: 400 700; font-style: italic; font-display: swap; }
+    h1, h2, h3, .plate-title, .frontis-title, .wordmark { font-family: 'Sampler', Georgia, serif; font-optical-sizing: auto; }
+    CSS
+  FD_FAMILY: Sampler
+  FD_FONT_URLS: |
+    /fonts/Sampler-VF.woff2
+    /fonts/Sampler-Italic-VF.woff2
+  # essay.html is left out on purpose: it carries Å and Ž, which Sampler lacks, so every leg would refuse it.
+  FD_PAGES: |
+    index.html
+  FD_FONT_JSON: examples/neutral/font.json
+  FD_SCALES: "1 1.25"
+  IN_PAGES: ${{ inputs.pages }}
+  IN_SCALES: ${{ inputs.scales }}
+  IN_FONT_URLS: ${{ inputs.font_urls }}
+  IN_FAMILY: ${{ inputs.family }}
+
+jobs:
+  shots:
+    name: ${{ matrix.os }} / ${{ matrix.browser }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false # one leg's failure must not cancel the others
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        browser: [chrome, firefox]
+    env:
+      BROWSER: ${{ matrix.browser }}
+      # a dispatch with browsers "chrome" skips every step of the Firefox legs (a runner still starts)
+      LEG_ON: ${{ contains(inputs.browsers || 'chrome firefox', matrix.browser) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: env.LEG_ON == 'true'
+        with:
+          python-version: "3.12" # the macOS image's own Python is 3.15
+      - name: build or stage the served root (FD_BUILD)
+        if: env.LEG_ON == 'true' && env.FD_BUILD != ''
+        run: eval "$FD_BUILD"
+      - name: resolve the slots and the dispatch inputs into .fd-slots.sh (sourced by the shooting steps)
+        if: env.LEG_ON == 'true'
+        run: |
+          cat > .fd-slots.sh <<'SLOTS'
+          # shellcheck disable=SC2034 # the arrays are read by the steps that source this file
+          # bash 3.2 has no mapfile, so each list is read one word a line
+          FAMILY="${IN_FAMILY:-$FD_FAMILY}"
+          PAGES=()
+          while read -r w; do if [ -n "$w" ]; then PAGES+=("$w"); fi; done < <(printf '%s\n' "${IN_PAGES:-$FD_PAGES}" | tr -s ' \t' '\n')
+          SCALES=()
+          while read -r w; do if [ -n "$w" ]; then SCALES+=("$w"); fi; done < <(printf '%s\n' "${IN_SCALES:-$FD_SCALES}" | tr -s ' \t' '\n')
+          FONT_URLS=()
+          FONT_URL_ARGS=()
+          while read -r w; do if [ -n "$w" ]; then FONT_URLS+=("$w"); FONT_URL_ARGS+=(--font-url "$w"); fi; done < <(printf '%s\n' "${IN_FONT_URLS:-$FD_FONT_URLS}" | tr -s ' \t' '\n')
+          SLOTS
+          # shellcheck disable=SC1091
+          source .fd-slots.sh
+          echo "family: $FAMILY"
+          echo "pages: ${PAGES[*]}"
+          echo "scales: ${SCALES[*]}"
+          echo "font urls: ${FONT_URLS[*]}"
+          if [ "${#PAGES[@]}" -eq 0 ] || [ "${#SCALES[@]}" -eq 0 ] || [ "${#FONT_URLS[@]}" -eq 0 ] || [ -z "$FAMILY" ]; then
+            echo "a slot is empty: FD_PAGES, FD_SCALES, FD_FONT_URLS and FD_FAMILY must each name at least one value" >&2
+            exit 1
+          fi
+      - name: fontTools and brotli for the specimen's charset check
+        if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
+        run: python -m pip install "fonttools==4.68.*" brotli
+      # Every leg shoots through Playwright: Firefox has no other launcher, and Chrome's command line on a Windows runner
+      # lays the page out 16 px narrower than it captures (shoot_playwright.py's header). Chrome legs launch the installed
+      # Chrome, so only the Firefox legs download a browser.
+      - name: Playwright (every leg), and its Firefox (Firefox legs only)
+        if: env.LEG_ON == 'true'
+        run: |
+          REQ="$FD_SCRIPTS/../requirements-platform.txt"
+          if [ -f "$REQ" ]; then
+            python -m pip install -r "$REQ"
+          else
+            echo "NOTE: $REQ is not in this repository; installing the pin it carries in the skill: playwright==1.64.1"
+            python -m pip install "playwright==1.64.1"
+          fi
+          if [ "$BROWSER" = "firefox" ]; then
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              python -m playwright install --with-deps firefox
+            else
+              python -m playwright install firefox
+            fi
+          fi
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        if: env.LEG_ON == 'true' && matrix.os == 'ubuntu-latest' && matrix.browser == 'chrome'
+        with:
+          chrome-version: stable
+          install-dependencies: true
+      - name: point shoot.py at that Chrome, and let it use its sandbox (Ubuntu 24.04 restricts unprivileged user namespaces)
+        if: env.LEG_ON == 'true' && matrix.os == 'ubuntu-latest' && matrix.browser == 'chrome'
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          echo "CHROME=$CHROME_PATH" >> "$GITHUB_ENV"
+          if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: render the review specimen into the served root (FD_FONT_JSON)
+        if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
+        run: |
+          source .fd-slots.sh
+          REQS="$(dirname "$FD_FONT_JSON")/requirements.json"
+          ARGS=(--font "$FD_FONT_JSON" --font-url "${FONT_URLS[0]}")
+          if [ -f "$REQS" ]; then ARGS+=(--requirements "$REQS"); fi
+          if [ "${#FONT_URLS[@]}" -ge 2 ]; then ARGS+=(--italic-url "${FONT_URLS[1]}"); fi
+          mkdir -p "$FD_SERVE/review"
+          python "$FD_SCRIPTS/specimen.py" "${ARGS[@]}" "$FD_SERVE/review/specimen.html"
+      - name: shoot the specimen (6000 px tall, so every row is inside the capture)
+        if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
+        run: |
+          source .fd-slots.sh
+          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --require-captured --meta leg/meta-specimen.json --bands none --jobs 2
+      - name: shoot the pages
+        # runs after a failed specimen shot too, so one failure does not lose the other invocation's evidence
+        if: ${{ !cancelled() && env.LEG_ON == 'true' }}
+        run: |
+          source .fd-slots.sh
+          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages "${PAGES[@]}" --widths 1280 --scales "${SCALES[@]}" --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --meta leg/meta-pages.json --bands none --jobs 2
+      - name: the shoot.py tests of the Windows teardown, fractional scales, the meta file and the rows, run natively on this runner (F010), and on Chrome legs the Playwright Chrome test
+        if: ${{ !cancelled() && env.LEG_ON == 'true' }}
+        run: |
+          python -m pip install pytest pillow
+          K="kill or fraction or meta or rows or profile"
+          # Chrome legs only: on Ubuntu only they let Chrome use its sandbox, which the Playwright launch keeps on
+          if [ "$BROWSER" = "chrome" ]; then K="$K or lays_the_page_out"; fi
+          python -m pytest tests/test_shoot.py tests/test_shoot_playwright.py -q -rs -k "$K"
+      # the artifact's root is leg/ itself, so download-artifact puts meta*.json at legs/<artifact name>/ (F001)
+      - uses: actions/upload-artifact@v4
+        if: always() && env.LEG_ON == 'true'
+        with:
+          name: platform-shots-${{ matrix.os }}-${{ matrix.browser }}
+          path: leg/
+          retention-days: 14
+          if-no-files-found: error
+
+  compare:
+    name: compare the legs
+    needs: shots
+    if: always() # one leg's failure must not lose the others' comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pillow for the crops
+        run: python -m pip install pillow
+      # with merge-multiple false each artifact is extracted into its own directory, legs/<artifact name>/
+      # (actions/download-artifact v4 README, read 2026-11-17)
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: platform-shots-*
+          path: legs
+          merge-multiple: false
+      - name: compare every row across the legs (a bad leg is refused and listed; the others are still compared)
+        run: |
+          ls -R legs || echo "NOTE: no leg uploaded an artifact"
+          python "$FD_SCRIPTS/compare-shots.py" compare legs/*/
+      - name: compare.md into the job summary
+        if: always()
+        run: |
+          if [ -f compare/compare.md ]; then
+            cat compare/compare.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "compare-shots.py wrote no compare.md; read the compare step's log" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: platform-shots-compare
+          path: compare/
+          retention-days: 14
+      - name: fail the run when a leg failed (after the upload, so the evidence that exists is kept)
+        if: always() && needs.shots.result != 'success'
+        env:
+          SHOTS_RESULT: ${{ needs.shots.result }}
+        run: |
+          echo "the shots job ended '$SHOTS_RESULT': at least one leg failed; its meta*.json names the failure" >&2
+          exit 1

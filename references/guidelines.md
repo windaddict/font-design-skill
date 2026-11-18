@@ -63,8 +63,10 @@ that as an open item (Windows rendering of the 0.70-0.78 px hairlines), not as a
 relaxes if the audit moves the smallest elements to the body face (Bract's would have gone to
 about 24 px, and the face could have been thinner); say which decision was taken.
 
-What the floor does not settle: Windows rendering of sub-pixel strokes, which cannot be checked
-from a Mac (trap 21). Mitigate with `gasp` and Medium at the smallest sizes, and say so.
+What the floor does not settle: Windows rendering of sub-pixel strokes (trap 21). It is not checked
+unless the platform run was made, and then only as headless Chrome and Playwright's Firefox on a
+GitHub-hosted Windows Server runner (`references/review-loop.md` sections 2 and 9). Mitigate with `gasp`
+and Medium at the smallest sizes, and say so.
 
 ## 3. Contrast with the body face on at least two axes
 

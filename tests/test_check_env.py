@@ -379,3 +379,16 @@ def test_check_env_reports_raqm_found_when_pillow_has_it(toolchain):
     the failure this piece reports, so on such a machine this test is the one that goes red."""
     r = check_env(toolchain[2])
     assert "found    raqm" in r.stdout, r.stdout
+
+
+def test_check_env_reports_playwright_as_optional_with_the_install_command(toolchain):
+    """The Firefox leg of the platform shots needs playwright (requirements-platform.txt), which is optional: with the
+    package unimportable the run still exits 0, and the optional line names the requirements file and the browser
+    install, with absolute paths like fontbakery's. Mutations watched red on 2026-11-17: the row counted as a missing
+    required piece (exit 1); the `; then ... playwright install firefox` half dropped from the line."""
+    r = run_as(CHECK, blocked=["playwright"], env=toolchain[2])
+    assert r.returncode == 0, r.stdout + r.stderr
+    line = next((ln for ln in r.stdout.splitlines() if ln.startswith("optional: playwright")), "")
+    assert line.startswith("optional: playwright not installed (the Firefox leg of the platform shots is skipped until it is): "), r.stdout
+    assert str(REPO / "requirements-platform.txt") in line and "-m playwright install firefox" in line, line
+    assert "check-env: all 12 required pieces found" in r.stdout, r.stdout

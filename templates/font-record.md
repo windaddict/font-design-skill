@@ -132,8 +132,21 @@ guarantees; never round one up. Keep the FreeType paragraph. -->
 | … | |
 
 **The rasters are FreeType via Pillow on {{machine}}.** They say nothing about CoreText, DirectWrite
-or Android. The review screenshots are {{browser}} on {{OS}}; {{what they showed at 2×}}. Windows
-has not been looked at.
+or Android. The review screenshots are {{browser}} on {{OS}}; {{what they showed at 2×}}.
+
+<!-- The Windows line takes ONE of two forms. Keep the one that is true and delete the other.
+The platform run's limits are in references/review-loop.md section 9: a GitHub-hosted runner, not a
+reader's machine; Playwright's Firefox, not Mozilla's release; no Safari, phones or real display. -->
+
+{{EITHER}} **Windows: checked by the platform run {{run id}} of {{date}}**: headless Chrome
+{{version from `ua`}} and Playwright's Firefox {{version from `ua`}} on {{platform from the meta}},
+{{ClearType type, orientation}}; `compare.md` at {{path}}. Chrome: {{one sentence each for the
+legibility row, the junction row and the smallest real-page title}}. Firefox: {{the same three
+sentences, or "leg not run: <reason>"}}. A GitHub-hosted runner is not a reader's machine; Safari,
+phones and real displays were not checked.
+
+{{OR}} **Not checked on Windows.** {{The claim this limits, e.g. "the 0.70 px hairlines at 15.2 px are
+unverified under DirectWrite".}}
 
 ## How it was reviewed
 
@@ -167,7 +180,7 @@ revealed about the tests. -->
 ## Open items
 
 **Rendering, not checkable from this machine**
-- {{Windows; Safari and Firefox opsz; …}}
+- {{Windows (only when the record says "Not checked on Windows"); Safari and Firefox opsz; …}}
 
 **Font (polish, reviewer round {{N}})**
 - {{…}}
