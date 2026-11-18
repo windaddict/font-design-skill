@@ -40,6 +40,9 @@ scaling and ClearType tuning differ), not Safari, not phones. It is a record lin
 - From the Impasse review of that change: Chrome through Playwright keeps its sandbox and `--disable-gpu`, as the
   command line does; `--rows` needs `--family` and `--font-url`; `compare-shots.py` refuses a PNG whose size is not
   the shot its rows file describes; the Chrome legs run the Playwright Chrome test natively.
+- The sentinel starts at `load`, not `DOMContentLoaded`. It is injected before the page's stylesheets, and Chrome
+  through Playwright reached `DOMContentLoaded` before an external stylesheet had declared the family, so it reported
+  the font missing and only then fetched it (run 44236884579, every Chrome leg's `index.html`).
 - **`shoot.py`**: `--rows` (each `data-fd-row` and probed element's viewport box, written to `<stem>.rows.json`
   only after every proof passed; a scrolled shot is refused), `--meta FILE` (platform, browser user agent, Windows
   font-smoothing registry values, every verified shot, the failures), fractional `--scales` (`@1.25x`), repeatable

@@ -381,7 +381,10 @@ SENTINEL = """<script data-fd-sentinel>
     }
     ready.then(go, go);
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+  // `load`, not DOMContentLoaded: this script sits at the top of <head>, before the page's stylesheets, and a family
+  // declared in an external stylesheet does not exist until it has loaded (Chrome through Playwright reached
+  // DOMContentLoaded first and beaconed font=missing before it had fetched the font, platform-shots run 44236884579)
+  if (document.readyState !== "complete") window.addEventListener("load", start); else start();
 })();
 </script>
 """

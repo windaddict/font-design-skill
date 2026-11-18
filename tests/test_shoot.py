@@ -33,6 +33,12 @@ import shoot  # noqa: E402
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 
+# Chrome's command line on Windows lays a page out narrower than its --window-size (492 px for a 500 px shot on the
+# runner), which shoot.py's width check rightly fails; there the rows tests drive the same Chrome through Playwright,
+# which the platform workflow installs on every leg. Elsewhere they keep testing the command line.
+ROWS_LAUNCHER = "playwright" if os.name == "nt" else "cli"
+
+
 def chrome_or_skip():
     try:
         return shoot.find_chrome()
@@ -1175,7 +1181,7 @@ def test_chrome_rows_json_carries_every_marked_row_in_viewport_coordinates_with_
         for scale in (1, 2):
             png = tmp_path / f"rowsbox-500@{scale}x.png"
             res = shoot.shoot(f"http://127.0.0.1:{port}{path}", png, 500, scale, server=server, chrome=chrome_or_skip(),
-                              require_family="Probe", rows=True)
+                              require_family="Probe", rows=True, launcher=ROWS_LAUNCHER)
             assert res["rows"] == str(tmp_path / f"rowsbox-500@{scale}x.rows.json"), res["rows"]
             doc = json.loads(pathlib.Path(res["rows"]).read_text(encoding="utf-8"))
             assert doc["scroll_x"] == 0 and doc["scroll_y"] == 0 and doc["height"] == shoot.DEFAULT_HEIGHT, doc
@@ -1203,7 +1209,7 @@ def test_chrome_a_page_that_scrolled_records_the_offset(site, tmp_path):
     server, port = served(site, family="Probe")
     try:
         res = shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / "s.png", 500, 1, server=server, chrome=chrome_or_skip(),
-                          require_family="Probe", rows=True)
+                          require_family="Probe", rows=True, launcher=ROWS_LAUNCHER)
         doc = json.loads(pathlib.Path(res["rows"]).read_text(encoding="utf-8"))
         assert doc["scroll_y"] == 500, doc
         assert abs(doc["rows"][0]["y"] - 300) <= 1, doc["rows"]
@@ -1220,7 +1226,7 @@ def test_chrome_rows_json_is_not_written_for_a_shot_that_failed_its_proof(site, 
     try:
         with pytest.raises(RuntimeError, match="no visible element with text is set in 'Probe'"):
             shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / "g.png", 500, 1, server=server, chrome=chrome_or_skip(),
-                        require_family="Probe", rows=True)
+                        require_family="Probe", rows=True, launcher=ROWS_LAUNCHER)
         assert not (tmp_path / "g.rows.json").exists()
         assert any(server.rows.values()), "the sentinel must have sent the rows, or this test shows nothing"
     finally:
@@ -1241,7 +1247,7 @@ def test_chrome_a_verified_shot_whose_rows_never_arrive_is_failed(site, tmp_path
     try:
         with pytest.raises(RuntimeError, match="no rows arrived"):
             shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / "d.png", 500, 1, server=server, chrome=chrome_or_skip(),
-                        require_family="Probe", rows=True)
+                        require_family="Probe", rows=True, launcher=ROWS_LAUNCHER)
         assert not (tmp_path / "d.rows.json").exists()
     finally:
         server.shutdown()
@@ -1379,10 +1385,10 @@ def test_chrome_require_captured_fails_a_shot_with_a_row_below_the_capture(site,
     try:
         url = f"http://127.0.0.1:{port}{path}"
         with pytest.raises(RuntimeError, match=r"end below the 2400 px capture \(r-c\)"):
-            shoot.shoot(url, tmp_path / "b.png", 500, 1, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True,
+            shoot.shoot(url, tmp_path / "b.png", 500, 1, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True, launcher=ROWS_LAUNCHER,
                         require_captured=True)
         assert not (tmp_path / "b.rows.json").exists()
-        res = shoot.shoot(url, tmp_path / "ok.png", 500, 1, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True)
+        res = shoot.shoot(url, tmp_path / "ok.png", 500, 1, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True, launcher=ROWS_LAUNCHER)
         assert res["rows"]
     finally:
         server.shutdown()

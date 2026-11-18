@@ -313,3 +313,31 @@ def test_capture_launches_chrome_with_its_sandbox_and_without_the_gpu(monkeypatc
     assert seen.get("chromium_sandbox") is True, seen
     assert "--disable-gpu" in (seen.get("args") or []), seen
     assert seen.get("executable_path") == "/bin/chrome", seen
+
+
+def test_playwright_chrome_waits_for_a_late_stylesheet_before_judging_the_font(site, tmp_path, playwright_chrome, monkeypatch):
+    """The page's @font-face lives in an external stylesheet the server answers 1.5 s late, as a site's site.css can be.
+    The sentinel is injected at the top of <head>, before the <link>; started at DOMContentLoaded it asked for the family
+    before any rule declared it, found nothing loading, and beaconed font=missing, and only then did Chrome fetch the font
+    (platform-shots run 44236884579: every Chrome-through-Playwright leg failed /index.html that way, on Windows and
+    Ubuntu, and so did this Mac). Started at `load`, which waits for stylesheets, the same page verifies. Mutation watched
+    red on 2026-11-17: the sentinel started at DOMContentLoaded again (font=missing)."""
+    (site / "late.css").write_text('@font-face { font-family: Probe; src: url(/fonts/Probe.woff2) format("woff2"); }\n'
+                                   "h1 { font-family: Probe, serif; font-size: 48px; font-weight: 400; font-synthesis: none; }",
+                                   encoding="utf-8")
+    (site / "latecss.html").write_text("<!doctype html><html><head><meta charset='utf-8'><link rel='stylesheet' href='/late.css'>"
+                                       "</head><body><h1>Harbour Review</h1></body></html>", encoding="utf-8")
+    real = shoot.Handler.do_GET
+
+    def slow(self):
+        if self.path.startswith("/late.css"):
+            time.sleep(1.5)
+        return real(self)
+    monkeypatch.setattr(shoot.Handler, "do_GET", slow)
+    server, port = shoot.serve(site, 120, family="Probe")
+    try:
+        res = shoot.shoot(f"http://127.0.0.1:{port}/latecss.html", tmp_path / "late.png", 1280, 1, height=900, server=server,
+                          chrome=playwright_chrome, require_family="Probe", font_url="/fonts/Probe.woff2", launcher="playwright")
+    finally:
+        server.shutdown()
+    assert res["font"] == "loaded", res
