@@ -142,6 +142,10 @@ def load_leg(leg_dir, refused):
         if not isinstance(meta, dict):
             refuse(f"{mf.name} is JSON but not an object")
             continue
+        bad = [k for k in ("shots", "failed") if not isinstance(meta.get(k) or [], list)]
+        if bad:
+            refuse(f"{mf.name} is JSON but not a meta object: its {' and '.join(bad)} is not a list")
+            continue
         metas.append((mf.name, meta))
         for shot in meta.get("shots") or []:
             if not isinstance(shot, dict):

@@ -295,16 +295,21 @@ def test_compare_reads_a_windows_legs_backslash_png_path(tmp_path):
     assert sorted(r["key"] for r in data["rows"]) == ["a", "b", "c"], data
 
 
-@pytest.mark.parametrize("bad", ["meta", "rows"])
+@pytest.mark.parametrize("bad", ["meta", "rows", "shots", "failed"])
 def test_compare_refuses_json_of_the_wrong_shape_and_compares_the_other_legs(tmp_path, bad):
-    """A meta file, or a rows file, that is valid JSON but a list: that leg is refused and listed, the other two legs are
-    still compared, exit 0 (Impasse F005: it raised AttributeError and ended the run). Mutations watched red on
-    2026-11-17: each isinstance check removed (AttributeError)."""
+    """A meta file, or a rows file, that is valid JSON but a list, or a meta whose `shots` or `failed` is the number 1:
+    that leg is refused and listed, the other two legs are still compared, exit 0 (Impasse F005 and re-review F007: they
+    raised AttributeError or TypeError and ended the run). Mutations watched red on 2026-11-17: each isinstance check
+    removed (AttributeError, TypeError)."""
     a = make_leg(tmp_path, "A", [shot(rows=THREE)])
     b = make_leg(tmp_path, "B", [shot(rows=THREE)], platform=WIN)
     c = make_leg(tmp_path, "C", [shot(rows=THREE)])
-    target = c / "meta.json" if bad == "meta" else c / "x-300@1x.rows.json"
-    target.write_text("[1, 2]", encoding="utf-8")
+    if bad in ("shots", "failed"):
+        meta = json.loads((c / "meta.json").read_text(encoding="utf-8"))
+        meta[bad] = 1
+        (c / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    else:
+        (c / "meta.json" if bad == "meta" else c / "x-300@1x.rows.json").write_text("[1, 2]", encoding="utf-8")
     code, md, data = run(tmp_path / "out", [a, b, c])
     assert code == 0 and len(data["legs"]) == 2, md
     assert "is JSON but not" in section(md, "Refused"), md
