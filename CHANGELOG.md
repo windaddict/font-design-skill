@@ -3,6 +3,33 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [0.3.1] — 2026-11-18
+
+Lets a site build its face from the skill's scripts instead of a private copy of them. hopsafari.com is the
+first site to do this: it carries the skill as a pinned submodule and keeps Bract's definition in its own
+repository.
+
+### Added
+- **`kerning.sparse_cap`** in `font.json`: an integer ≤ 0 or `null`, default −50 (the 0.2 behaviour, so
+  every recorded digest in `tests/test_backward_compat.py` is unchanged). `null` switches the sparse-glyph
+  cap of trap 34 off, for a face whose kerning was reviewed without it (Bract: `.|Y` −149 at Bold). `kern()`
+  takes the cap as a fourth argument and keys its cache on it; `export.js` refuses any other value before
+  drawing; the schema, `templates/font.example.json` and the font suite's `restate_kern` carry it.
+  `layWord()` (the concept-page preview layout, through `render.js`) takes it as `opt.sparseCap`.
+
+### Fixed
+- **The manifest's `file` entry is relative to `font.json`'s directory even when the woff2 lies outside it**
+  (`../../static/F-VF.woff2`). It used to be recorded absolute, so the manifest named one clone's home
+  directory and `--check` failed in any other clone. Only a file on another Windows drive is still absolute.
+- **`--out-dir` keeps a group's `file` inside DIR.** A `file` with `..` steps (`../../static/F-VF.woff2`) escaped
+  DIR by them; under `--out-dir` only its name is kept now, the same rule as the `manifest` key.
+
+The Impasse review of this release (4 findings: `layWord` ignoring the cap, an over-broad pair-count claim in
+`examples/bract/README.md`, and two test gaps, a numeric cap and `--out-dir` portability) is reconciled in the
+pull request. The three code fixes each have a test watched red under its mutation; the README correction is prose
+and has no test. A re-review of the fixes found that keeping only the name lets two groups collide under
+`--out-dir`; `build.py` now refuses any config in which two groups would write one file.
+
 ## [0.3.0] — 2026-11-17
 
 The cross-platform rendering check (`docs/plan-platform-shots.md`), planned by Fable, reviewed before code by an

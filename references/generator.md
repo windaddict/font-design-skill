@@ -334,9 +334,12 @@ The word space is `210 + 0.3·W + 2·track` (the exporter emits it per master).
 **Automatic kerning** (`kern(a, b)`): the pair's mean gap over the shared band is compared with
 the reference pair's (`H|H` for two uppers, else `n|n`), over the same band: 700 when either glyph is `UPPERISH`, else `xh`; when it exceeds the reference by more
 than 8, `k = −0.75 × (excess − 8)`, clamped at **−170**; a **sparse** pair, where either glyph has
-ink in under 35 % of the band's bins (a hyphen, a dash, a period, a quote), is capped at **−50**,
-because its mean gap is measured at one height only and runs away (the hyphen before `S` in
-"Eighty-Seventh" hit −170 and crowded the S in a cold dry run of this skill; trap 34); then
+ink in under 35 % of the band's bins (a hyphen, a dash, a period, a quote), is capped at
+`kerning.sparse_cap` (default **−50**; `null` switches the cap off), because its mean gap is measured
+at one height only and runs away (the hyphen before `S` in "Eighty-Seventh" hit −170 and crowded the
+S in a cold dry run of this skill; trap 34). Bract sets `null`: its kerning was reviewed before the
+cap existed (`.|Y` −102 at Regular and −149 at Bold), and taking the cap would change its reviewed
+spacing, which is a design change and not a build fix; then
 `k ≥ minClear − minRaw` with `minClear = 14 + 0.05·W` so no pair closes under the clearance; then
 clamped at **+80**. Pairs of two figures are skipped (figures keep their own spacing). The automatic
 pass never sees the word space, so a letter whose ink sits far left of its advance at the baseline

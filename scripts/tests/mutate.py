@@ -438,7 +438,7 @@ def mutations(h):
     # reaches the threshold and the font ships with the hand and word-space pairs alone; a fresh export
     # agrees with itself, so only the "at least one live automatic pair" assertion can see it
     add("kern-auto-zero: export.js computes 0 for every automatic pair", ["test_kerning_and_advances_at_every_master"],
-        lambda: h.rep(EXPORT, 'auto[n][a + "|" + b] = Math.round(m.kern(glyphs[a], glyphs[b], P));', 'auto[n][a + "|" + b] = 0;'), "all",
+        lambda: h.rep(EXPORT, 'auto[n][a + "|" + b] = Math.round(m.kern(glyphs[a], glyphs[b], P, SPARSE_CAP));', 'auto[n][a + "|" + b] = 0;'), "all",
         expect="no automatic kern pair with a non-zero value")
     # F005: the word space ignores the display track in export.js (a fresh export is part of the rebuild). The
     # expectation is the word_space PINNED in requirements.json (C9), so the exporter cannot agree with itself.

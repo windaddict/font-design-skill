@@ -57,7 +57,8 @@
     "space": [[" ", "A", -45], [" ", "T", -20], [" ", "V", -35], [" ", "W", -30], [" ", "Y", -30],
               ["A", " ", -30], ["V", " ", -30], ["W", " ", -25], ["Y", " ", -25], ["r", " ", -25]],
     "italic_hand": { "I|P": -45, "I|D": -35, "I|B": -35, "I|E": -35, "I|R": -35, "I|N": -30, "I|M": -30, "I|m": -25, "I|n": -25, "P|I": -20, "A|I": -40, "T|h": -100, "T|w": -130, "T|r": -130, "K|e": -120, "A|t": -30 },
-    "italic_space": [["f", " ", -20], ["I", " ", -25], [" ", "I", -20]]
+    "italic_space": [["f", " ", -20], ["I", " ", -25], [" ", "I", -20]],
+    "sparse_cap": -50
   },
   "titles": ["Twelve Lanterns on the Quay", "A Short Walk to the Weir", "Ledger of the Winter Fair #2", "Harriet's Second Kitchen", "WHAT THE TIDE LEFT", "Salt, Smoke & Sunday Bread"],
   "size_budget_bytes": 102400,

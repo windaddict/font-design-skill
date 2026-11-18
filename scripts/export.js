@@ -98,6 +98,12 @@ function loadFontConfig(fontPath) {
   const cfg = readJson(fontPath);
   const dir = path.dirname(path.resolve(fontPath));
   for (const k of ["family", "concepts", "groups", "charset", "kerning"]) if (!(k in cfg)) throw new Error(`font.json lacks "${k}"`);
+  // kerning.sparse_cap: absent = the generator's default (-50), null = no cap, else an integer <= 0.
+  // Checked here, before anything is drawn, because nothing enforces the schema at run time and a
+  // positive cap would quietly clamp every sparse pair to a positive kern.
+  const cap = cfg.kerning.sparse_cap;
+  if (cap !== undefined && cap !== null && !(Number.isInteger(cap) && cap <= 0))
+    throw new Error(`kerning.sparse_cap must be null or an integer <= 0, not ${JSON.stringify(cap)}`);
   cfg._dir = dir;
   cfg._conceptsPath = path.resolve(dir, cfg.concepts);
   return cfg;
@@ -230,13 +236,14 @@ function main(argv) {
   const THRESHOLD = cfg.kerning.threshold !== undefined ? cfg.kerning.threshold : 12;
   const HAND = Object.assign({}, cfg.kerning.hand || {}, italic ? (cfg.kerning.italic_hand || {}) : {});
   const SPACE = (cfg.kerning.space || []).concat(italic ? (cfg.kerning.italic_space || []) : []);
+  const SPARSE_CAP = cfg.kerning.sparse_cap; // checked in loadFontConfig
   const auto = {};
   for (const n of names) {
     const { P, glyphs } = drawn[n];
     auto[n] = {};
     for (const a of KERN_SET) for (const b of KERN_SET) {
       if (/^[0-9]$/.test(a) && /^[0-9]$/.test(b)) continue; // figures keep their own spacing
-      auto[n][a + "|" + b] = Math.round(m.kern(glyphs[a], glyphs[b], P));
+      auto[n][a + "|" + b] = Math.round(m.kern(glyphs[a], glyphs[b], P, SPARSE_CAP));
     }
   }
   const pairList = [];

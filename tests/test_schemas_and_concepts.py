@@ -10,6 +10,7 @@ every group of every example.
 """
 import json
 import pathlib
+import shutil
 
 import jsonschema
 import pytest
@@ -319,3 +320,110 @@ def test_export_fails_early_naming_a_required_character_the_generator_lacks(tmp_
     assert r.returncode == 1, r.stderr
     assert "U+0040" in r.stderr and '"@"' in r.stderr, r.stderr
     assert not (tmp_path / "out.json").exists(), "nothing may be written when a required character is missing"
+
+
+# ---- kerning.sparse_cap (0.3.1): a face reviewed without the sparse-glyph cap can switch it off ---------------
+
+BRACT = REPO / "examples" / "bract"
+
+
+def bract_kerns(tmp_path, name, **kerning):
+    """Exports a copy of the Bract example's roman group with `kerning` keys overridden (a value of the
+    sentinel "DELETE" removes the key) and returns {master: {"a|b": v}}. Executes the real export.js."""
+    d = tmp_path / name
+    d.mkdir()
+    cfg = json.loads((BRACT / "font.json").read_text())
+    for k, v in kerning.items():
+        if v == "DELETE":
+            cfg["kerning"].pop(k, None)
+        else:
+            cfg["kerning"][k] = v
+    shutil.copyfile(BRACT / "concepts.js", d / "concepts.js")
+    (d / "font.json").write_text(json.dumps(cfg))
+    r = run([node(), str(REPO / "scripts" / "export.js"), "--font", str(d / "font.json"), "--group", "roman", str(d / "out.json")])
+    assert r.returncode == 0, r.stderr[-1500:]
+    data = json.loads((d / "out.json").read_text())
+    return {n: {f"{a}|{b}": v for a, b, v in m["kerns"]} for n, m in data["masters"].items()}
+
+
+def test_sparse_cap_null_lets_a_sparse_pair_pass_minus_fifty(tmp_path):
+    """Bract's kerning was reviewed before the cap existed: at Bold its `.|Y` is -149 and `-|S` -170. With
+    kerning.sparse_cap null the export must give exactly those; with the key absent (the default) both sit at
+    -50. Two exports in one test, so it is the parameter that is observed, not the default. Mutations watched
+    red: export.js stops passing the cap to m.kern; kern() ignores its fourth argument; the default changed
+    to null (the absent-key export then reads -149)."""
+    off = bract_kerns(tmp_path, "off", sparse_cap=None)["TextBold"]
+    default = bract_kerns(tmp_path, "default", sparse_cap="DELETE")["TextBold"]
+    assert off[".|Y"] == -149 and off["-|S"] == -170, {k: off[k] for k in (".|Y", "-|S")}
+    assert default[".|Y"] == -50 and default["-|S"] == -50, {k: default[k] for k in (".|Y", "-|S")}
+
+
+def test_the_kern_cache_keys_on_the_cap():
+    """kern() caches by glyph pair per parameter set; a cap passed as an argument must be part of that id, or the
+    second call in one process returns the first call's value (the class of defect the null-vs-undefined test
+    above was written for). Called default, null, default in one process: -50, below -50, -50. Mutation watched
+    red: the cap dropped from the cache id (the second call then returns the cached -50). The pair is `.|Y` in
+    Bract's text cut, which is -102 uncapped."""
+    script = r"""
+const m = require(process.argv[1]); const P = m.params(m.loadConcepts(process.argv[2])[0], 1);
+const a = m.glyph(".", P), b = m.glyph("Y", P);
+console.log(JSON.stringify([m.kern(a, b, P), m.kern(a, b, P, null), m.kern(a, b, P), m.kern(a, b, P, -20)]));
+"""
+    r = run([node(), "-e", script, str(REPO / "scripts" / "gen.js"), str(BRACT / "concepts.js")])
+    assert r.returncode == 0, r.stderr
+    first, off, again, tighter = json.loads(r.stdout)
+    assert first == -50 and again == -50, (first, again)
+    assert off < -50, f"kern(..., null) returned {off}; the cap still applied or the cache answered"
+    assert -20 <= tighter < 0, f"kern(..., -20) returned {tighter}"
+
+
+def test_a_numeric_sparse_cap_reaches_the_exported_kerns(tmp_path):
+    """A cap other than -50 and null must reach kern() too: with -20 the Bold `.|Y` and `-|S`, -149 and -170
+    uncapped, export at -20 (Impasse review of this change, F003). The two tests above see only null and the
+    absent key, so export.js replacing every number with -50 would pass them. Mutation watched red: export.js
+    passing `SPARSE_CAP === null ? null : undefined` (every number becomes the default)."""
+    k = bract_kerns(tmp_path, "tight", sparse_cap=-20)["TextBold"]
+    assert k[".|Y"] == -20 and k["-|S"] == -20, {p: k[p] for p in (".|Y", "-|S")}
+
+
+def test_lay_word_takes_the_cap_from_its_options():
+    """layWord() is the preview layout render.js draws the concept pages with; it took the default cap whatever
+    the face set (Impasse review of this change, F001). Laid with sparseCap null, ".Y" in Bract's text cut is
+    narrower than with the default, by the uncapped kern's excess over -50. Mutation watched red: layWord
+    calling kern(prev, g, P) without the option again."""
+    script = r"""
+const m = require(process.argv[1]); const P = m.params(m.loadConcepts(process.argv[2])[0], 1);
+const w = cap => m.layWord(".Y", P, { kern: true, liga: true, sparseCap: cap }).w;
+console.log(JSON.stringify({ dflt: w(undefined), off: w(null), kern: m.kern(m.glyph(".", P), m.glyph("Y", P), P, null) }));
+"""
+    r = run([node(), "-e", script, str(REPO / "scripts" / "gen.js"), str(BRACT / "concepts.js")])
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["kern"] < -50, out
+    assert abs((out["dflt"] - out["off"]) - (-50 - out["kern"])) < 1e-6, out
+
+
+@pytest.mark.parametrize("value", [10, "off", -50.5, True])
+def test_export_refuses_a_malformed_sparse_cap(tmp_path, value):
+    """Nothing enforces the schema at run time, so export.js checks the value before drawing: a positive cap would
+    quietly clamp every sparse pair to a positive kern. Mutation watched red: the check removed (10 then exports)."""
+    cfg = json.loads((REPO / "examples" / "neutral" / "font.json").read_text())
+    cfg["kerning"]["sparse_cap"] = value
+    shutil.copyfile(REPO / "examples" / "neutral" / "concepts.js", tmp_path / "concepts.js")
+    (tmp_path / "font.json").write_text(json.dumps(cfg))
+    r = run([node(), str(REPO / "scripts" / "export.js"), "--font", str(tmp_path / "font.json"), "--group", "roman", str(tmp_path / "o.json")])
+    assert r.returncode != 0, f"sparse_cap {value!r} exported"
+    assert "kerning.sparse_cap" in r.stderr, r.stderr[-500:]
+    assert not (tmp_path / "o.json").exists()
+
+
+def test_the_schema_accepts_null_and_rejects_a_positive_sparse_cap():
+    """The schema says what export.js enforces. Mutation watched red: `maximum` removed (10 then validates)."""
+    cfg = json.loads((REPO / "examples" / "neutral" / "font.json").read_text())
+    for ok in (None, -50, 0):
+        cfg["kerning"]["sparse_cap"] = ok
+        jsonschema.validate(cfg, FONT_SCHEMA)
+    for bad in (10, "off", -50.5):
+        cfg["kerning"]["sparse_cap"] = bad
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(cfg, FONT_SCHEMA)

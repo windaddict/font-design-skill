@@ -633,3 +633,93 @@ def test_the_vertical_metrics_line_claims_only_what_the_tables_make_true(tmp_pat
     assert r.returncode == 0, r.stderr[-800:]
     line = next(ln for ln in r.stderr.splitlines() if "vertical metrics written" in ln)
     assert "wherever the platform reads hhea or typo" in line and "win metrics is not covered" in line and "on every platform" not in line, line
+
+
+def test_a_group_file_outside_font_json_dir_is_recorded_relative(tmp_path):
+    """A site keeps font.json in tools/face/ and ships the woff2 under static/ (hopsafari.com does). The manifest
+    recorded that file as an ABSOLUTE path, so it named one clone's home directory and `--check` failed in any
+    other clone. It is now `../../static/F-VF.woff2`. Built for real with out_dir "." (group.file resolves
+    against out_dir), then checked from a different working directory, then the whole site copied elsewhere and
+    checked again: the manifest must still match. Mutation watched red: the old absolute fallback restored."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["out_dir"] = "."
+    cfg["groups"]["roman"]["file"] = "../../static/F-VF.woff2"
+    cfg["groups"] = {"roman": cfg["groups"]["roman"]}
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    shutil.copyfile(NEUTRAL / "requirements.json", face / "requirements.json")
+    (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    build = [sys.executable, str(REPO / "scripts" / "build.py"), "--font", "font.json"]
+    r = run(build, cwd=face)
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert (tmp_path / "site" / "static" / "F-VF.woff2").is_file()
+    entry = json.loads((face / "manifest.json").read_text(encoding="utf-8"))["groups"]["roman"]["file"]
+    assert entry == "../../static/F-VF.woff2", f"the manifest records {entry!r}"
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(face / "font.json"), "--check"], cwd=tmp_path)
+    assert r.returncode == 0 and "manifest identical" in r.stderr, r.stderr[-1500:]
+    moved = tmp_path / "elsewhere" / "site"
+    shutil.copytree(tmp_path / "site", moved)
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(moved / "tools" / "face" / "font.json"), "--check"], cwd=moved)
+    assert r.returncode == 0 and "manifest identical" in r.stderr, f"a copied site fails --check:\n{r.stderr[-1500:]}"
+
+
+def test_a_build_under_out_dir_records_a_relative_file_that_survives_a_copy(tmp_path):
+    """The same portability under --out-dir (Impasse review of this change, F004): font.json in site/tools/face,
+    the build in site/build. The entry must be `../../build/<Family>-VF.woff2`, and after the site is copied
+    elsewhere, a --check that names the copied font.json and the copied --out-dir must still match its
+    manifest. Mutation watched red: relpath_posix returning the absolute path."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["groups"] = {"roman": cfg["groups"]["roman"]}
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    shutil.copyfile(NEUTRAL / "requirements.json", face / "requirements.json")
+    (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    fam = cfg["family"].replace(" ", "")
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(face / "font.json"), "--out-dir", str(tmp_path / "site" / "build")])
+    assert r.returncode == 0, r.stderr[-1500:]
+    entry = json.loads((tmp_path / "site" / "build" / "manifest.json").read_text(encoding="utf-8"))["groups"]["roman"]["file"]
+    assert entry == f"../../build/{fam}-VF.woff2", f"the manifest records {entry!r}"
+    moved = tmp_path / "elsewhere" / "site"
+    shutil.copytree(tmp_path / "site", moved)
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(moved / "tools" / "face" / "font.json"),
+             "--out-dir", str(moved / "build"), "--check"])
+    assert r.returncode == 0 and "manifest identical" in r.stderr, f"a copied --out-dir build fails --check:\n{r.stderr[-1500:]}"
+
+
+def test_out_dir_keeps_a_group_file_inside_dir(tmp_path):
+    """A group whose `file` climbs out of out_dir (`../../static/F-VF.woff2`, as hopsafari.com's does) used to escape
+    --out-dir by its .. steps: a trial build into a scratch folder wrote the woff2 two levels above it. Under
+    --out-dir only the name is kept, like the `manifest` key. Mutation watched red: group_file ignoring the override."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["out_dir"] = "."
+    cfg["groups"] = {"roman": dict(cfg["groups"]["roman"], file="../../static/F-VF.woff2")}
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    shutil.copyfile(NEUTRAL / "requirements.json", face / "requirements.json")
+    (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    out = tmp_path / "scratch" / "deep" / "o"
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(face / "font.json"), "--out-dir", str(out)])
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert (out / "F-VF.woff2").is_file(), sorted(p.name for p in out.iterdir())
+    assert not (tmp_path / "scratch" / "static").exists() and not (tmp_path / "site" / "static").exists(), "the woff2 escaped --out-dir"
+
+
+def test_two_groups_that_would_write_one_file_are_refused(tmp_path):
+    """Under --out-dir a group's file keeps only its name, so `a/F-VF.woff2` and `b/F-VF.woff2` would both become
+    DIR/F-VF.woff2 and the second group would overwrite the first (Impasse re-review of this change, F001).
+    load_config refuses, naming both groups; without --out-dir the same config is accepted, because the paths
+    differ. Mutation watched red: the uniqueness check removed."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import build
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["groups"]["roman"]["file"] = "a/F-VF.woff2"
+    cfg["groups"]["italic"]["file"] = "b/F-VF.woff2"
+    shutil.copyfile(NEUTRAL / "concepts.js", tmp_path / "concepts.js")
+    (tmp_path / "font.json").write_text(json.dumps(cfg), encoding="utf-8")
+    assert build.load_config(tmp_path / "font.json")  # distinct paths in place: fine
+    with pytest.raises(build.CheckFailed) as exc:
+        build.load_config(tmp_path / "font.json", out_dir_override=str(tmp_path / "o"))
+    assert "roman" in str(exc.value) and "italic" in str(exc.value) and "F-VF.woff2" in str(exc.value), str(exc.value)

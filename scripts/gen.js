@@ -1025,8 +1025,9 @@ function coverage(g, top) { // share of the bins between the baseline and `top` 
   for (var i = b0; i < b1; i++) if (g.L[i] !== null) n++;
   return n / (b1 - b0);
 }
-function kern(a, b, P) {
-  var c = cache[P.key], id = a.key + "|" + b.key;
+function kern(a, b, P, sparseCap) { // sparseCap: undefined = -50, null = no cap (font.json kerning.sparse_cap)
+  if (sparseCap === undefined) sparseCap = -50;
+  var c = cache[P.key], id = a.key + "|" + b.key + "|" + String(sparseCap);
   if (id in c.k) return c.k[id];
   var both = a.upper && b.upper, ref = both ? glyph("H", P) : glyph("n", P);
   var top = (a.upper || b.upper) ? 700 : P.xh;
@@ -1037,9 +1038,11 @@ function kern(a, b, P) {
   // and the x-height or cap line) sees the other glyph's edge only where it has ink, so the mean gap
   // is measured at one height and can be huge: the hyphen before S hit the -170 clamp and crowded the
   // S in a cold dry run of this skill (Driftwood and Bract needed hand pairs like r|. for the same
-  // reason). When either glyph covers under 35% of the band the automatic kern is capped at -50.
+  // reason). When either glyph covers under 35% of the band the automatic kern is capped at
+  // sparseCap (-50 by default). null switches the cap off, for a face whose kerning was reviewed
+  // without it (Bract). The cap is part of the cache id, so two caps in one process never share a value.
   var covA = coverage(a, top), covB = coverage(b, top);
-  if (Math.min(covA, covB) < 0.35) k = Math.max(k, -50);
+  if (sparseCap !== null && Math.min(covA, covB) < 0.35) k = Math.max(k, sparseCap);
   var minClear = 14 + 0.05 * P.W;
   if (isFinite(g.minRaw)) k = Math.max(k, minClear - g.minRaw);
   k = Math.min(k, 80);
@@ -1059,12 +1062,15 @@ function keysFor(word, liga) {
   }
   return out;
 }
+// layWord lays a word for a preview (the concept pages, through render.js): automatic kerning only, with no
+// hand pairs, no threshold and no rounding, so it approximates the exported font, not reproduces it.
+// opt.sparseCap is font.json's kerning.sparse_cap, passed on to kern() (undefined = the -50 default).
 function layWord(word, P, opt) {
   var x = 0, prev = null, items = [];
   keysFor(word, opt.liga).forEach(function (k) {
     var g = glyph(k, P);
     if (!g) { x += 200; prev = null; return; }
-    if (prev && opt.kern) x += kern(prev, g, P);
+    if (prev && opt.kern) x += kern(prev, g, P, opt.sparseCap);
     items.push({ g: g, x: x }); x += g.adv; prev = g;
   });
   return { items: items, w: x };

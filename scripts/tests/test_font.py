@@ -1279,10 +1279,10 @@ def restate_sidebearing(polys, top, W0, track, W=None):
     return max(8, T - 0.5 * mL)
 
 
-def restate_kern(a, b, ref, top, W0):
+def restate_kern(a, b, ref, top, W0, sparse_cap=-50):
     """The automatic kern of a lowercase pair from the documented rule (section 8): the pair's mean gap over the band against the
-    n|n reference, 0.75 of the excess over 8, clamped to -170, capped at -50 when either glyph covers under 35 % of the band, never
-    closer than 14 + 0.05 W, and at most 80."""
+    n|n reference, 0.75 of the excess over 8, clamped to -170, capped at `sparse_cap` (kerning.sparse_cap, default -50;
+    None = no cap) when either glyph covers under 35 % of the band, never closer than 14 + 0.05 W, and at most 80."""
     def prof(g):
         L, R = band_profile(g["polys"])
         return L, R
@@ -1310,8 +1310,8 @@ def restate_kern(a, b, ref, top, W0):
     if mean is not None and mean - rg > 8:
         k = -0.75 * (mean - rg - 8)
     k = max(k, -170)
-    if min(cover(a), cover(b)) < 0.35:
-        k = max(k, -50)
+    if sparse_cap is not None and min(cover(a), cover(b)) < 0.35:
+        k = max(k, sparse_cap)
     if math.isfinite(minraw):
         k = max(k, 14 + 0.05 * W0 - minraw)
     return min(k, 80)
@@ -1344,6 +1344,35 @@ def test_xh_sets_the_spacing_band(cfg):
     wrong_k = restate_kern(run["a"], run["v"], run["n"], 500, W0)
     assert abs(want_k - wrong_k) > 1, f"the `a|v` kern is {want_k:.2f} over either band; the fixture cannot observe the kern band"
     assert abs(run["kern"] - want_k) < 0.05, f"xh 600: the `a|v` kern is {run['kern']:.3f}, the documented rule over a band of 600 gives {want_k:.3f}"
+
+
+SPARSE_FIXTURE = r"""
+const m = require(process.argv[1]); const P = m.params(m.loadConcepts(process.argv[2])[0], 1); const r = { W0: P.W, xh: P.xh, glyphs: {} };
+for (const k of [".", "v", "n"]) { const g = m.glyph(k, P); r.glyphs[k] = { adv: g.adv, polys: g.polys }; }
+const a = m.glyph(".", P), b = m.glyph("v", P);
+r.capped = m.kern(a, b, P); r.uncapped = m.kern(a, b, P, null);
+console.log(JSON.stringify(r));
+"""
+
+
+def test_the_restated_kern_rule_honours_sparse_cap(cfg):
+    """restate_kern is this suite's independent copy of the kern rule, and kerning.sparse_cap changes the rule: a
+    project that sets it to null must be restated without the cap, or the copy and the generator disagree on every
+    sparse pair. The period is sparse, so `.|v` is a pair the cap moves (-70.8 uncapped in the neutral example; a lowercase pair,
+    since restate_kern covers only those). Both restatements are compared with the
+    generator called the same way (default cap, and null), and the two must differ, or the fixture cannot see the
+    cap. Mutation watched red: restate_kern ignores its sparse_cap argument (the null restatement then reads -50)."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", SPARSE_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    g = out["glyphs"]
+    with_cap = restate_kern(g["."], g["v"], g["n"], out["xh"], out["W0"], -50)
+    without = restate_kern(g["."], g["v"], g["n"], out["xh"], out["W0"], None)
+    assert abs(with_cap - without) > 1, f"`.|v` restates to {with_cap:.2f} with and without the cap; the fixture cannot observe it"
+    assert abs(with_cap - out["capped"]) < 0.05, f"default cap: the generator gives {out['capped']:.3f}, the restated rule {with_cap:.3f}"
+    assert abs(without - out["uncapped"]) < 0.05, f"sparse_cap null: the generator gives {out['uncapped']:.3f}, the restated rule {without:.3f}"
 
 
 def test_xh_outside_its_range_is_refused(cfg):

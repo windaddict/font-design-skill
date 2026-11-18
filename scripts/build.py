@@ -35,8 +35,12 @@ path stays absolute. (The first version resolved --static and --out-dir from fon
 twice while the tests' `--static-dir` with the same text read the working directory; independent
 re-review, docs F007.) --out-dir DIR is a whole build elsewhere: the woff2s AND the manifest go into
 DIR (the `manifest` key is ignored under --out-dir, so a key that points the manifest back beside the
-tool cannot write outside DIR; second dry run, finding 15), and the manifest's `file` entries name the
-woff2s where they were written, relative to font.json's directory when they lie under it. The exporter's
+tool cannot write outside DIR; second dry run, finding 15; likewise a group's `file` keeps only its name, so
+`../../static/F-VF.woff2` lands in DIR as `F-VF.woff2`), and the manifest's `file` entries name the
+woff2s where they were written, relative to font.json's directory, with `..` steps when they lie outside it
+(a site that keeps font.json in tools/face/ and ships the woff2 under static/ records
+`../../static/F-VF.woff2`, so the manifest, and `--check` against it, work in any clone); only a woff2
+on another drive (Windows), where no relative path exists, is recorded absolute. The exporter's
 masters JSON (about 10 MB per group) is written to a temporary directory and discarded unless
 --keep-masters PATH names where to keep it; nothing but the woff2s, the manifest and (with --static)
 the statics is ever written into out_dir.
@@ -211,6 +215,15 @@ def ok(what):
     log(f"SELF-CHECK ok: {what}")
 
 
+def relpath_posix(path, base_dir):
+    """`path` relative to `base_dir` as a POSIX string, `..` steps included; the absolute path only when the two share
+    no anchor (os.path.relpath raises ValueError across Windows drives)."""
+    try:
+        return pathlib.PurePath(os.path.relpath(path, base_dir)).as_posix()
+    except ValueError:
+        return pathlib.Path(path).as_posix()
+
+
 def resolve_from(base_dir, value):
     """A path written INSIDE font.json, relative to the directory of font.json (W6); absolute stays absolute."""
     p = pathlib.Path(value).expanduser()
@@ -245,6 +258,7 @@ def load_config(font_path, out_dir_override=None):
     # directory too, whatever the `manifest` key says
     cfg["_out_dir"] = resolve_arg(out_dir_override) if out_dir_override else resolve_from(font_path.parent, cfg["out_dir"])
     cfg["_manifest"] = resolve_from(cfg["_out_dir"], cfg["manifest"]) if cfg.get("manifest") and not out_dir_override else cfg["_out_dir"] / "manifest.json"
+    cfg["_out_dir_override"] = bool(out_dir_override)
     cfg.setdefault("fold_units", dict(DEFAULT_FOLD_UNITS))
     cfg.setdefault("raster", json.loads(json.dumps(DEFAULT_RASTER)))
     names = cfg["names"]
@@ -291,6 +305,14 @@ def load_config(font_path, out_dir_override=None):
         else:
             g["_angle"] = 0.0
             check("italic_angle" not in g, f"group {gn}: italic_angle is set on a group that is not italic")
+    # two groups must never write one file: under --out-dir a group file keeps only its name, so a/F-VF.woff2
+    # and b/F-VF.woff2 would otherwise land on the same path and the second group would overwrite the first
+    seen = {}
+    for gn in cfg["groups"]:
+        dest = group_file(cfg, gn)
+        why = " (under --out-dir a group's file keeps only its name)" if cfg["_out_dir_override"] else ""
+        check(dest not in seen, f"groups {seen.get(dest)} and {gn} both write {dest}{why}")
+        seen[dest] = gn
     return cfg
 
 
@@ -299,9 +321,13 @@ def family_token(cfg):
 
 
 def group_file(cfg, group_name):
-    """Where the group's woff2 lives: out_dir/<Family>-VF.woff2, -Italic-VF for an italic group, or group.file."""
+    """Where the group's woff2 lives: out_dir/<Family>-VF.woff2, -Italic-VF for an italic group, or group.file.
+    Under --out-dir only group.file's NAME is kept, so a file such as ../../static/F-VF.woff2 cannot write
+    outside DIR (the same rule as the manifest key; it used to escape DIR by its .. steps)."""
     g = cfg["groups"][group_name]
     if g.get("file"):
+        if cfg.get("_out_dir_override"):
+            return cfg["_out_dir"] / pathlib.PurePath(g["file"]).name
         return (cfg["_out_dir"] / g["file"]).resolve()
     return cfg["_out_dir"] / (f"{family_token(cfg)}-Italic-VF.woff2" if g["italic"] else f"{family_token(cfg)}-VF.woff2")
 
@@ -1211,8 +1237,9 @@ def build_group(cfg, group_name, eps, masters_path, tmp, ttf_out=None, requireme
         vf.flavor = "woff2"
     gfile = group_file(cfg, group_name)
     # where the woff2 was WRITTEN: under --out-dir that is the override, not the configured out_dir (re-review,
-    # code-a F009); relative to font.json's directory when it lies under it, else absolute
-    file_rec = gfile.relative_to(cfg["_dir"]).as_posix() if gfile.is_relative_to(cfg["_dir"]) else gfile.as_posix()
+    # code-a F009); relative to font.json's directory, with .. steps when it lies outside it, so the manifest is the
+    # same in every clone; absolute only where no relative path exists (another drive on Windows)
+    file_rec = relpath_posix(gfile, cfg["_dir"])
     entry = {
         "file": file_rec, "italic": bool(group["italic"]), "italic_angle": group["_angle"],
         "woff2_sha256": hashlib.sha256(woff2_bytes).hexdigest(), "woff2_bytes": len(woff2_bytes),
