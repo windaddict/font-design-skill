@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 import pytest
 from conftest import REPO
@@ -1310,3 +1311,26 @@ def test_specimen_refuses_a_duplicate_row_key():
     cfg["review"]["surfaces"] = [paper, dict(paper)]
     with pytest.raises(ValueError, match=r"data-fd-row key 'readable-paper-"):
         specimen.build(cfg, cfg["titles"], "roman", "/fonts/Sampler-VF.woff2", None, "font.json")
+
+
+def test_chrome_is_given_an_absolute_screenshot_path_when_the_output_folder_is_relative(tmp_path, monkeypatch):
+    """Chrome on Windows does not write a relative --screenshot path (platform-shots run 44216537669: "Failed to write
+    file leg\\index-1280@1x.png ... cannot find the path specified"). launch_chrome() is called with the relative target
+    main() builds from a relative OUT_DIR, and the command it runs must name the file absolutely. Mutation watched red on
+    2026-11-17: `--screenshot={target}` restored."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "leg").mkdir()
+    seen = {}
+
+    def fake_run(cmd, timeout, complete=None):
+        seen["cmd"] = cmd
+        shot = next(a for a in cmd if a.startswith("--screenshot="))[len("--screenshot="):]
+        pathlib.Path(shot).write_bytes(b"png")  # written where Chrome would write it, so the run counts as a success
+        return SimpleNamespace(returncode=0, stdout="", stderr="", complete=False, killed=False)
+
+    monkeypatch.setattr(shoot, "run_chrome", fake_run)
+    shoot.launch_chrome("chrome", "http://127.0.0.1:1/x.html", pathlib.Path("leg") / "x-1280@1x.png", 1280, 1.0, 900,
+                        str(tmp_path), 30, False, False, lambda msg: None)
+    arg = next(a for a in seen["cmd"] if a.startswith("--screenshot="))[len("--screenshot="):]
+    assert pathlib.Path(arg).is_absolute(), f"Chrome was given a relative screenshot path: {arg}"
+    assert pathlib.Path(arg) == (tmp_path / "leg" / "x-1280@1x.png").resolve()

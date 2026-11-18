@@ -102,6 +102,11 @@ GitHub Actions on the site's repository, not a Windows machine. With a run, the 
 Windows: run <id>, <what the smallest rows showed>". Without one, record "not checked on Windows" with the
 claim it limits (trap 21).
 
+The template's steps run in Git Bash on the Windows runner, and its `env` block carries three settings
+for that: `PYTHONUTF8: "1"` (Python there otherwise reads text as cp1252), and `MSYS_NO_PATHCONV` with
+`MSYS2_ARG_CONV_EXCL` (Git Bash otherwise rewrites a `/fonts/X.woff2` argument into a Windows path). Keep
+them when you edit the copy.
+
 ## No Playwright
 
 The platform run's Firefox legs need `playwright==1.64.1` from `requirements-platform.txt`; the template

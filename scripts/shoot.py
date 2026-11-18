@@ -865,7 +865,9 @@ def launch_chrome(chrome, url, target, width, scale, height, profile_root, timeo
                f"--user-data-dir={profile}", f"--window-size={width},{height}",
                f"--force-device-scale-factor={scale:g}", "--virtual-time-budget=5000"]
         if not dom_only:
-            cmd.append(f"--screenshot={target}")
+            # absolute: Chrome on Windows resolves a relative path somewhere other than our working directory and
+            # writes nothing ("Failed to write file leg\\index-1280@1x.png", platform-shots run 44216537669)
+            cmd.append(f"--screenshot={pathlib.Path(target).resolve()}")
         if dump_dom:
             cmd.append("--dump-dom")
         cmd.append(url)

@@ -81,6 +81,10 @@ defaults:
 env:
   # Python on a Windows runner reads and writes text as cp1252 unless told otherwise; the skill's files are UTF-8.
   PYTHONUTF8: "1"
+  # Git Bash on Windows rewrites an argument that starts with / into a Windows path before Python sees it
+  # (/fonts/X.woff2 became C:/Program Files/Git/fonts/X.woff2); these two turn that off.
+  MSYS_NO_PATHCONV: "1"
+  MSYS2_ARG_CONV_EXCL: "*"
   FD_SCRIPTS: tools/FACE/scripts
   FD_SERVE: static-pages
   FD_BUILD: ""

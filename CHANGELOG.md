@@ -55,6 +55,8 @@ scaling and ClearType tuning differ), not Safari, not phones. It is a record lin
   pass the 0.2.0 tree unchanged. Detail and guards: `references/testing.md` section 8.
 
 ### Fixed
+- On Windows, `shoot.py` now gives Chrome an absolute `--screenshot` path; Chrome there wrote nothing for a
+  relative one. `build.py` reads and writes its files as UTF-8, not the Windows default cp1252.
 - `package.json` said 0.1.0 in the 0.2.0 release. `test_version_is_the_same_everywhere` now checks it too.
 
 ## [0.2.0] — 2026-11-16
