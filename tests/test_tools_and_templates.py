@@ -705,3 +705,21 @@ def test_out_dir_keeps_a_group_file_inside_dir(tmp_path):
     assert r.returncode == 0, r.stderr[-1500:]
     assert (out / "F-VF.woff2").is_file(), sorted(p.name for p in out.iterdir())
     assert not (tmp_path / "scratch" / "static").exists() and not (tmp_path / "site" / "static").exists(), "the woff2 escaped --out-dir"
+
+
+def test_two_groups_that_would_write_one_file_are_refused(tmp_path):
+    """Under --out-dir a group's file keeps only its name, so `a/F-VF.woff2` and `b/F-VF.woff2` would both become
+    DIR/F-VF.woff2 and the second group would overwrite the first (Impasse re-review of this change, F001).
+    load_config refuses, naming both groups; without --out-dir the same config is accepted, because the paths
+    differ. Mutation watched red: the uniqueness check removed."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    import build
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["groups"]["roman"]["file"] = "a/F-VF.woff2"
+    cfg["groups"]["italic"]["file"] = "b/F-VF.woff2"
+    shutil.copyfile(NEUTRAL / "concepts.js", tmp_path / "concepts.js")
+    (tmp_path / "font.json").write_text(json.dumps(cfg), encoding="utf-8")
+    assert build.load_config(tmp_path / "font.json")  # distinct paths in place: fine
+    with pytest.raises(build.CheckFailed) as exc:
+        build.load_config(tmp_path / "font.json", out_dir_override=str(tmp_path / "o"))
+    assert "roman" in str(exc.value) and "italic" in str(exc.value) and "F-VF.woff2" in str(exc.value), str(exc.value)

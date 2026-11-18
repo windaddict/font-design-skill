@@ -26,7 +26,9 @@ repository.
 
 The Impasse review of this release (4 findings: `layWord` ignoring the cap, an over-broad pair-count claim in
 `examples/bract/README.md`, and two test gaps, a numeric cap and `--out-dir` portability) is reconciled in the
-pull request; each fix has a test watched red under its mutation.
+pull request. The three code fixes each have a test watched red under its mutation; the README correction is prose
+and has no test. A re-review of the fixes found that keeping only the name lets two groups collide under
+`--out-dir`; `build.py` now refuses any config in which two groups would write one file.
 
 ## [0.3.0] — 2026-11-17
 

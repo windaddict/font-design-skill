@@ -305,6 +305,14 @@ def load_config(font_path, out_dir_override=None):
         else:
             g["_angle"] = 0.0
             check("italic_angle" not in g, f"group {gn}: italic_angle is set on a group that is not italic")
+    # two groups must never write one file: under --out-dir a group file keeps only its name, so a/F-VF.woff2
+    # and b/F-VF.woff2 would otherwise land on the same path and the second group would overwrite the first
+    seen = {}
+    for gn in cfg["groups"]:
+        dest = group_file(cfg, gn)
+        why = " (under --out-dir a group's file keeps only its name)" if cfg["_out_dir_override"] else ""
+        check(dest not in seen, f"groups {seen.get(dest)} and {gn} both write {dest}{why}")
+        seen[dest] = gn
     return cfg
 
 
