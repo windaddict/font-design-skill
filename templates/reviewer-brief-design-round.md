@@ -35,6 +35,14 @@ face}}, {{body face}} or a stock face; complements {{the brand sources}}.
   (red: more ink after, blue: less). They are FreeType renders of the project's titles on one machine,
   unhinted: not Chrome, not the page. {{For round 1: "first build, no diff".}} Then the parameter changes, as numbers: {{e.g. "serifGrow 0.6 → 0.35; the
   fold pin added; the t's top end s → x; the a bowl joins at 290"}}. {{For round 1: "first build".}}
+- {{Optional, only when the platform run was made for this build; otherwise delete this item.}} The
+  platform run's comparison: `{{compare dir}}/compare.md` and its PNGs, one per row, each stacking the same
+  row from every leg (Windows Server, macOS and Ubuntu runners; headless Chrome and Playwright's Firefox),
+  labelled with the OS, browser version, scale and ClearType setting. Read "Refused" and "Mismatched" first,
+  then the rows, smallest size first. These are GitHub-hosted runners, not a reader's machine; the colour
+  fringes in a Chrome-on-Windows crop are ClearType's subpixel rendering, not a defect by themselves. A
+  stroke that breaks up or drops out at 1× on a real page in any leg is a finding at 1× on a real page;
+  one that only reads lighter is not a defect.
 
 ## The checklist, in order
 

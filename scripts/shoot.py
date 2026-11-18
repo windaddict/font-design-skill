@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Screenshots pages in headless Chrome, with proof that each shot shows the page and the font it claims to.
+"""Screenshots pages in headless Chrome (or Playwright's Firefox), with proof that each shot shows the page and the font it claims to.
 
 WHAT IT'S FOR: the instrument the design-review loop reads. A reviewer judges a typeface on PNGs,
 so a PNG that quietly shows a 404 page, or the fallback serif because the woff2 failed to load, is
@@ -7,14 +7,20 @@ worse than no evidence: it looks like evidence. This tool serves a directory fro
 http.server, shoots each page at the requested widths and device scales, and refuses to count a shot
 unless it can prove what was rendered (the list below). It needs no process management: the server
 lives on a daemon thread and a threading.Timer shuts it down, so an interrupted run leaves nothing
-listening and nothing to kill.
+listening and nothing to kill. The same proofs run on a GitHub-hosted Windows, macOS or Linux runner
+(templates/platform-shots.yml), because they live in the server and the injected sentinel, not in
+the browser; --rows and --meta write what scripts/compare-shots.py needs to set one row from every
+runner side by side.
 
-    shoot.py OUT_DIR --serve DIR [--pages index.html ...] [--widths 500 1280 ...] [--scales 1 2]
-             [--jobs N] [--root N] [--family NAME] [--font-url /fonts/X.woff2] [--probe SELECTOR]
+    shoot.py OUT_DIR --serve DIR [--pages index.html ...] [--widths 500 1280 ...] [--scales 1 1.25 2]
+             [--jobs N] [--root N] [--family NAME] [--font-url /fonts/X.woff2 ...] [--probe SELECTOR]
              [--dump-dom] [--no-sentinel] [--height 2400] [--bands head:0:900,body:900:1800] [--query k=v ...]
+             [--browser chrome|firefox] [--rows] [--meta FILE]
 
 What a counted shot proves (every item is checked; any failure is reported and the exit code is 1):
-  1. Chrome exited 0 and the PNG exists. Any PNG of the same name is deleted before the run, so a
+  1. Chrome exited 0 and the PNG exists. With --browser firefox: Playwright returned a PNG and raised
+     nothing (scripts/shoot_playwright.py; it waits for networkidle and for the sentinel's data-fd-shot
+     on <html>, since Firefox has no --virtual-time-budget). Any PNG of the same name is deleted before the run, so a
      file left by an earlier run can never pass as this run's result. One exception, logged when it
      happens: with --dump-dom, once Chrome has written the screenshot and the whole DOM (stdout ends
      in </html>), it has EXIT_GRACE seconds to exit; a Chrome that then hangs is killed and a Chrome
@@ -49,7 +55,11 @@ What a counted shot proves (every item is checked; any failure is reported and t
      '"FAMILY", serif' than in 'serif'. The width comparison is the load-bearing half: check() also
      returns true for a face whose file failed to load (status "error") and for a family no
      @font-face declares, which is exactly how a fallback-serif screenshot passes a naive check.
-  5. With --font-url: that path was served 200 to THIS shot's Chrome. Every .html response that
+  5. With --font-url (repeatable): every named path that this shot's browser requested was served
+     200 to it, and at least one named path was requested. A page that uses two of a family's five
+     files is not failed for the three it never asked for; a named path it requested and was not
+     served 200 fails the shot, and so does a shot that requested none of them. (With one --font-url
+     this is the 0.2 rule: that path was served 200 to this shot.) Every .html response that
      carries a shot token sets a cookie (fd_shot=<id>, Path=/) in that Chrome's jar; each shot runs
      its own Chrome on a fresh --user-data-dir, so the jar holds exactly one shot's token, and every
      later request from that Chrome (fonts, stylesheets, images, the beacon) carries it. The server
@@ -106,6 +116,34 @@ same verdict in a form a test can read. --no-sentinel turns 3, 4, 6 and 7 off, f
 must be served byte-identical: the shot is then a picture, explicitly not evidence ("verified" is
 reported, but only items 1, 2 and 5 were checked).
 
+The sentinel also puts navigator.userAgent in the beacon (`ua` in the result): the one source of the
+browser's version that works on every OS (chrome.exe --version prints nothing on Windows).
+
+--rows writes <png-stem>.rows.json beside each VERIFIED PNG, after every proof above has passed (a
+failed shot writes none; a verified shot whose rows never arrived is failed, "no rows arrived", never
+written half). The sentinel, after its probe, records every [data-fd-row] element and every element
+the probe counted (key: the attribute, or probe-<n> in document order), each with x, y, w, h from
+getBoundingClientRect() in CSS px relative to the VIEWPORT, its own text (80 characters), computed
+font-size, font-weight and font-style, and captured (y + h within the shot's height, passed to the
+page as ?fdh=); once per shot scroll_x, scroll_y, viewport_w and viewport_h. Viewport coordinates
+times the scale are PNG coordinates only when the page has not scrolled, which is why the scroll is
+recorded and compare-shots.py refuses a scrolled shot. viewport_h is what the page measured and can be
+less than the shot's height (Chrome 157 headless on macOS: innerHeight 2313 for a 2400 window, while
+the PNG is 2400 px and draws the page to 2400; measured 2026-11-17), so `captured` and the PNG's bounds
+use the shot's height, never viewport_h. The rows travel as a POST to /__fd/rows,
+recorded only when the request carries the shot's cookie, as the beacon is.
+
+--meta FILE writes one JSON file after the run: platform, system, machine, python, browser, launcher
+(the Chrome binary or "playwright <version>"), font_smoothing (the four HKCU\\Control Panel\\Desktop
+FontSmoothing* values on Windows, null elsewhere), args, shots (every verified result), failed (the
+FAILED: sentences) and departures. It changes no verdict: the exit code is still 1 when anything failed.
+
+Windows teardown: Popen's start_new_session is ignored on Windows and os.killpg does not exist there,
+so kill_group() runs `taskkill /T /F` on the browser's tree first, then kills the process itself;
+run_chrome() bounds its wait for stdout after a kill or after the browser exited, so a helper that
+still holds the pipe cannot hold the run; and a profile directory a helper still holds is left
+behind with a NOTE, not raised as a failed shot.
+
 Serving: `--serve DIR` is served at /, and this scripts folder at /__fd/ (narrow.html, opsz.html).
 Every request path is percent-decoded, joined to its root, resolved through symlinks, and must land
 strictly inside that root (DIR resolved, or this folder resolved); anything else, including
@@ -114,9 +152,11 @@ is answered 404 and noted at the end of the run (independent review, C1). Under 
 are served, never a directory listing. Consequence: a font symlinked into DIR from elsewhere is
 refused; copy the file in.
 
-Exact guarantee: a PNG here is what Chrome's headless renderer drew with this machine's text stack
-(CoreText on macOS, FreeType on Linux). It says nothing about Safari, Firefox, Windows or Android,
-and nothing about hinting on a display this machine does not have. Chrome headless lays out at no
+Exact guarantee: a PNG here is what the recorded browser (headless Chrome with --disable-gpu, or
+Playwright's own Firefox build) drew with this machine's text stack (CoreText on macOS, FreeType on
+Linux, DirectWrite on a Windows runner), at the recorded device scale. It says nothing about Safari,
+Edge, Mozilla's release Firefox or Android, and nothing about hinting on a display this machine does
+not have; a runner is not a reader's machine. Chrome headless lays out at no
 less than 500 CSS px wide, so narrower widths are refused: for a phone reading use
 scripts/narrow.html, an iframe wrapper that reports the inner page's overflow at any width, after
 checking that the inner page was served 200, that none of its faces failed and (with ?family=)
@@ -124,24 +164,27 @@ that a face of the family loaded; narrow_verdict() below reads its dumped DOM.
 
 `?root=N` on an .html path injects `html{font-size:N%}`, to see rem-sized type at a reader's
 enlarged default. `--query k=v` appends a query parameter to every page URL (a concept page reads
-?face=<id> and ?text=...). Files are named <page>[-root<N>][-<k>-<v>]-<width>@<scale>x.png, with
-band crops <...>-<band>.png cut with Pillow.
+?face=<id> and ?text=...). Files are named <page>[-root<N>][-<k>-<v>]-<width>@<scale>x.png (the
+scale as Python's :g writes it: @1x, @1.25x, @2x), with band crops <...>-<band>.png cut with Pillow.
 
 Chrome is found through $CHROME, then the macOS application path, then the Windows install paths
 (Program Files, Program Files (x86) and the user's LocalAppData, read from the environment; they name
 nothing on another OS), then google-chrome, google-chrome-stable, chromium and chromium-browser on PATH.
 The skill supports macOS and Linux, and Windows only through WSL; inside WSL install Chrome or Chromium in the Linux
 distribution: the Windows variables are normally unset there and /mnt/c paths are not candidates, so the Windows paths
-are not searched from WSL (they exist for a native Python that sets those variables, which is not a supported setup). Copyright 2026 John Knox. MIT licence.
+are not searched from WSL (they exist for a native Python, which runs this one script on a Windows runner of
+templates/platform-shots.yml; the rest of the skill is not supported on native Windows). Copyright 2026 John Knox. MIT licence.
 Generalised from the Bract review tool (hopsafari.com, 2026-11-15).
 """
 import argparse
 import functools
 import html as html_mod
 import http.server
+import importlib.metadata
 import json
 import os
 import pathlib
+import platform
 import re
 import shutil
 import socket
@@ -162,6 +205,8 @@ CHROME_MAC_APP = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 CHROME_WINDOWS_ENV = ("ProgramFiles", "ProgramFiles(x86)", "LocalAppData")  # environment variables whose value holds Google/Chrome/Application under it
 CHROME_NAMES = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]
 BEACON_PATH = "/__fd/beacon"
+ROWS_PATH = "/__fd/rows"  # the --rows POST (see --rows in the header), recorded per shot by cookie
+ROWS_MAX_BYTES = 4 << 20  # a rows body larger than this is refused (a specimen's is about 25 KB)
 TOOL_PREFIX = "/__fd/"  # narrow.html and opsz.html are served from this folder under this prefix
 BEACON_WAIT = 3.0  # seconds to wait for a beacon after Chrome exits (it is a loopback GET)
 EXIT_GRACE = 20.0  # seconds Chrome gets to exit after the screenshot and the whole DOM are written (item 1); then it is killed
@@ -169,6 +214,8 @@ DOM_END = b"</html>\n"  # --dump-dom prints the serialised document and a newlin
 RESULT_CODE_HUNG = 2  # content::RESULT_CODE_HUNG, what Chrome's macOS shutdown watchdog _exits with (chrome/browser/shutdown_watchdog_mac.cc)
 TEARDOWN_WATCHDOG = "Teardown watchdog expired"  # the line that watchdog logs to stderr before it exits
 SHOT_COOKIE = "fd_shot"  # set by every .html response carrying ?shot=; ties this Chrome's later requests to the shot
+BROWSERS = ("chrome", "firefox")
+SMOOTHING_KEYS = ("FontSmoothing", "FontSmoothingType", "FontSmoothingGamma", "FontSmoothingOrientation")
 SHOT_TOKEN_OK = re.compile(r"^[A-Za-z0-9._-]{1,80}$")  # what may go into the Set-Cookie header
 # Returned by translate_path for a request that escapes its root. It lies under os.devnull, which is
 # not a directory, so no such path can exist; SimpleHTTPRequestHandler.send_head answers 404 for a
@@ -182,6 +229,7 @@ REFUSED = os.path.join(os.devnull, "refused") + "/"
 # loaded too), measures a probe span in the family and in the fallback, probes every visible element
 # set in the family (item 6 of the header), reads the page's own self-test attributes (item 7),
 # writes the verdicts on <html> and sends them to the server as a GET recorded against the shot token.
+# With ?fdh= on the page URL (shoot(rows=True)) it first POSTs the row boxes to /__fd/rows (sendRows).
 SENTINEL = """<script data-fd-sentinel>
 (function () {
   var shot = %(shot)s, fam = %(family)s, sel = %(probe)s;
@@ -249,7 +297,7 @@ SENTINEL = """<script data-fd-sentinel>
       state = (checked && wf !== wb) ? "loaded" : "missing";
       probe.parentNode.removeChild(probe);
     }
-    var count = 0, bad = 0, italics = 0, italicsOk = 0, firstBad = "", missing = {}, perr = "";
+    var count = 0, bad = 0, italics = 0, italicsOk = 0, firstBad = "", missing = {}, perr = "", counted = [];
     if (fam) {
       var els = [];
       try { els = sel ? document.querySelectorAll(sel) : document.getElementsByTagName("*"); } catch (e) { perr = "bad selector: " + sel; }
@@ -260,7 +308,7 @@ SENTINEL = """<script data-fd-sentinel>
         try { cs = getComputedStyle(el); } catch (e) { continue; }
         if (!/\\S/.test(text) || !visible(el)) continue;
         if (!sel && first(cs.fontFamily) !== fam.toLowerCase()) continue;
-        count++;
+        count++; counted.push(el);
         var italic = /italic|oblique/.test(cs.fontStyle), verdict = "face", ok = false;
         try { ok = document.fonts.check(cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + q(fam)); } catch (e) { ok = false; }
         if (first(cs.fontFamily) !== fam.toLowerCase()) verdict = "fallback";
@@ -282,6 +330,7 @@ SENTINEL = """<script data-fd-sentinel>
     }
     var italicState = italics === 0 ? "none" : (italicsOk === italics ? "loaded" : "missing");
     var missingList = Object.keys(missing).sort().join("");
+    sendRows(counted);  // before data-fd-shot: Playwright's Firefox launcher takes the shot and closes once that attribute appears
     h.setAttribute("data-fd-shot", shot);
     if (fam || pagefont === null) h.setAttribute("data-fd-font", state);  // without a family, a page's own verdict is left in place
     h.setAttribute("data-fd-width-face", String(wf)); h.setAttribute("data-fd-width-fallback", String(wb));
@@ -293,9 +342,31 @@ SENTINEL = """<script data-fd-sentinel>
       "&missing=" + encodeURIComponent(missingList.slice(0, 60));
     function add(k, v) { if (v !== null) url += "&" + k + "=" + encodeURIComponent(String(v).slice(0, 200)); }
     add("pagefont", pagefont); add("rendered", h.getAttribute("data-fd-rendered")); add("round", h.getAttribute("data-fd-round"));
-    add("error", h.getAttribute("data-fd-error")); if (perr) add("perr", perr);
+    add("error", h.getAttribute("data-fd-error")); if (perr) add("perr", perr); add("ua", navigator.userAgent);
     var img = new Image();
     img.src = url;
+  }
+  function sendRows(counted) {
+    // --rows (the header's --rows paragraph): only when shoot.py put ?fdh=<captured height> on the page URL. Boxes are
+    // getBoundingClientRect() as is, i.e. VIEWPORT coordinates; the scroll is recorded beside them, never added in
+    var fdh = null;
+    try { fdh = new URLSearchParams(location.search).get("fdh"); } catch (e) { return; }
+    if (fdh === null) return;
+    var cap = parseFloat(fdh) || window.innerHeight, rows = [], n = 0, all = document.getElementsByTagName("*");
+    function r2(v) { return Math.round(v * 100) / 100; }
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i], key = el.getAttribute("data-fd-row");
+      if (key === null) { if (counted.indexOf(el) < 0) continue; key = "probe-" + (++n); }
+      var r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+      rows.push({key: key, x: r2(r.left), y: r2(r.top), w: r2(r.width), h: r2(r.height),
+                 text: ownText(el).replace(/\\s+/g, " ").trim().slice(0, 80), font_size: cs.fontSize,
+                 font_weight: cs.fontWeight, font_style: cs.fontStyle, captured: r.top + r.height <= cap});
+    }
+    var body = JSON.stringify({scroll_x: window.scrollX, scroll_y: window.scrollY, viewport_w: window.innerWidth,
+                               viewport_h: window.innerHeight, rows: rows});
+    // keepalive lets the POST outlive the page; browsers cap a keepalive body at 64 KB, so a larger one goes without it
+    try { fetch("/__fd/rows?shot=" + encodeURIComponent(shot), {method: "POST", body: body, keepalive: body.length < 60000,
+                headers: {"Content-Type": "text/plain"}}); } catch (e) {}
   }
   function start() {
     var ready = Promise.resolve();
@@ -377,7 +448,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     server has sentinel=False) and, for ?root=N, html{font-size:N%}; an .html response carrying
     ?shot=<token> also sets the fd_shot cookie to that token. A request path that escapes its root
     (see the module header) is answered 404 and noted in server.departures. The beacon endpoint
-    records its query per shot token and answers 204."""
+    records its query per shot token and answers 204; the rows endpoint (a POST) records its JSON
+    body per shot token the same way, only under that shot's cookie."""
 
     def translate_path(self, path):
         clean = urllib.parse.unquote(path.split("?", 1)[0].split("#", 1)[0])
@@ -454,6 +526,40 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    def do_POST(self):
+        """The --rows endpoint: a JSON body for ?shot=<token>, recorded in server.rows only when the request
+        carries that shot's cookie (same_shot(), as the beacon); anything else is noted and ignored. Every
+        other POST is 405."""
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != ROWS_PATH:
+            self.send_error(405, "Method Not Allowed")
+            return
+        shot = (urllib.parse.parse_qs(parsed.query).get("shot") or [""])[0]
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if not 0 < length <= ROWS_MAX_BYTES:
+            self.server.departures.append(f"rows for shot {shot[:80]!r} refused: body length {self.headers.get('Content-Length')!r}")
+            self.send_error(413 if length > ROWS_MAX_BYTES else 400)
+            return
+        body = self.rfile.read(length)
+        cookie = self.shot_token()
+        if not shot or not same_shot(cookie, shot):
+            self.server.departures.append(f"rows for shot {shot[:80]!r} ignored: the request carried the cookie {cookie[:80]!r}, "
+                                          f"not that shot's token")
+        else:
+            try:
+                data = json.loads(body)
+                if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
+                    raise ValueError("not an object with a rows list")
+                self.server.rows[shot] = data
+            except ValueError as exc:
+                self.server.departures.append(f"rows for shot {shot[:80]!r} ignored: unreadable JSON ({exc})")
+        self.send_response(204)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     def log_request(self, code="-", size="-"):
         parsed = urllib.parse.urlparse(self.path)
         try:
@@ -513,6 +619,7 @@ def serve(directory, seconds=600, family=None, sentinel=True, probe=None):
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     server.responses = []  # (shot cookie, path, query, status) of every response, in order; list.append is atomic in CPython
     server.beacons = {}  # shot token -> the beacon's query fields
+    server.rows = {}  # shot token -> the --rows body the sentinel POSTed (scroll, viewport, rows)
     server.departures = []  # anything unexpected the handler saw, printed at the end rather than swallowed
     server.family = family
     server.sentinel = sentinel
@@ -599,9 +706,14 @@ def run_chrome(cmd, timeout, complete=None):
     seconds to exit on its own, after which its whole process group is killed (the helpers inherit
     the stdout pipe, and a renderer left behind by a browser that _exit-ed would otherwise hold the
     pipe open until the timeout). The timeout applies only while the output is incomplete.
+    The wait for stdout's end is bounded (the Windows teardown, part b of kill_group()): once the
+    browser itself has exited, a helper still holding the pipe gets EXIT_GRACE seconds, then the
+    group is killed and the run returns what was read (not counted as `killed`: no DOM was complete,
+    so item 1's exception does not apply); after any kill the reader threads get 10 seconds in all,
+    not each.
     Raises OSError when the binary cannot be started."""
     out, err, eof = [], [], threading.Event()
-    state = {"tail": b"", "done_at": None, "n": 0}
+    state = {"tail": b"", "done_at": None, "n": 0, "exited_at": None}
 
     def read(pipe, sink, is_out):
         # os.read returns what is there; BufferedReader.read(n) would block until n bytes or EOF, and
@@ -628,17 +740,23 @@ def run_chrome(cmd, timeout, complete=None):
             state["done_at"] = now
         if rc is not None and eof.is_set():
             break
+        if rc is not None and state["exited_at"] is None:
+            state["exited_at"] = now
         if state["done_at"] is not None:
             if now - state["done_at"] > EXIT_GRACE:
                 killed = True
                 kill_group(p)
                 break
+        elif state["exited_at"] is not None and now - state["exited_at"] > EXIT_GRACE:
+            kill_group(p)  # the browser exited but a helper holds stdout: end the helpers, keep what was read
+            break
         elif now - t0 > timeout:
             kill_group(p)
             raise subprocess.TimeoutExpired(cmd, timeout)
         time.sleep(0.05)
+    deadline = time.monotonic() + 10
     for t in threads:
-        t.join(timeout=10)
+        t.join(timeout=max(0.0, deadline - time.monotonic()))
     if complete is not None and state["done_at"] is None and state["n"] and complete(state["tail"]):
         state["done_at"] = time.monotonic()  # the last chunk landed between the check and the exit
     return ChromeRun(p.returncode, b"".join(out).decode("utf-8", "replace"), b"".join(err).decode("utf-8", "replace"),
@@ -646,44 +764,106 @@ def run_chrome(cmd, timeout, complete=None):
 
 
 def kill_group(p):
-    """SIGKILL to Chrome's whole process group (it was started as a session leader), then reap it."""
-    try:
-        os.killpg(p.pid, 9)
-    except ProcessLookupError:
-        pass
+    """Ends the browser and every helper it started, then reaps it. Three parts, for the three ways a
+    Windows teardown differs (independent plan review F003):
+    (a) POSIX: SIGKILL to the whole process group (the browser was started as a session leader).
+        Windows has no os.killpg and ignores start_new_session, so there `taskkill /T /F /PID` runs
+        FIRST: it walks the tree from the parent down, and once the parent is dead /T finds no tree
+        and the helpers survive. Then p.kill(), for when taskkill is missing or failed. Then a wait.
+    (b) The wait for stdout's end after a kill is bounded in run_chrome(), not here: a helper this
+        missed must not hold the run.
+    (c) A profile directory a surviving helper still holds is left behind and noted by shoot(), not
+        raised (TemporaryDirectory(ignore_cleanup_errors=True)).
+    A clean shot never reaches this function."""
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(p.pid, 9)
+        except (ProcessLookupError, PermissionError):
+            pass
+    else:
+        try:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            pass  # taskkill missing or stuck: p.kill() below still ends the browser itself
+        try:
+            p.kill()
+        except OSError:
+            pass
     try:
         p.wait(timeout=10)
     except subprocess.TimeoutExpired:
         pass
 
 
-def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
-          shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None, dom_only=False):
-    """One headless Chrome capture, verified. Returns a dict (png, dom, shot, font, width_face,
-    width_fallback, font_status, probe). Raises RuntimeError naming the first failed proof; see the
-    module header for the list. `server` is the one from serve(); without it only the Chrome exit
-    and the PNG are checked, and the function says so in the result ("verified": False).
-    `dom_only` asks Chrome for the DOM and no screenshot (see --dom-only in the header): png is None
-    in the result, dump_dom is implied, and item 1 is "Chrome exited 0 and printed the DOM"."""
-    dump_dom = dump_dom or dom_only
-    if width < MIN_WIDTH:
-        raise ValueError(f"width {width} is below Chrome headless's {MIN_WIDTH}px minimum layout width; "
-                         f"for a narrower reading shoot scripts/narrow.html with ?url=<page>&width={width}")
-    chrome = chrome or find_chrome()
-    shot_id = shot_id or uuid.uuid4().hex[:12]
-    if not SHOT_TOKEN_OK.match(shot_id):
-        raise ValueError(f"shot id {shot_id!r} must be 1-80 characters of [A-Za-z0-9._-]: it travels in a cookie")
-    target = pathlib.Path(out_png)
-    target.unlink(missing_ok=True)  # never accept a file left by an earlier run
-    dom_path = target.with_suffix(".dom.html") if dump_dom else None
-    if dom_path is not None:
-        dom_path.unlink(missing_ok=True)
-    url = with_query(url, {"shot": shot_id})
-    first = len(server.responses) if server is not None else 0
-    with tempfile.TemporaryDirectory(dir=profile_root) as profile:
+def font_smoothing():
+    """The four HKCU\\Control Panel\\Desktop FontSmoothing* values on Windows (a value that is absent is
+    None; an unreadable key gives {"error": ...}), None on any other OS. Ported from the site repo's
+    one-off (movingavg-website tools/font-shots/shoot.py). FontSmoothing is the on/off flag ("2" on);
+    FontSmoothingType 2 is ClearType, 1 standard grayscale; FontSmoothingOrientation 1 is RGB, 0 BGR."""
+    if platform.system() != "Windows":
+        return None
+    import winreg  # Windows only
+    out = {}
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as k:
+            for name in SMOOTHING_KEYS:
+                try:
+                    out[name] = winreg.QueryValueEx(k, name)[0]
+                except OSError:
+                    out[name] = None
+    except OSError as exc:
+        out["error"] = str(exc)
+    return out
+
+
+def rows_path(png):
+    """Where --rows writes a shot's boxes: <png stem>.rows.json beside the PNG (x-1280@1.25x.png ->
+    x-1280@1.25x.rows.json)."""
+    png = pathlib.Path(png)
+    return png.with_name(png.name[:-len(png.suffix)] + ".rows.json" if png.suffix else png.name + ".rows.json")
+
+
+def font_urls(font_url):
+    """--font-url as a list: None -> [], one string -> [it], a list as given (0.2 callers pass a string)."""
+    if not font_url:
+        return []
+    return [font_url] if isinstance(font_url, str) else list(font_url)
+
+
+def check_font_urls(served, paths, page, shot_id):
+    """Item 5: returns font_status (the codes this shot got for the one path, as in 0.2, or {path: codes}
+    for several) or raises RuntimeError. Exact rule: every named path this shot requested was served 200
+    to it, and at least one named path was requested."""
+    status, requested, reasons = {}, [], []
+    for raw in paths:
+        path = urllib.parse.urlparse(raw).path
+        mine = [code for s, p, q, code in served if p == path and (s == shot_id or s.startswith(shot_id + "."))]
+        status[path] = mine
+        others = [code for s, p, q, code in served if p == path and s != shot_id and not s.startswith(shot_id + ".")]
+        reason = (f"{path} was not served 200 to the shot of {page} (shot {shot_id}: "
+                  f"{'no request carried its token' if not mine else mine}"
+                  f"{'; ' + str(len(others)) + ' response(s) for that path belonged to other shots' if others else ''})")
+        if mine:
+            requested.append(path)
+            if 200 not in mine:
+                raise RuntimeError(reason + "; the screenshot is not evidence of the font")
+        else:
+            reasons.append(reason)
+    if not requested:
+        raise RuntimeError("none of the named font paths was requested: " + "; ".join(reasons)
+                           + "; the screenshot is not evidence of the font")
+    return status[urllib.parse.urlparse(paths[0]).path] if len(paths) == 1 else status
+
+
+def launch_chrome(chrome, url, target, width, scale, height, profile_root, timeout, dump_dom, dom_only, note):
+    """Item 1 for Chrome: runs it on a fresh profile and returns the DOM text (or None without --dump-dom).
+    Raises RuntimeError for a Chrome that timed out, could not start, exited non-zero (outside item 1's
+    teardown exception) or wrote no PNG. A profile directory left behind by a helper (Windows) is passed
+    to `note`, not raised: it is a teardown leak, not a page fault (kill_group() part c)."""
+    with tempfile.TemporaryDirectory(dir=profile_root, ignore_cleanup_errors=True) as profile:
         cmd = [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                f"--user-data-dir={profile}", f"--window-size={width},{height}",
-               f"--force-device-scale-factor={scale}", "--virtual-time-budget=5000"]
+               f"--force-device-scale-factor={scale:g}", "--virtual-time-budget=5000"]
         if not dom_only:
             cmd.append(f"--screenshot={target}")
         if dump_dom:
@@ -692,48 +872,114 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
         try:
             r = run_chrome(cmd, timeout, complete=(lambda tail: (dom_only or target.is_file()) and tail.endswith(DOM_END)) if dump_dom else None)
         except subprocess.TimeoutExpired:
-            raise RuntimeError(f"Chrome took over {timeout}s for {url} at {width}@{scale}x") from None
+            raise RuntimeError(f"Chrome took over {timeout}s for {url} at {width}@{scale:g}x") from None
         except OSError as exc:  # not executable, wrong architecture, deleted since discovery
             raise RuntimeError(f"Chrome could not be started ({type(exc).__name__}: {exc}): {chrome}; set $CHROME to a working browser binary") from None
+    if pathlib.Path(profile).exists():
+        note(f"profile {profile} left behind: a browser helper still held it; not evidence of a page fault")
     teardown_hung = r.complete and (r.killed or (r.returncode == RESULT_CODE_HUNG and TEARDOWN_WATCHDOG in r.stderr))
     if teardown_hung:
         # item 1's exception: both outputs exist and the fault is in Chrome's teardown; say so and go on. Any other
         # non-zero exit after a complete DOM stays a failure: a renderer that died leaves a complete DOM of an
         # error page behind, and accepting it would pass a shot of nothing
         print(f"shoot.py: {'Chrome had not exited' if r.killed else f'Chrome exited {r.returncode} (its teardown watchdog)'} "
-              f"{EXIT_GRACE:g}s after writing the screenshot and the DOM for {url} at {width}@{scale}x"
+              f"{EXIT_GRACE:g}s after writing the screenshot and the DOM for {url} at {width}@{scale:g}x"
               f"{' and was killed' if r.killed else ''}; both outputs are complete and are used "
               f"(a teardown hang, not a page fault): {r.stderr[-300:]!r}", file=sys.stderr)
     elif r.returncode != 0 or (not dom_only and not target.is_file()):
         raise RuntimeError(f"Chrome exited {r.returncode} and wrote {'a' if target.is_file() else 'no'} screenshot "
-                           f"for {url} at {width}@{scale}x: {r.stderr[-400:]}")
-    dom_text = None
+                           f"for {url} at {width}@{scale:g}x: {r.stderr[-400:]}")
+    if dump_dom and not r.stdout.strip():
+        raise RuntimeError(f"--dump-dom produced no DOM for {url}; the screenshot is kept but the run is not verified")
+    return r.stdout if dump_dom else None
+
+
+def playwright_launcher():
+    """scripts/shoot_playwright.py, imported from beside this file whatever sys.path holds (runpy and a copy run from
+    another directory do not put this folder on it). Lazy, so this module's own imports stay standard-library only;
+    importing it needs no Playwright (capture() and require() import that)."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import shoot_playwright
+    return shoot_playwright
+
+
+def launch_firefox(url, target, width, scale, height, timeout, dump_dom):
+    """Item 1 for --browser firefox: scripts/shoot_playwright.py's capture(), imported here so this
+    module's own imports stay standard-library only. An ImportError (Playwright absent) propagates:
+    main() turns it into exit 3 before any shot. Returns the DOM text (or None)."""
+    cap = playwright_launcher().capture("firefox", url, str(target), width, height, scale, timeout, dump_dom=dump_dom)
+    if cap.error:
+        raise RuntimeError(f"Playwright's Firefox failed for {url} at {width}@{scale:g}x: {str(cap.error)[-400:]}")
+    if not target.is_file():
+        raise RuntimeError(f"Playwright's Firefox raised nothing but wrote no screenshot for {url} at {width}@{scale:g}x")
+    if dump_dom and not (cap.dom_text or "").strip():
+        raise RuntimeError(f"--dump-dom produced no DOM for {url}; the screenshot is kept but the run is not verified")
+    return cap.dom_text if dump_dom else None
+
+
+def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
+          shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None, dom_only=False,
+          browser="chrome", rows=False):
+    """One headless capture, verified. Returns a dict (png, dom, shot, font, width_face, width_fallback,
+    font_status, probe, ua, page, width, height, scale, browser, rows). Raises RuntimeError naming the
+    first failed proof; see the module header for the list. `server` is the one from serve(); without
+    it only the browser exit and the PNG are checked, and the function says so in the result
+    ("verified": False). `dom_only` asks Chrome for the DOM and no screenshot (see --dom-only in the
+    header): png is None in the result, dump_dom is implied, and item 1 is "Chrome exited 0 and printed
+    the DOM". `font_url` is one path or a list (item 5). `browser` is "chrome" or "firefox".
+    `rows` (needs `server`) writes <png stem>.rows.json after every proof passed (the header's --rows
+    paragraph); `rows` in the result is its path, or None."""
+    dump_dom = dump_dom or dom_only
+    if browser not in BROWSERS:
+        raise ValueError(f"browser {browser!r} is not one of {', '.join(BROWSERS)}")
+    if browser != "chrome" and dom_only:
+        raise ValueError("--dom-only is a Chrome mode; Playwright's Firefox always takes the screenshot")
+    if rows and (server is None or not server.sentinel):
+        raise ValueError("rows need the server and its sentinel: the boxes are measured in the page")
+    if width < MIN_WIDTH:
+        raise ValueError(f"width {width} is below Chrome headless's {MIN_WIDTH}px minimum layout width; "
+                         f"for a narrower reading shoot scripts/narrow.html with ?url=<page>&width={width}")
+    if browser == "chrome":
+        chrome = chrome or find_chrome()
+    shot_id = shot_id or uuid.uuid4().hex[:12]
+    if not SHOT_TOKEN_OK.match(shot_id):
+        raise ValueError(f"shot id {shot_id!r} must be 1-80 characters of [A-Za-z0-9._-]: it travels in a cookie")
+    target = pathlib.Path(out_png)
+    target.unlink(missing_ok=True)  # never accept a file left by an earlier run
+    rows_file = rows_path(target)
+    rows_file.unlink(missing_ok=True)
+    dom_path = target.with_suffix(".dom.html") if dump_dom else None
+    if dom_path is not None:
+        dom_path.unlink(missing_ok=True)
+    url = with_query(url, {"shot": shot_id, **({"fdh": height} if rows else {})})
+    first = len(server.responses) if server is not None else 0
+
+    def note(text):
+        if server is not None:
+            server.departures.append(text)
+        else:
+            print(f"shoot.py: NOTE: {text}", file=sys.stderr)
+    if browser == "chrome":
+        dom_text = launch_chrome(chrome, url, target, width, scale, height, profile_root, timeout, dump_dom, dom_only, note)
+    else:
+        dom_text = launch_firefox(url, target, width, scale, height, timeout, dump_dom)
     if dump_dom:
-        if not r.stdout.strip():
-            raise RuntimeError(f"--dump-dom produced no DOM for {url}; the screenshot is kept but the run is not verified")
-        dom_text = r.stdout
         dom_path.write_text(dom_text, encoding="utf-8")
+    page = urllib.parse.urlparse(url).path
     result = {"png": None if dom_only else str(target), "dom": str(dom_path) if dom_path else None, "shot": shot_id,
-              "font": None, "width_face": None, "width_fallback": None, "font_status": None, "probe": None,
+              "font": None, "width_face": None, "width_fallback": None, "font_status": None, "probe": None, "ua": None,
+              "page": page, "width": width, "height": height, "scale": scale, "browser": browser, "rows": None,
               "verified": server is not None}
     if server is None:
         return result
-    page = urllib.parse.urlparse(url).path
     served = server.responses[first:]
     page_codes = [code for s, p, q, code in served if p == page and f"shot={shot_id}" in q.split("&")]
     if 200 not in page_codes:
         raise RuntimeError(f"{page}?shot={shot_id} was not served 200 during the shot "
                            f"({'no request' if not page_codes else page_codes}); the screenshot is not evidence")
     if font_url:
-        font_path = urllib.parse.urlparse(font_url).path
-        mine = [code for s, p, q, code in served if p == font_path and (s == shot_id or s.startswith(shot_id + "."))]
-        result["font_status"] = mine
-        if 200 not in mine:
-            others = [code for s, p, q, code in served if p == font_path and s != shot_id and not s.startswith(shot_id + ".")]
-            raise RuntimeError(f"{font_path} was not served 200 to the shot of {page} (shot {shot_id}: "
-                               f"{'no request carried its token' if not mine else mine}"
-                               f"{'; ' + str(len(others)) + ' response(s) for that path belonged to other shots' if others else ''}); "
-                               f"the screenshot is not evidence of the font")
+        result["font_status"] = check_font_urls(served, font_urls(font_url), page, shot_id)
     if server.sentinel:
         deadline = time.monotonic() + BEACON_WAIT
         while shot_id not in server.beacons and time.monotonic() < deadline:
@@ -741,10 +987,11 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
         beacon = server.beacons.get(shot_id)
         if beacon is None:
             raise RuntimeError(f"no sentinel beacon arrived for {page}?shot={shot_id}: the injected script did not run "
-                               f"(a page that is not HTML, a script error before document.fonts.ready, or Chrome exited first)")
+                               f"(a page that is not HTML, a script error before document.fonts.ready, or the browser exited first)")
         result["font"] = beacon.get("font")
         result["width_face"] = beacon.get("wf")
         result["width_fallback"] = beacon.get("wb")
+        result["ua"] = beacon.get("ua")
         result["probe"] = {k: beacon.get(k) for k in ("probe", "bad", "italic", "pfail", "missing")}
         failures = self_test_failures(beacon, dom_text)
         if failures:
@@ -769,6 +1016,21 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
                                    + "; the screenshot is not evidence")
             if beacon.get("italic") == "missing":
                 raise RuntimeError(f"{page}?shot={shot_id}: an italic element is not served by an italic FontFace of {require_family!r}")
+    if rows:
+        # every proof above has passed; only now may the boxes be written (a failed shot writes none)
+        deadline = time.monotonic() + BEACON_WAIT
+        while shot_id not in server.rows and time.monotonic() < deadline:
+            time.sleep(0.05)
+        got = server.rows.get(shot_id)
+        if got is None:
+            raise RuntimeError(f"no rows arrived for {page}?shot={shot_id}: the sentinel's POST to {ROWS_PATH} was not recorded "
+                               f"(the browser exited first, or the request lacked the shot's cookie); the shot is not counted without them")
+        doc = {"shot": shot_id, "page": page, "width": width, "height": height, "scale": scale,
+               "scroll_x": got.get("scroll_x"), "scroll_y": got.get("scroll_y"),
+               "viewport_w": got.get("viewport_w"), "viewport_h": got.get("viewport_h"),
+               "ua": result["ua"], "rows": got["rows"]}
+        rows_file.write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
+        result["rows"] = str(rows_file)
     return result
 
 
@@ -787,7 +1049,8 @@ def parse_bands(spec):
 
 
 def crop_bands(png, scale, bands):
-    """Writes <png>-<band>.png crops of the CSS-px bands (scaled by the device scale)."""
+    """Writes <png>-<band>.png crops of the CSS-px bands (scaled by the device scale). The box is rounded to
+    whole device pixels here, at a fractional scale (901 x 1.25 = 1126.25), rather than left to Pillow."""
     out = []
     if not bands:
         return out
@@ -799,7 +1062,7 @@ def crop_bands(png, scale, bands):
                  "then run .venv/bin/python3 scripts/shoot.py ...")
     with Image.open(png) as im:
         for name, (top, bottom) in bands.items():
-            box = (0, top * scale, im.width, min(im.height, bottom * scale))
+            box = (0, int(round(top * scale)), im.width, min(im.height, int(round(bottom * scale))))
             if box[1] >= box[3]:
                 continue
             target = str(png)[:-4] + f"-{name}.png"
@@ -823,11 +1086,12 @@ def main(argv=None):
     ap.add_argument("--serve", required=True, metavar="DIR", help="directory served at /")
     ap.add_argument("--pages", nargs="+", default=["index.html"], help="paths under DIR (or __fd/narrow.html, __fd/opsz.html)")
     ap.add_argument("--widths", nargs="+", type=int, default=[500, 1280, 1600])
-    ap.add_argument("--scales", nargs="+", type=int, default=[1, 2])
-    ap.add_argument("--jobs", type=int, default=3, help="concurrent Chrome processes")
+    ap.add_argument("--scales", nargs="+", type=float, default=[1, 2], help="device scales; fractions allowed (1.25 names its file @1.25x)")
+    ap.add_argument("--jobs", type=int, default=3, help="concurrent browser processes")
     ap.add_argument("--root", type=int, help="inject html{font-size:N%%} into each .html page (a reader's enlarged default)")
     ap.add_argument("--family", help="the font family every shot must prove it rendered with")
-    ap.add_argument("--font-url", help="a path that must be served 200 to each shot, e.g. /fonts/Family-VF.woff2")
+    ap.add_argument("--font-url", action="append", help="a font path, e.g. /fonts/Family-VF.woff2 (repeatable): every named path a shot "
+                    "requested must be served 200 to it, and at least one must be requested")
     ap.add_argument("--probe", metavar="SELECTOR", help="with --family: the elements that must be drawn in it "
                     "(default: every visible element whose computed font-family names it first)")
     ap.add_argument("--dump-dom", action="store_true", help="also save the DOM Chrome laid out as <name>.dom.html")
@@ -838,6 +1102,10 @@ def main(argv=None):
     ap.add_argument("--bands", default=DEFAULT_BANDS, help="crops as name:top:bottom,... in CSS px, or 'none'")
     ap.add_argument("--query", action="append", default=[], metavar="K=V", help="query parameter added to every page URL (repeatable)")
     ap.add_argument("--seconds", type=int, default=600, help="the server shuts itself down after this long")
+    ap.add_argument("--browser", choices=BROWSERS, default="chrome", help="chrome (its CLI) or firefox (Playwright's build; needs "
+                    "requirements-platform.txt)")
+    ap.add_argument("--rows", action="store_true", help="write <png stem>.rows.json (row boxes in viewport CSS px) beside each verified PNG")
+    ap.add_argument("--meta", metavar="FILE", help="write the run's platform, browser, font smoothing, verified shots and failures as JSON")
     args = ap.parse_args(argv)
     bad = [w for w in args.widths if w < MIN_WIDTH]
     if bad:
@@ -849,16 +1117,34 @@ def main(argv=None):
         sys.exit("refused: --family needs the sentinel; drop --no-sentinel")
     if args.probe and not args.family:
         sys.exit("refused: --probe needs --family to say which face the elements must be drawn in")
+    if args.rows and args.no_sentinel:
+        sys.exit("refused: --rows needs the sentinel (the boxes are measured in the page); drop --no-sentinel")
+    if args.browser == "firefox" and args.dom_only:
+        sys.exit("refused: --dom-only is a Chrome mode")
     query = []
     for kv in args.query:
         if "=" not in kv:
             sys.exit(f"--query wants K=V, got {kv!r}")
         k, v = kv.split("=", 1)
         query.append((k, v))
-    try:
-        chrome = find_chrome()
-    except FileNotFoundError as exc:
-        sys.exit(str(exc))
+    chrome = None
+    if args.browser == "chrome":
+        try:
+            chrome = find_chrome()
+        except FileNotFoundError as exc:
+            sys.exit(str(exc))
+        launcher = chrome
+    else:
+        # the skip text and exit code come from the launcher module (imported lazily, standard library only at import),
+        # so the two cannot drift; require() raises PlaywrightMissing (an ImportError) carrying SKIP_TEXT
+        shoot_playwright = playwright_launcher()
+        try:
+            shoot_playwright.require()
+            launcher = f"playwright {importlib.metadata.version('playwright')}"
+        except ImportError as exc:
+            print(f"shoot.py: {exc.args[0] if isinstance(exc, shoot_playwright.PlaywrightMissing) else shoot_playwright.SKIP_TEXT}",
+                  file=sys.stderr)
+            return shoot_playwright.EXIT_SKIPPED
     try:
         bands = parse_bands(args.bands)
     except ValueError as exc:
@@ -881,7 +1167,7 @@ def main(argv=None):
                     params["root"] = args.root
                 if params:
                     url = with_query(url, params)
-                jobs.append((url, out / f"{slug}-{width}@{scale}x.png", width, scale))
+                jobs.append((url, out / f"{slug}-{width}@{scale:g}x.png", width, scale))
     names = [str(j[1]) for j in jobs]
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:
@@ -892,7 +1178,8 @@ def main(argv=None):
         url, png, width, scale = job
         try:
             res = shoot(url, png, width, scale, height=args.height, profile_root=out, server=server,
-                        require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome, dom_only=args.dom_only)
+                        require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome, dom_only=args.dom_only,
+                        browser=args.browser, rows=args.rows)
             return res, scale
         except (RuntimeError, ValueError) as exc:  # one failed page must not end the run; it is reported at the end
             failed.append(str(exc))
@@ -918,7 +1205,23 @@ def main(argv=None):
     for f in failed:
         print(f"FAILED: {f}", file=sys.stderr)
     print(f"{len(written)} files in {out}, {len(results)} shots verified, {len(failed)} shots failed", file=sys.stderr)
+    if args.meta:
+        write_meta(args.meta, args, launcher, results, failed, server.departures)
     return 1 if failed else 0
+
+
+def write_meta(path, args, launcher, results, failed, departures):
+    """--meta: the run's record for scripts/compare-shots.py (its labels come from here, never from a
+    directory name). Changes no verdict."""
+    meta = {"platform": platform.platform(), "system": platform.system(), "machine": platform.machine(),
+            "python": platform.python_version(), "browser": args.browser, "launcher": launcher,
+            "font_smoothing": font_smoothing(), "args": vars(args),
+            "shots": [r for r in results if r.get("verified")],
+            "failed": list(failed), "departures": list(departures)}
+    target = pathlib.Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(meta, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    print(f"meta: {target}", file=sys.stderr)
 
 
 if __name__ == "__main__":

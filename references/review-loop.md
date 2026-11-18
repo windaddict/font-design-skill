@@ -83,6 +83,41 @@ protocol was written down.
   An overflow outranks every other finding (every phone shows it) and is fixed in the CSS or the
   content in the same round; a page still overflowing at the last round is a publication blocker
   (`SKILL.md` section 4). `narrow_verdict()` in `shoot.py` reads the two attributes.
+- **The platform run: `templates/platform-shots.yml` and `scripts/compare-shots.py`.** It answers one
+  question the local shots cannot: does the face hold up in other browsers on other operating systems,
+  above all the hairlines at the smallest sizes under Windows' DirectWrite. It is made once per face, not
+  every round (section 7 says when). The operator copies the template to
+  `<site>/.github/workflows/platform-shots.yml`, fills its `env:` slots (the template's header says what
+  each one holds: the site's copy of `scripts/`, the built root, the command that builds it, the family, the
+  font paths, the pages, the `font.json`, the scales), commits it to the default branch (a first
+  `workflow_dispatch` needs it there), and runs `gh workflow run platform-shots.yml`. Each **leg** is one
+  runner OS and one browser: Windows Server, macOS and Ubuntu runners, each in Chrome and in Playwright's
+  Firefox. A leg runs the site's copy of `shoot.py` at 1280 px and device scales 1 and 1.25 on the
+  specimen (only when the site has a `font.json`; shot with `--height 6000` so every row is inside the
+  capture) and on the named pages, always with `--family`, `--font-url`, `--rows` and `--meta`. Then a
+  compare job runs `compare-shots.py` over every leg that finished. Read the result with
+  `gh run download -n platform-shots-compare`: `compare.md` and one PNG per row.
+  - `--browser firefox` shoots through `scripts/shoot_playwright.py` (Playwright's own Firefox build,
+    pinned by `requirements-platform.txt` to `playwright==1.64.1`) and runs the same server proofs as a
+    Chrome shot. It is optional: install it with `.venv/bin/pip install -r requirements-platform.txt`, then
+    `.venv/bin/python3 -m playwright install firefox`. Without the package, `shoot.py --browser firefox`
+    exits 3 with `SKIPPED, NOT PASSED` and that command (references/fallbacks.md, "No Playwright").
+  - `--rows` writes `<png>.rows.json` beside each PNG, only after that shot's proofs passed: the box of
+    every `data-fd-row` element and of every element the probe counted, in viewport CSS px, with its text
+    and computed size, weight and style, and the page's scroll offset. `--meta FILE` writes the platform,
+    the browser and its user agent, the Windows font-smoothing registry values, the verified shots and the
+    failures; it changes no verdict. `--font-url` may repeat, for a family in several files: every named
+    path the shot requested must be served 200, and at least one must be requested. `--scales` takes
+    fractions (1.25 writes `@1.25x`).
+  - `.venv/bin/python3 scripts/compare-shots.py OUT LEG_DIR LEG_DIR --zoom 4 --min-legs 2` crops each row
+    from every leg, zooms it with nearest-neighbour resampling (subpixel colour is kept: it is part of the
+    finding), labels it from the leg's meta (OS, browser version, scale, ClearType setting), and stacks the
+    legs in one PNG. It refuses a leg without a meta file, a PNG without its rows file and a scrolled shot,
+    and compares the rest; it exits 1 only when fewer than `--min-legs` legs were accepted. A row is paired
+    across legs only when its key, text and computed style are equal in every leg; otherwise it is listed
+    under "Mismatched". Its ink share per leg is a hint of where to look; the PNG is the evidence.
+  - Read `compare.md` top-down: "Refused" and "Mismatched" first, then the rows, which come smallest size
+    first. Rank what it shows as section 5 says. What the run proves is section 9's paragraph.
 - Chrome is found through `$CHROME`, then per-OS defaults. Without Chrome, see
   references/fallbacks.md: the loop cannot end on "nothing visible at 1×", and missing browser
   evidence blocks publication unless the operator waives it in writing; the waiver is recorded in
@@ -143,6 +178,12 @@ skeleton, a kern) or for the site (a CSS rule). Bract round 1's top finding was 
 different family" (seen at 1× on two H2s); its fix was `serifGrow` 0.6 → 0.35. A finding visible
 only at 4× in the specimen is polish and goes to the record's open items if the loop stops first.
 
+The platform run (section 2) ranks the same way. A stroke that breaks up or drops out at 1× on a real
+page in any leg is a 1× finding, fixed in the design (`thin`, Medium under the smallest sizes, the floor;
+`references/guidelines.md` section 2). A stroke that reads lighter but stays continuous is not a defect:
+it goes in the record's rendering section with the compare PNG named. Reopening the loop for it is the
+operator's call, as every round is.
+
 ## 6. Host spot-checks and one mutation
 
 A subagent's finding is a lead, not a fact. Before changing the font the host opens **two crops
@@ -166,6 +207,12 @@ round 3: the face met the goal, no font defect was visible at 1×, and the remai
 capital `I` serifs heavy at 24–30 px; `r.` at 80 px overhanging after the arm was lengthened) went
 to the record as polish.
 
+**The platform run** (section 2) comes after the round that would end the loop (or round 6), and at
+any round the operator asks for. One run per face is enough, because the question it answers changes
+only when the design's `thin`, the floors or the smallest sizes change; a round that changes those
+re-runs it. It is not a publication blocker: an operator may have no GitHub Actions. Without a run the
+record says "not checked on Windows" with the claim it limits.
+
 ## 8. The enlarged-root check
 
 Rem sizes scale with the reader's default font size, so a region of the design space no CSS rule
@@ -178,10 +225,25 @@ that touches the Bold or the display cut, and write what it did and did not cove
 
 ## 9. What a screenshot proves, and does not
 
-A PNG from `shoot.py` is what Chrome's headless renderer drew with CoreText on the machine that ran
-it, with the font the server logged as 200 for that shot. It proves nothing about Safari, Firefox,
-Windows (DirectWrite) or Android, and nothing about the browser's `opsz` choice unless
-`scripts/opsz.py` measured it. Two readings a screenshot cannot replace: a unit test (a rendering
+A PNG from `shoot.py` on the operator's machine is what Chrome's headless renderer drew on that
+machine (CoreText on a Mac), with the font the server logged as 200 for that shot. By itself it proves
+nothing about Safari, Firefox, Windows (DirectWrite), Android or iOS, and nothing about the browser's
+`opsz` choice unless `scripts/opsz.py` measured it.
+
+**The platform run's exact guarantee** (section 2; every other document that names the run refers here).
+A leg's PNG is what the recorded browser drew: Chrome of the recorded version, headless with
+`--disable-gpu`, or Playwright's Firefox of the recorded version. It drew on a GitHub-hosted virtual
+machine of the recorded OS (Windows Server, macOS and Ubuntu runners, as the leg's `meta*.json` records
+them), with the recorded font-smoothing settings, no physical display, at the recorded device scale. The
+shot passed the same served-200, sentinel, element and italic proofs as every other `shoot.py` shot.
+A GitHub-hosted runner is not a reader's laptop: the display, the scaling, the ClearType tuning, the
+browser version and the GPU raster path all differ. Playwright's Firefox is not the Firefox build a
+reader installs. The run does not check Safari, Edge, phones or a real display. A run that was never
+made proves nothing, so the record says either "checked on Windows: run <id>, <what it showed>" or "not
+checked on Windows", never "fine on Windows". `compare-shots.py` shows the legs side by side and does not
+judge them: platforms are expected to differ.
+
+Two readings a screenshot cannot replace: a unit test (a rendering
 check is evidence, kept with the record, not a test that runs in CI), and the operator's own eyes
 on the deployed page. Screenshots are not tracked in the repo; the record names the directory and
 `shoot.py` reproduces them.

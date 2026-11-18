@@ -31,6 +31,16 @@ them is drawn by a loaded italic FontFace of the family (a specimen whose italic
 would otherwise show upright roman in those rows and pass). Section labels inside a surface section
 take that surface's foreground colour, so they read on a dark cloth as well as on paper.
 
+Row keys: every row set in the family carries data-fd-row="<key>", unique on the page (a duplicate,
+for instance two surfaces with one name, is refused with the key named). shoot.py --rows reports each
+keyed row's box and scripts/compare-shots.py pairs the same row across runners by it. The keys:
+spacing-<lower|upper|figures|punct>, legibility, junctions, readable-<surface>-<size>-<weight>,
+bold-<surface>-<size>, wordmark-caps-<surface>-<size> (the capitals row), wordmark-<surface>-<size>,
+wrapmax-<surface>, opsz-start-<size> and opsz-end-<size> (two lists, since a short axis can put one
+size in both), mid-<n>, italic-<n>, compare-<n> (the grid rows, then the title over body copy),
+kern-pairs-40, kern-short-<size>, nbsp-<n> and quotes; <surface> is the surface name, lowercased with
+runs of other characters as one hyphen.
+
 Characters the font lacks: a character outside the font's cmap is drawn by the fallback face, and a
 shot still proves the family loaded, so the specimen would quietly show a serif Å among the face's
 letters (seen on a dry run). Before writing, this tool reads the built woff2 (--font-file, or by
@@ -108,9 +118,29 @@ def css_url(s):
     return f"url('{s}')"
 
 
-def row(cls, size, text, weight=400, lh=None, extra="", attrs=""):
+def row(cls, size, text, weight=400, lh=None, extra="", attrs="", key=None):
+    """One <p> row. `key` (every family row has one) becomes data-fd-row, written after `attrs` so the
+    marker attributes keep their place right after the class; shoot.py --rows reports each keyed row's box."""
     style = f"font-size:{size:g}px; font-weight:{weight}" + (f"; line-height:{lh}" if lh else "") + (f"; {extra}" if extra else "")
-    return f'  <p class="{cls}"{" " + attrs if attrs else ""} style="{style}">{text}</p>\n'
+    marks = (" " + attrs if attrs else "") + (f' data-fd-row="{e(key)}"' if key is not None else "")
+    return f'  <p class="{cls}"{marks} style="{style}">{text}</p>\n'
+
+
+def slug(s):
+    """A surface name as it goes into a row key: lowercase, runs of anything but letters and digits as one hyphen."""
+    return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
+
+
+def row_keys(sections_html):
+    """The data-fd-row keys in page order. Raises ValueError naming a key that appears twice: compare-shots.py
+    pairs rows across runners by key, so two rows under one key would be cropped as one."""
+    keys = [html.unescape(k) for k in re.findall(r'data-fd-row="([^"]*)"', sections_html)]
+    seen = set()
+    for k in keys:
+        if k in seen:
+            raise ValueError(f"two specimen rows share the data-fd-row key {k!r} (two surfaces with one name?); every row needs its own")
+        seen.add(k)
+    return keys
 
 
 def lbl(text, surface=None):
@@ -260,15 +290,15 @@ def build(cfg, titles, group_name, font_url, italic_url, source, font_file=None,
     out.append("<section>\n")
     for label, kind, text in spacing_rows(allowed):
         out.append(lbl(f"Spacing, {label}, at 24px Regular"))
-        out.append(row("f", 24, e(text), 400, lh=1.4, attrs=f'data-fd-spacing="{kind}"'))
+        out.append(row("f", 24, e(text), 400, lh=1.4, attrs=f'data-fd-spacing="{kind}"', key=f"spacing-{kind}"))
     legible = legibility_tokens(allowed)
     if legible:
         out.append(lbl(f"Legibility at the smallest size ({small:g}px, weight {small_w}): which letters and figures read apart"))
-        out.append(row("f", small, e(" ".join(legible)), small_w, lh=1.4, attrs='data-fd-legibility="true"'))
+        out.append(row("f", small, e(" ".join(legible)), small_w, lh=1.4, attrs='data-fd-legibility="true"', key="legibility"))
     joints = junction_tokens(allowed)
     if joints:
         out.append(lbl(f"Junctions at the smallest size ({small:g}px, Bold {wmax:g}): where two strokes meet end to end, a joint that fills reads as a blot"))
-        out.append(row("f", small, e(" ".join(joints)), wmax, lh=1.4, attrs='data-fd-junctions="true"'))
+        out.append(row("f", small, e(" ".join(joints)), wmax, lh=1.4, attrs='data-fd-junctions="true"', key="junctions"))
     out.append("</section>\n")
     # 1. readable
     for s in surfaces:
@@ -276,21 +306,22 @@ def build(cfg, titles, group_name, font_url, italic_url, source, font_file=None,
         out.append(lbl(f"Readable on {s['name']}: every size the site sets, Medium 500 under {medium_below:g}px, else Regular", s))
         for i, px in enumerate(sizes):
             w = 500 if px < medium_below else 400
-            out.append(row("f", px, f"{t(i)} <span style=\"opacity:.6\">{px:g}px {w}</span>", w, lh=1.2 if px < 24 else 1.1))
+            out.append(row("f", px, f"{t(i)} <span style=\"opacity:.6\">{px:g}px {w}</span>", w, lh=1.2 if px < 24 else 1.1,
+                           key=f"readable-{slug(s['name'])}-{px:g}-{w}"))
         out.append(lbl(f"Bold {wmax} on {s['name']} at every size", s))
         for i, px in enumerate(sizes):
-            out.append(row("f", px, t(i + 1), wmax, lh=1.2 if px < 24 else 1.1))
+            out.append(row("f", px, t(i + 1), wmax, lh=1.2 if px < 24 else 1.1, key=f"bold-{slug(s['name'])}-{px:g}"))
         out.append("</section>\n")
     # 2. largest sizes
     big = sizes[-3:] if len(sizes) >= 3 else sizes
     for s in surfaces:
         out.append(f'<section {surface_style(s)}>\n')
         out.append(lbl(f"The wordmark in capitals, Bold, and the largest sizes on {s['name']}: {', '.join(f'{b:g}' for b in big)}px Regular", s))
-        out.append(row("f cap", min(24, big[0]), e(wordmark), wmax))
+        out.append(row("f cap", min(24, big[0]), e(wordmark), wmax, key=f"wordmark-caps-{slug(s['name'])}-{min(24, big[0]):g}"))
         for b in big:
-            out.append(row("f", b, e(wordmark).replace(" ", "&nbsp;"), 400, lh=".95"))
+            out.append(row("f", b, e(wordmark).replace(" ", "&nbsp;"), 400, lh=".95", key=f"wordmark-{slug(s['name'])}-{b:g}"))
         out.append(lbl(f"Descenders and wrapping on {s['name']} at {big[-1]:g}px, line-height .95, 14em measure", s))
-        out.append(row("f wrapmax", big[-1], e(longest), 400, lh=".95"))
+        out.append(row("f wrapmax", big[-1], e(longest), 400, lh=".95", key=f"wrapmax-{slug(s['name'])}"))
         out.append("</section>\n")
     # 3. opsz crossing
     if opsz:
@@ -300,10 +331,10 @@ def build(cfg, titles, group_name, font_url, italic_url, source, font_file=None,
         out.append("<section>\n")
         out.append(lbl(f"Across the opsz axis start ({lo}): {', '.join(f'{x:g}' for x in start)}px Regular, font-optical-sizing auto"))
         for x in start:
-            out.append(row("f", x, t(0), 400, lh=1.06))
+            out.append(row("f", x, t(0), 400, lh=1.06, key=f"opsz-start-{x:g}"))
         out.append(lbl(f"At the axis end ({hi}): {', '.join(f'{x:g}' for x in top)}px Regular; past the end the axis is clamped"))
         for x in top:
-            out.append(row("f", x, e(shortest), 400, lh=1))
+            out.append(row("f", x, e(shortest), 400, lh=1, key=f"opsz-end-{x:g}"))
         out.append("</section>\n")
     # 4. intermediate instances
     wmid = round((wmin + wmax) / 2)
@@ -313,51 +344,53 @@ def build(cfg, titles, group_name, font_url, italic_url, source, font_file=None,
         omid = round((opsz["min"] + opsz["max"]) / 2)
         out.append(lbl(f"Intermediate instances: wght {wmid} at {mid_px:g}px; opsz {omid} at {omid}px (auto); "
                        f"the heaviest corner, wght {wmax} at {opsz['max']}px"))
-        out.append(row("f", mid_px, t(2), wmid))
-        out.append(row("f", omid, e(shortest), 400, lh=1))
-        out.append(row("f", opsz["max"], e(shortest), wmax, lh=1))
+        out.append(row("f", mid_px, t(2), wmid, key="mid-1"))
+        out.append(row("f", omid, e(shortest), 400, lh=1, key="mid-2"))
+        out.append(row("f", opsz["max"], e(shortest), wmax, lh=1, key="mid-3"))
     else:
         out.append(lbl(f"Intermediate instances: wght {wmid} at {mid_px:g}px; the heaviest weight {wmax} at {sizes[-1]:g}px"))
-        out.append(row("f", mid_px, t(2), wmid))
-        out.append(row("f", sizes[-1], e(shortest), wmax, lh=1))
+        out.append(row("f", mid_px, t(2), wmid, key="mid-1"))
+        out.append(row("f", sizes[-1], e(shortest), wmax, lh=1, key="mid-2"))
     if italic_url:
         out.append(lbl(f"Italic at {mid_px:g}px Regular and Bold (a second file, font-style: italic)"))
-        out.append(row("f fi", mid_px, t(3), 400, attrs='data-fd-probe="italic"'))
-        out.append(row("f fi", mid_px, t(4), wmax, attrs='data-fd-probe="italic"'))
+        out.append(row("f fi", mid_px, t(3), 400, attrs='data-fd-probe="italic"', key="italic-1"))
+        out.append(row("f fi", mid_px, t(4), wmax, attrs='data-fd-probe="italic"', key="italic-2"))
     out.append("</section>\n")
     # 5. comparison
     out.append("<section>\n")
     names = [family] + [c["name"] for c in comps]
     out.append(lbl(f"Beside: {' / '.join(names)} at 28px Bold and 48px Regular"))
-    for px, w in ((28, wmax), (48, 400)):
+    for n, (px, w) in enumerate(((28, wmax), (48, 400)), 1):
         out.append('  <div class="cols">\n')
-        out.append(row("f", px, t(5), w, lh=1.06))
+        out.append(row("f", px, t(5), w, lh=1.06, key=f"compare-{n}"))
         for c in comps:
             ws = c.get("weights") or [400, 700]
             cw = min(ws, key=lambda x: abs(x - (700 if w > 500 else 400)))
             out.append(row("cmp", px, t(5), cw, lh=1.06, extra=f"font-family:{e(css_string(c['family']))}, serif"))
         out.append("  </div>\n")
     out.append(lbl("A title over body copy in the body face"))
-    out.append(row("f", 44, t(0), 400, lh=1.06))
+    out.append(row("f", 44, t(0), 400, lh=1.06, key="compare-3"))
     out.append(f'  <p class="body">{e(BODY_COPY)}</p>\n')
     out.append("</section>\n")
     # 6. kerning, NBSP, glyphs
     out.append("<section>\n")
     out.append(lbl(f"Kerning: the pair row at 40px Regular and {sizes[-1]:g}px"))
-    out.append(row("f", 40, e(KERN_PAIRS), 400))
-    out.append(row("f", sizes[-1], e(KERN_SHORT), 400, lh=1))
+    out.append(row("f", 40, e(KERN_PAIRS), 400, key="kern-pairs-40"))
+    out.append(row("f", sizes[-1], e(KERN_SHORT), 400, lh=1, key=f"kern-short-{sizes[-1]:g}"))
     small = sizes[0]
     out.append(lbl(f"Word space and NBSP wrap at {small:g}px in a 320px column: the no-break spaces never break"))
     nb = e(longest).replace(" ", "&nbsp;", 1) if " " in longest else e(longest)
     small_w = 500 if small < medium_below else 400
-    out.append(f'  <div class="narrow">{row("f", small, nb + " with " + e(wordmark).replace(" ", "&nbsp;"), small_w, lh=1.2)}</div>\n')
-    out.append(f'  <div class="narrow">{row("f", 40, e(wordmark).replace(" ", "&nbsp;") + " at " + e(wordmark).replace(" ", "&nbsp;"), 400, lh=1.06)}</div>\n')
+    out.append(f'  <div class="narrow">{row("f", small, nb + " with " + e(wordmark).replace(" ", "&nbsp;"), small_w, lh=1.2, key="nbsp-1")}</div>\n')
+    wm = e(wordmark).replace(" ", "&nbsp;")
+    out.append(f'  <div class="narrow">{row("f", 40, wm + " at " + wm, 400, lh=1.06, key="nbsp-2")}</div>\n')
     out.append(lbl("Quotes, apostrophes and symbols: ' ’ \" “ ” ‘ # + * & … – —"))
-    out.append(row("f", 40, e(GLYPH_ROW), 400))
+    out.append(row("f", 40, e(GLYPH_ROW), 400, key="quotes"))
     out.append("</section>\n")
 
     paper = surfaces[0]
     sections = "".join(out)
+    row_keys(sections)  # refuses a duplicate key before anything is checked or written
     roman_chars, italic_chars = shown_chars(sections)
     notes = []
     for chars, path, what in ((roman_chars, font_file, "roman rows"), (italic_chars if italic_url else set(), italic_file, "italic rows")):

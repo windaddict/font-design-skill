@@ -885,3 +885,428 @@ def test_shoot_dom_only_asks_chrome_for_no_screenshot_and_keeps_the_dom(tmp_path
     assert not any(a.startswith("--screenshot") for a in args) and "--dump-dom" in args, args
     assert res["png"] is None and 'data-fake="1"' in pathlib.Path(res["dom"]).read_text()
     assert not (tmp_path / "x.png").exists()
+
+
+# ---------------------------------------------------------------- 0.3: fractional scales, the Windows teardown, --meta, --rows, several --font-url
+# Fake browsers here are Python (a script run by sys.executable, or `python -c`), not #!/bin/sh, so the same tests run on
+# the Windows leg of the skill's platform workflow (plan-platform-shots F010). Each mutation below was applied to the
+# shipped code, the test was run and seen red on the named assertion, and the code was restored, on 2026-11-17.
+
+def py_exe(path, code):
+    """A runnable fake browser at `path` (POSIX: a sh wrapper; Windows: path.cmd) that runs `code` with this
+    interpreter and passes its arguments on. Returns the path to give as $CHROME or chrome=."""
+    path = pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    script = path.with_name(path.name + ".py")
+    script.write_text(code, encoding="utf-8")
+    if os.name == "nt":
+        path = path.with_name(path.name + ".cmd")
+        path.write_text(f'@"{sys.executable}" "{script}" %*\r\n', encoding="utf-8")
+    else:
+        path.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n', encoding="utf-8")
+        path.chmod(0o755)
+    return str(path)
+
+
+# Fetches the page (so the server records it served 200 under the shot's token), writes b"PNG" to --screenshot=,
+# logs its arguments, and exits 1 instead for a URL naming die.html.
+FETCHING_FAKE = r'''
+import pathlib, sys, urllib.request
+args = sys.argv[1:]
+url = args[-1]
+with open(pathlib.Path(__file__).with_name("args.log"), "a", encoding="utf-8") as log:
+    log.write(" ".join(args) + "\n")
+urllib.request.build_opener(urllib.request.ProxyHandler({})).open(url, timeout=10).read()
+if "/die.html" in url:
+    sys.exit(1)
+for a in args:
+    if a.startswith("--screenshot="):
+        pathlib.Path(a.split("=", 1)[1]).write_bytes(b"PNG")
+'''
+
+
+def plain_site(tmp_path, names):
+    site = tmp_path / "site"
+    site.mkdir()
+    for n in names:
+        (site / f"{n}.html").write_text("<!doctype html><title>x</title><p>x</p>", encoding="utf-8")
+    return site
+
+
+def test_scales_accept_a_fraction_and_name_the_file_by_it(tmp_path, monkeypatch):
+    """--scales 1 1.25 2 writes x-1280@1x.png, x-1280@1.25x.png and x-1280@2x.png (the @1x and @2x names unchanged from
+    0.2) and passes 1.25 to the browser as written. Mutations watched red on 2026-11-17: `type=int` restored (argparse
+    refuses 1.25: SystemExit 2); the name format `@{scale}x` restored (@1.0x and @2.0x written)."""
+    site = plain_site(tmp_path, ["x"])
+    fake = py_exe(tmp_path / "bin" / "chrome", FETCHING_FAKE)
+    monkeypatch.setenv("CHROME", fake)
+    out = tmp_path / "shots"
+    rc = shoot.main([str(out), "--serve", str(site), "--pages", "x.html", "--widths", "1280", "--scales", "1", "1.25", "2",
+                     "--no-sentinel", "--bands", "none", "--jobs", "1"])
+    assert rc == 0
+    assert sorted(p.name for p in out.glob("*.png")) == ["x-1280@1.25x.png", "x-1280@1x.png", "x-1280@2x.png"]
+    assert "--force-device-scale-factor=1.25" in (tmp_path / "bin" / "args.log").read_text(encoding="utf-8")
+
+
+def test_crop_bands_rounds_a_fractional_box(tmp_path):
+    """At scale 1.25 a CSS band is a fractional device box. head:0:901 is 1126.25 device px (900 would be 1125 exactly and
+    could not tell anything apart, plan review F009) and must crop to 1126; body:0:903 is 1128.75 and must crop to 1129,
+    which a truncating box (`int(bottom * scale)`) gets wrong. Mutation watched red on 2026-11-17: `int(round(...))`
+    replaced by `int(...)` (body is 1128 px). SURVIVED, and kept as a finding: the plan's mutation, `int(round())` removed
+    so the float box reaches Pillow, stays green, because Pillow 13's Image._crop itself does `map(int, map(round, box))`;
+    the rounding in crop_bands() only makes the box independent of that."""
+    from PIL import Image
+    png = tmp_path / "x-1280@1.25x.png"
+    Image.new("RGB", (1280, 2400), "white").save(png)
+    written = shoot.crop_bands(png, 1.25, shoot.parse_bands("head:0:901,body:0:903"))
+    sizes = {pathlib.Path(w).name: Image.open(w).size for w in written}
+    assert sizes == {"x-1280@1.25x-head.png": (1280, 1126), "x-1280@1.25x-body.png": (1280, 1129)}, sizes
+
+
+def pid_alive(pid):
+    """Whether process `pid` still runs (POSIX: signal 0; Windows: OpenProcess and its exit code)."""
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return code.value == 259  # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def gone_within(pid, seconds):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if not pid_alive(pid):
+            return True
+        time.sleep(0.05)
+    return not pid_alive(pid)
+
+
+def end(pid):
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+        else:
+            os.kill(pid, 9)
+    except OSError:
+        pass
+
+
+# A browser whose helper (a grandchild) inherits stdout and stderr and sleeps: the browser prints the helper's pid and a
+# complete DOM, then hangs. The helper's open pipe is what kept run_chrome() waiting (shoot.py's item 1, 2026-11-17).
+HELPER_HOLDS_STDOUT = (
+    "import subprocess, sys, time\n"
+    "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+    "sys.stdout.buffer.write(b'%d\\n<html></html>\\n' % g.pid); sys.stdout.buffer.flush()\n"
+    "time.sleep(30)\n")
+
+
+def test_kill_group_ends_a_grandchild_that_holds_stdout(monkeypatch):
+    """Plan review F003/F010: the real failure is a helper that inherited the stdout pipe. run_chrome(), once the DOM is
+    complete and EXIT_GRACE (1 s here) has passed, kills the group: it returns within 4 s, the helper is dead and the
+    browser is reaped. Mutation watched red on 2026-11-17: kill_group()'s POSIX branch replaced by `p.kill()` alone (the
+    helper survives holding the pipe; run_chrome returns only after the 10 s bounded join, and the helper is alive). On
+    Windows the matching mutation is taskkill run after p.kill() (the tree is gone and the helper survives); that one is
+    for the Windows leg of the platform workflow to show, not run here."""
+    monkeypatch.setattr(shoot, "EXIT_GRACE", 1.0)
+    t0 = time.monotonic()
+    r = shoot.run_chrome([sys.executable, "-c", HELPER_HOLDS_STDOUT], 30, complete=lambda tail: tail.endswith(shoot.DOM_END))
+    took = time.monotonic() - t0
+    helper = int(r.stdout.split()[0])
+    try:
+        assert took < 4, f"run_chrome took {took:.1f}s: the helper held stdout after the kill"
+        assert r.killed and r.complete and r.returncode is not None, (r.killed, r.complete, r.returncode)
+        assert gone_within(helper, 3), f"the helper {helper} survived kill_group()"
+    finally:
+        end(helper)
+
+
+def test_run_chrome_returns_after_a_kill_even_when_a_helper_holds_stdout(monkeypatch):
+    """Part b of the Windows teardown: when a kill misses a helper (kill_group() here kills the browser only, as p.kill()
+    alone does on Windows), run_chrome() still returns within EXIT_GRACE + 10 + 1 s, with killed true and the stdout read
+    so far. Mutation watched red on 2026-11-17: the bounded join replaced by `t.join()` (run_chrome waits until the
+    helper's 30 s sleep ends). The 0.2 code was red too: it joined each of the two held pipes for 10 s, 21 s in all."""
+    monkeypatch.setattr(shoot, "EXIT_GRACE", 1.0)
+
+    def browser_only(p):
+        p.kill()
+        p.wait(timeout=10)
+    monkeypatch.setattr(shoot, "kill_group", browser_only)
+    t0 = time.monotonic()
+    r = shoot.run_chrome([sys.executable, "-c", HELPER_HOLDS_STDOUT], 60, complete=lambda tail: tail.endswith(shoot.DOM_END))
+    took = time.monotonic() - t0
+    end(int(r.stdout.split()[0]))
+    assert took < shoot.EXIT_GRACE + 10 + 1, f"run_chrome took {took:.1f}s"
+    assert r.killed and "<html></html>" in r.stdout, (r.killed, r.stdout)
+
+
+# Writes a file into its --user-data-dir and the screenshot, then makes the profile impossible to remove: on Windows a
+# detached helper holds the file open; on POSIX the profile's PARENT is made read-only. (Making the profile itself
+# read-only does not work: TemporaryDirectory's cleanup chmods a path that refuses removal and tries again.)
+PROFILE_HELD = r'''
+import os, pathlib, subprocess, sys
+args = sys.argv[1:]
+prof = next(a.split("=", 1)[1] for a in args if a.startswith("--user-data-dir="))
+held = os.path.join(prof, "Cookies")
+pathlib.Path(held).write_text("x")
+for a in args:
+    if a.startswith("--screenshot="):
+        pathlib.Path(a.split("=", 1)[1]).write_bytes(b"PNG")
+if os.name == "nt":
+    subprocess.Popen([sys.executable, "-c", "import sys, time; f = open(sys.argv[1]); time.sleep(8)", held],
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=0x00000008)
+else:
+    os.chmod(os.path.dirname(prof), 0o555)
+'''
+
+
+def test_shoot_notes_a_profile_directory_a_helper_left_behind(tmp_path, capsys):
+    """Part c of the Windows teardown: a profile directory that cannot be removed after the browser exited is a teardown
+    leak, not a page fault. shoot() returns the shot and prints a NOTE naming the directory. Mutations watched red on
+    2026-11-17: `ignore_cleanup_errors=True` removed (PermissionError out of shoot()); the note line removed."""
+    if os.name != "nt" and os.geteuid() == 0:
+        pytest.skip("SKIPPED, NOT PASSED: root ignores the read-only directory this test relies on")
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    fake = py_exe(tmp_path / "bin" / "chrome", PROFILE_HELD)
+    try:
+        res = shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake, profile_root=profiles, timeout=20)
+        left = [p for p in profiles.iterdir()]
+        err = capsys.readouterr().err
+        assert res["png"] and (tmp_path / "x.png").read_bytes() == b"PNG"
+        assert len(left) == 1, left
+        assert f"NOTE: profile {left[0]} left behind" in err, err
+    finally:
+        profiles.chmod(0o755)
+
+
+def test_a_shot_whose_browser_dies_does_not_stop_the_run_and_the_run_exits_1(tmp_path, monkeypatch):
+    """One of two shots fails (its browser exits 1): the other PNG is written, main() returns 1, and --meta lists one
+    shot and one failure. Mutations watched red on 2026-11-17: `except (RuntimeError, ValueError)` in one() narrowed to
+    ValueError (the RuntimeError ends the run); `return 1 if failed else 0` made `return 0`."""
+    site = plain_site(tmp_path, ["live", "die"])
+    monkeypatch.setenv("CHROME", py_exe(tmp_path / "bin" / "chrome", FETCHING_FAKE))
+    out, meta = tmp_path / "shots", tmp_path / "meta.json"
+    rc = shoot.main([str(out), "--serve", str(site), "--pages", "live.html", "die.html", "--widths", "500", "--scales", "1",
+                     "--no-sentinel", "--bands", "none", "--jobs", "2", "--meta", str(meta)])
+    assert rc == 1
+    assert (out / "live-500@1x.png").is_file() and not (out / "die-500@1x.png").exists()
+    m = json.loads(meta.read_text(encoding="utf-8"))
+    assert [pathlib.Path(s["png"]).name for s in m["shots"]] == ["live-500@1x.png"], m["shots"]
+    assert len(m["failed"]) == 1 and "Chrome exited 1" in m["failed"][0] and "die.html" in m["failed"][0], m["failed"]
+
+
+def test_chrome_meta_file_records_the_platform_the_verified_shots_the_failures_and_the_exit_code(site, tmp_path, monkeypatch):
+    """--meta, on two real shots: one page in Probe (verified), one in Georgia (failed: nothing visible is in Probe).
+    The file names the platform, the browser, one verified shot with a ua from the page and its height, and the
+    failure; it changes no verdict (main() still returns 1). Named "chrome" (the plan's name was
+    test_meta_file_records_...) so the CI chrome job, which selects -k chrome, runs it. Mutations watched red on
+    2026-11-17: `failed` written as []; `add("ua", ...)` dropped from the sentinel (ua null); main's exit made 0."""
+    monkeypatch.setenv("CHROME", chrome_or_skip())
+    page(site, "metaok", "<h1>Harbour Review</h1>")
+    page(site, "metageorgia", "<p>Everything here is Georgia</p>")
+    out, meta = tmp_path / "shots", tmp_path / "leg" / "meta.json"
+    rc = shoot.main([str(out), "--serve", str(site), "--pages", "metaok.html", "metageorgia.html", "--widths", "500", "--scales", "1",
+                     "--bands", "none", "--family", "Probe", "--font-url", "/fonts/Probe.woff2", "--meta", str(meta)])
+    assert rc == 1
+    m = json.loads(meta.read_text(encoding="utf-8"))
+    import platform
+    assert m["platform"] == platform.platform() and m["browser"] == "chrome" and m["launcher"] == os.environ["CHROME"], m
+    if platform.system() != "Windows":
+        assert m["font_smoothing"] is None
+    assert len(m["shots"]) == 1, m["shots"]
+    s = m["shots"][0]
+    assert s["verified"] is True and "Chrome/" in (s["ua"] or "") and s["height"] == shoot.DEFAULT_HEIGHT, s
+    assert len(m["failed"]) == 1 and "/metageorgia.html" in m["failed"][0], m["failed"]
+
+
+ROWS_BODY = ("<h1 style='margin:0'>Probe row</h1>"
+             "<h1 data-fd-row='r-a' style='position:absolute;left:40px;top:100px;width:300px;height:60px;margin:0'>Harbour</h1>"
+             "<h1 data-fd-row='r-b' style='position:absolute;left:60px;top:700px;width:400px;height:80px;margin:0'>Review</h1>"
+             "<h1 data-fd-row='r-c' style='position:absolute;left:20px;top:3000px;width:200px;height:50px;margin:0'>Below</h1>")
+ROWS_BOXES = {"r-a": (40, 100, 300, 60), "r-b": (60, 700, 400, 80), "r-c": (20, 3000, 200, 50)}
+
+
+def test_chrome_rows_json_carries_every_marked_row_in_viewport_coordinates_with_the_scroll_and_scale(site, tmp_path):
+    """--rows (plan review F005): three data-fd-row elements at known CSS boxes, one at top 3000 below the 2400 capture,
+    plus one unmarked element in the family (key probe-1). At scale 1 and 2 each box is within 1 px of its CSS value (CSS
+    px, never device px), scroll_y is 0, height is 2400, the row below the capture is captured: false, and the file
+    is <png stem>.rows.json. The plan asserted viewport_h == 2400; measured on 2026-11-17, Chrome 157's headless page
+    reports innerHeight 2313 for --window-size=500,2400 while its PNG is 2400 px tall and draws the page down to 2400
+    (a red box at top 2300 fills PNG rows 2300-2399), so `captured` is judged against the shot's height (?fdh=) and
+    viewport_h records what the page measured. Mutations watched red on 2026-11-17: the sentinel multiplying the rect by devicePixelRatio
+    (the scale-2 shot fails); captured computed against the document height (r-c reads true); scroll_y left out (None)."""
+    path = page(site, "rowsbox", ROWS_BODY)
+    server, port = served(site, family="Probe")
+    try:
+        for scale in (1, 2):
+            png = tmp_path / f"rowsbox-500@{scale}x.png"
+            res = shoot.shoot(f"http://127.0.0.1:{port}{path}", png, 500, scale, server=server, chrome=chrome_or_skip(),
+                              require_family="Probe", rows=True)
+            assert res["rows"] == str(tmp_path / f"rowsbox-500@{scale}x.rows.json"), res["rows"]
+            doc = json.loads(pathlib.Path(res["rows"]).read_text(encoding="utf-8"))
+            assert doc["scroll_x"] == 0 and doc["scroll_y"] == 0 and doc["height"] == shoot.DEFAULT_HEIGHT, doc
+            assert 0 < doc["viewport_h"] <= doc["height"], doc  # 2313 in Chrome 157 headless on macOS: see the docstring
+            assert doc["scale"] == scale and doc["shot"] == res["shot"] and "Chrome/" in doc["ua"], doc
+            got = {r["key"]: r for r in doc["rows"]}
+            assert set(got) == {"probe-1", *ROWS_BOXES}, sorted(got)
+            for key, (x, y, w, h) in ROWS_BOXES.items():
+                r = got[key]
+                assert all(abs(a - b) <= 1 for a, b in ((r["x"], x), (r["y"], y), (r["w"], w), (r["h"], h))), (scale, key, r)
+            assert got["r-a"]["captured"] and got["r-b"]["captured"] and not got["r-c"]["captured"], got
+            assert got["r-a"]["text"] == "Harbour" and got["r-a"]["font_style"] == "normal" and got["r-a"]["font_size"] == "48px", got["r-a"]
+    finally:
+        server.shutdown()
+
+
+def test_chrome_a_page_that_scrolled_records_the_offset(site, tmp_path):
+    """A page whose own script scrolls by 500 px before the fonts are ready: rows.json records scroll_y 500 and the row's
+    y is its CSS top minus 500 (viewport coordinates; compare-shots.py refuses such a shot, plan review F005). Mutation
+    watched red on 2026-11-17: the sentinel adding window.scrollY into y (document coordinates: y reads 800)."""
+    body = ("<div style='height:6000px'></div>"
+            "<h1 data-fd-row='r-s' style='position:absolute;left:40px;top:800px;width:300px;height:60px;margin:0'>Harbour</h1>"
+            "<script>window.scrollTo(0, 500)</script>")
+    path = page(site, "rowsscroll", body)
+    server, port = served(site, family="Probe")
+    try:
+        res = shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / "s.png", 500, 1, server=server, chrome=chrome_or_skip(),
+                          require_family="Probe", rows=True)
+        doc = json.loads(pathlib.Path(res["rows"]).read_text(encoding="utf-8"))
+        assert doc["scroll_y"] == 500, doc
+        assert abs(doc["rows"][0]["y"] - 300) <= 1, doc["rows"]
+    finally:
+        server.shutdown()
+
+
+def test_chrome_rows_json_is_not_written_for_a_shot_that_failed_its_proof(site, tmp_path):
+    """The rows file is written only after every proof passed: a page in Georgia with marked rows, shot with
+    require_family Probe, raises and leaves no rows file (the sentinel did send its rows). Mutation watched red on
+    2026-11-17: the rows block moved before the beacon's proofs (the file is written, then the shot fails)."""
+    path = page(site, "rowsgeorgia", "<p data-fd-row='g-1'>Georgia one</p><p data-fd-row='g-2'>Georgia two</p>")
+    server, port = served(site, family="Probe")
+    try:
+        with pytest.raises(RuntimeError, match="no visible element with text is set in 'Probe'"):
+            shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / "g.png", 500, 1, server=server, chrome=chrome_or_skip(),
+                        require_family="Probe", rows=True)
+        assert not (tmp_path / "g.rows.json").exists()
+        assert any(server.rows.values()), "the sentinel must have sent the rows, or this test shows nothing"
+    finally:
+        server.shutdown()
+
+
+def test_chrome_a_verified_shot_whose_rows_never_arrive_is_failed(site, tmp_path, monkeypatch):
+    """The rows endpoint drops every body (monkeypatched): a shot that passes every other proof raises "no rows arrived"
+    and writes no rows file, so a PNG never ships without its boxes. Mutation watched red on 2026-11-17: the wait made
+    optional (`if got is None: return result`)."""
+    def drop(self):
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        self.send_response(204)
+        self.end_headers()
+    monkeypatch.setattr(shoot.Handler, "do_POST", drop)
+    path = page(site, "rowsdrop", "<h1 data-fd-row='d-1'>Harbour Review</h1>")
+    server, port = served(site, family="Probe")
+    try:
+        with pytest.raises(RuntimeError, match="no rows arrived"):
+            shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / "d.png", 500, 1, server=server, chrome=chrome_or_skip(),
+                        require_family="Probe", rows=True)
+        assert not (tmp_path / "d.rows.json").exists()
+    finally:
+        server.shutdown()
+
+
+def post_rows(port, shot, cookie, body=b'{"scroll_x": 0, "scroll_y": 0, "rows": []}'):
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.request("POST", f"/__fd/rows?shot={shot}", body=body, headers={"Cookie": f"fd_shot={cookie}", "Content-Type": "text/plain"})
+    status = conn.getresponse().status
+    conn.close()
+    return status
+
+
+def test_rows_from_another_shots_browser_are_ignored_and_noted(tmp_path):
+    """The rows POST is recorded per shot only under that shot's cookie, as the beacon is: a POST for shot A carrying
+    B's cookie is ignored and noted; one carrying A's is recorded. Mutation watched red on 2026-11-17: the same_shot()
+    test dropped from do_POST (A's rows are planted by B)."""
+    server, port = served(tmp_path)
+    try:
+        assert post_rows(port, "shotA", "shotB") == 204
+        assert "shotA" not in server.rows, "rows carrying another shot's cookie were recorded"
+        assert any("rows for shot 'shotA' ignored" in d for d in server.departures), server.departures
+        assert post_rows(port, "shotA", "shotA") == 204
+        assert server.rows["shotA"]["rows"] == []
+    finally:
+        server.shutdown()
+
+
+def test_chrome_font_urls_pass_when_each_requested_one_is_served_and_fail_when_none_is_requested_or_one_404s(site, tmp_path):
+    """Repeatable --font-url (plan host finding H1): every named path the shot requested must be served 200, and at least
+    one must be requested. A page using only the roman passes with the italic also named; a named path never requested
+    does not fail it; a page in Georgia fails "none of the named font paths was requested"; a page that requests a named
+    path that 404s fails naming it, though another named path was served 200. Mutations watched red on 2026-11-17:
+    "every named path served 200" (the italic case fails); "any named path served 200" (the 404 case passes)."""
+    roman = page(site, "furoman", "<h1>Harbour Review</h1>", faces=("normal", "italic"))
+    georgia = page(site, "fugeorgia", "<p>Everything here is Georgia</p>", faces=())
+    gone = page(site, "fugone", "<h1>Harbour Review</h1><h2>Gone row</h2>",
+                extra_css='@font-face { font-family: Gone; src: url(/fonts/Missing.woff2) format("woff2"); } h2 { font-family: Gone, serif }')
+    server, port = served(site)
+    try:
+        def go(path, urls, name):
+            return shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / f"{name}.png", 500, 1, server=server, chrome=chrome_or_skip(), font_url=urls)
+        res = go(roman, ["/fonts/Probe.woff2", "/fonts/Probe-Italic.woff2"], "r1")
+        assert res["font_status"] == {"/fonts/Probe.woff2": [200], "/fonts/Probe-Italic.woff2": []}, res["font_status"]
+        go(roman, ["/fonts/Nothing.woff2", "/fonts/Probe.woff2"], "r2")
+        with pytest.raises(RuntimeError, match="none of the named font paths was requested"):
+            go(georgia, ["/fonts/Probe.woff2", "/fonts/Probe-Italic.woff2"], "g")
+        with pytest.raises(RuntimeError, match=r"/fonts/Missing\.woff2 was not served 200 to the shot of /fugone\.html"):
+            go(gone, ["/fonts/Probe.woff2", "/fonts/Missing.woff2"], "m")
+    finally:
+        server.shutdown()
+
+
+# ---------------------------------------------------------------- specimen.py: a data-fd-row key on every family row (0.3)
+
+def test_specimen_gives_every_family_row_a_unique_data_fd_row_key(tmp_path):
+    """Every row set in the family carries data-fd-row, the keys are unique, the six proof rows' keys are exactly
+    spacing-lower/upper/figures/punct, legibility and junctions, and the readable keys name their surface (paper and cloth
+    rows at one size and weight would otherwise collide). Mutations watched red on 2026-11-17: the surface dropped from
+    the readable key (specimen.py refuses the duplicate and exits 1); row() writing data-fd-row only when `attrs` is given
+    (most rows lack the key)."""
+    out = tmp_path / "s.html"
+    r = run_specimen(["--font", str(NEUTRAL / "font.json"), "--requirements", str(NEUTRAL / "requirements.json"), "--group", "roman",
+                      "--font-url", "/fonts/Sampler-VF.woff2", "--italic-url", "/fonts/Sampler-Italic-VF.woff2", "--allow-missing", str(out)])
+    assert r.returncode == 0, r.stderr
+    html = out.read_text(encoding="utf-8")
+    tags = re.findall(r'<p class="f[^"]*"[^>]*>', html)
+    assert len(tags) > 40, len(tags)
+    keys = [re.search(r'data-fd-row="([^"]+)"', t) for t in tags]
+    assert all(keys), [t for t, k in zip(tags, keys) if not k][:3]
+    keys = [k.group(1) for k in keys]
+    assert len(keys) == len(set(keys)), sorted(k for k in keys if keys.count(k) > 1)
+    proof = {"spacing-lower", "spacing-upper", "spacing-figures", "spacing-punct", "legibility", "junctions"}
+    marked = re.findall(r'<p class="f"[^>]*data-fd-(?:spacing|legibility|junctions)="[^"]*"[^>]*data-fd-row="([^"]+)"', html)
+    assert set(marked) == proof and len(marked) == 6, marked
+    readable = [k for k in keys if k.startswith("readable-")]
+    assert readable and all(k.startswith(("readable-paper-", "readable-cloth-")) for k in readable), readable
+    assert {"italic-1", "italic-2", "quotes"} <= set(keys)
+
+
+def test_specimen_refuses_a_duplicate_row_key():
+    """build() with a surface list naming paper twice: the readable rows of both surfaces would share keys, and
+    compare-shots.py would crop one row as another; build() raises naming the key. Mutation watched red on 2026-11-17:
+    the row_keys() call removed from build() (the page is built)."""
+    import specimen
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    paper = cfg["review"]["surfaces"][0]
+    cfg["review"]["surfaces"] = [paper, dict(paper)]
+    with pytest.raises(ValueError, match=r"data-fd-row key 'readable-paper-"):
+        specimen.build(cfg, cfg["titles"], "roman", "/fonts/Sampler-VF.woff2", None, "font.json")

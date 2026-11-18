@@ -3,9 +3,53 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
-## [Unreleased]
+## [0.3.0] — 2026-11-17
+
+The cross-platform rendering check (`docs/plan-platform-shots.md`), planned by Fable, reviewed before code by an
+independent cross-provider reviewer (15 findings, all reconciled in the plan's section 14; the operator ruled the
+Firefox leg in), and built by five agents in parallel. It answers the question every font record carried as
+"not checked on Windows": how the face draws under DirectWrite/ClearType, and on macOS and Linux, in Chrome and
+Firefox. **What a result proves:** how headless Chrome and Playwright's Firefox drew the face on GitHub-hosted
+Windows Server, macOS and Ubuntu runners, as each leg's `meta*.json` records them; not a reader's laptop (display,
+scaling and ClearType tuning differ), not Safari, not phones. It is a record line, not a publication blocker.
 
 ### Added
+- **`templates/platform-shots.yml`**: a manually started GitHub Actions workflow a site copies into
+  `.github/workflows/`. Three OSes × two browsers; each leg shoots the review specimen (6000 CSS px tall, so
+  every row is captured) and the site's named pages with the full `shoot.py` proofs; one job then compares the
+  legs. Slots in `env:` (`FD_SCRIPTS`, `FD_SERVE`, `FD_BUILD`, `FD_FAMILY`, `FD_FONT_URLS`, `FD_PAGES`,
+  `FD_FONT_JSON`, `FD_SCALES`); an empty `FD_FONT_JSON` gives pages-only legs, for a face the skill did not build.
+  Free on a public repository; about $0.40 a run on a private one (GitHub's per-minute prices read 2026-11-17,
+  jobs rounded up to whole minutes; macOS is most of it).
+- **`scripts/compare-shots.py`**: one PNG per row stacking every leg's crop at `--zoom` (nearest-neighbour, so
+  subpixel colour stays visible), labels from each leg's meta (OS, browser from the user agent, scale, Windows
+  ClearType from `FontSmoothingType`), an ink figure measured against the crop's own background, and `compare.md`
+  with the smallest sizes first. Rows pair across legs by key and by text, size, weight and style; a leg without
+  its record is refused and the others are still compared.
+- **`scripts/shoot_playwright.py`** and `requirements-platform.txt` (`playwright==1.64.1`, optional): `shoot.py
+  --browser firefox` drives Firefox through Playwright against the same server, tokens, cookie and sentinel proofs
+  as Chrome. Without Playwright it exits 3, `SKIPPED, NOT PASSED`. On macOS Firefox could not open its profile
+  under `~/Library/Application Support/Firefox`; `launch_env()` points `CFFIXED_USER_HOME` at a reused folder
+  (the cause inferred from that workaround, not traced). `check-env.py` reports Playwright as optional.
+- **`shoot.py`**: `--rows` (each `data-fd-row` and probed element's viewport box, written to `<stem>.rows.json`
+  only after every proof passed; a scrolled shot is refused), `--meta FILE` (platform, browser user agent, Windows
+  font-smoothing registry values, every verified shot, the failures), fractional `--scales` (`@1.25x`), repeatable
+  `--font-url`, `--browser`. Windows teardown: `taskkill /T /F` before the parent is killed, a bounded wait for
+  stdout EOF, and a profile folder whose failed cleanup is a logged departure, not a crash.
+- **`specimen.py`**: every family row carries a unique `data-fd-row` key; a duplicate key refuses the page.
+- **`.github/workflows/platform-shots.yml`**: the template filled for the neutral fixture, run on pull requests
+  that touch these tools: the release proof that they run on Windows and macOS.
+
+### Designed, not built
+- **WebKit.** Playwright's WebKit is not Safari, and the macOS runner bills the most; a `safaridriver` leg is the
+  better future item (plan section 2.4).
+
+### Changed
+- The "not checked on Windows" wording in `SKILL.md`, `references/` and the record template becomes a two-way
+  record line: the run's result, or "not checked" with the claim it limits. Traps row 21 records the one
+  Driftwood observation (2026-11-17).
+
+### Added (folded in from the unreleased lint work)
 - **JavaScript and shell lint** (issue #3). A `lint` CI job runs ESLint 10.14.0 (pinned, through npx; `eslint.config.js`, correctness rules only)
   over `scripts/*.js` and `scripts/concepts/*.js`, and shellcheck over `scripts/smoke.sh`, as `npm run lint:js` and `npm run lint:sh`. Both
   pass the 0.2.0 tree unchanged. Detail and guards: `references/testing.md` section 8.
