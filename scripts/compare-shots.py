@@ -198,6 +198,13 @@ def load_leg(leg_dir, refused):
         if not isinstance(vw, (int, float)) or not isinstance(rows.get("width"), (int, float)) or abs(vw - rows["width"]) > WIDTH_SLACK:
             refuse(f"laid out {vw} px wide for a {rows.get('width')} px shot: the boxes belong to another layout", shot=png_name)
             continue
+        size, want = png_size(png), None
+        if isinstance(rows.get("height"), (int, float)) and isinstance(rows.get("scale"), (int, float)):
+            want = (round(rows["width"] * rows["scale"]), round(rows["height"] * rows["scale"]))
+        if size is None or want is None or abs(size[0] - want[0]) > 1 or abs(size[1] - want[1]) > 1:
+            refuse(f"the PNG is {size} px and the rows file describes a {want} px shot: the boxes are not its coordinates",
+                   shot=png_name)
+            continue
         try:
             unit = (str(rows["page"]), int(rows["width"]), float(rows["scale"]))
         except (KeyError, TypeError, ValueError) as exc:
@@ -276,10 +283,22 @@ def px_of(size):
         return float("inf")
 
 
-def same_element(a, b):
-    """Whether two legs' rows describe the same element: equal text, weight and style, and sizes within SIZE_SLACK."""
-    return (all(a.get(f) == b.get(f) for f in ("text", "font_weight", "font_style"))
-            and abs(px_of(a.get("font_size")) - px_of(b.get("font_size"))) <= SIZE_SLACK)
+def same_element(rows):
+    """Whether every leg's row describes the same element: equal text, weight and style, and all sizes within SIZE_SLACK
+    of each other (the largest minus the smallest, so three legs cannot drift apart while each stays near the first)."""
+    sizes = [px_of(r.get("font_size")) for r in rows]
+    return (all(r.get(f) == rows[0].get(f) for r in rows for f in ("text", "font_weight", "font_style"))
+            and max(sizes) - min(sizes) <= SIZE_SLACK)
+
+
+def png_size(path):
+    """(width, height) from a PNG's IHDR chunk, or None for a file that is not a PNG. Read without Pillow, so the loader
+    can check a shot before any image library is needed."""
+    with open(path, "rb") as f:
+        head = f.read(24)
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        return None
+    return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
 
 
 def compare(out_dir, legs, zoom, only_keys):
@@ -325,7 +344,7 @@ def compare(out_dir, legs, zoom, only_keys):
             if uncaptured:
                 below.append({**entry, "legs": uncaptured, "font_size": rows[0].get("font_size"), "text": rows[0].get("text")})
                 continue
-            if not all(same_element(r, rows[0]) for r in rows):
+            if not same_element(rows):
                 mismatched.append({**entry, "fields": [{f: r.get(f) for f in MATCH_FIELDS} for r in rows],
                                    "reason": "text or computed style differs: not the same element in every leg"})
                 continue

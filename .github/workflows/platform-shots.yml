@@ -198,11 +198,14 @@ jobs:
         run: |
           source .fd-slots.sh
           python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages "${PAGES[@]}" --widths 1280 --scales "${SCALES[@]}" --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --meta leg/meta-pages.json --bands none --jobs 2
-      - name: the shoot.py tests of the Windows teardown, fractional scales, the meta file and the rows, run natively on this runner (F010)
+      - name: the shoot.py tests of the Windows teardown, fractional scales, the meta file and the rows, run natively on this runner (F010), and on Chrome legs the Playwright Chrome test
         if: ${{ !cancelled() && env.LEG_ON == 'true' }}
         run: |
-          python -m pip install pytest
-          python -m pytest tests/test_shoot.py -q -rs -k "kill or fraction or meta or rows or profile"
+          python -m pip install pytest pillow
+          K="kill or fraction or meta or rows or profile"
+          # Chrome legs only: on Ubuntu only they let Chrome use its sandbox, which the Playwright launch keeps on
+          if [ "$BROWSER" = "chrome" ]; then K="$K or lays_the_page_out"; fi
+          python -m pytest tests/test_shoot.py tests/test_shoot_playwright.py -q -rs -k "$K"
       # the artifact's root is leg/ itself, so download-artifact puts meta*.json at legs/<artifact name>/ (F001)
       - uses: actions/upload-artifact@v4
         if: always() && env.LEG_ON == 'true'

@@ -283,3 +283,33 @@ def test_playwright_chrome_lays_the_page_out_at_the_shots_width_and_passes_every
     assert doc["viewport_w"] == 1280 and doc["viewport_h"] == 900, doc
     from PIL import Image
     assert Image.open(png).size == (round(1280 * scale), round(900 * scale))
+
+
+def test_capture_launches_chrome_with_its_sandbox_and_without_the_gpu(monkeypatch, tmp_path):
+    """Playwright starts Chrome with --no-sandbox unless chromium_sandbox=True is passed, and adds no --disable-gpu, so
+    the Playwright leg would draw on another raster path from the command-line launch (Impasse review of bd24d55, F001 and
+    F002). A stand-in for Playwright records the launch's arguments and refuses to start, so this runs without Playwright:
+    capture() returns that refusal as its error, and the launch carried the sandbox, the flag and the binary. Mutations
+    watched red on 2026-11-17: chromium_sandbox=True removed; args=["--disable-gpu"] removed."""
+    seen = {}
+
+    class Chromium:
+        def launch(self, **kw):
+            seen.update(kw)
+            raise RuntimeError("stand-in: not launching")
+
+    class PW:
+        chromium = Chromium()
+
+        def stop(self):
+            pass
+
+    class Start:
+        def start(self):
+            return PW()
+    monkeypatch.setattr(shoot_playwright, "require", lambda: (lambda: Start(), TimeoutError))
+    cap = shoot_playwright.capture("chrome", "http://127.0.0.1:9/x.html", tmp_path / "x.png", 1280, 900, 1, 30, executable="/bin/chrome")
+    assert cap.error and "stand-in" in cap.error, cap
+    assert seen.get("chromium_sandbox") is True, seen
+    assert "--disable-gpu" in (seen.get("args") or []), seen
+    assert seen.get("executable_path") == "/bin/chrome", seen

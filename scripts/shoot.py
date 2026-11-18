@@ -1142,6 +1142,9 @@ def main(argv=None):
         sys.exit("refused: --family needs the sentinel; drop --no-sentinel")
     if args.probe and not args.family:
         sys.exit("refused: --probe needs --family to say which face the elements must be drawn in")
+    if args.rows and not (args.family and args.font_url):
+        sys.exit("refused: --rows needs --family and --font-url: compare-shots.py reads every rows file as evidence of the font, "
+                 "and a shot without both proofs is a picture, not evidence")
     if args.require_captured and not args.rows:
         sys.exit("refused: --require-captured reads the rows; add --rows")
     if args.rows and args.no_sentinel:

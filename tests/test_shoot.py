@@ -1441,3 +1441,18 @@ def test_launcher_combinations_that_cannot_run_are_refused(tmp_path, argv, why):
     with pytest.raises(SystemExit) as exc:
         shoot.main([str(tmp_path / "o"), "--serve", str(tmp_path), "--pages", "x.html", *argv])
     assert why in str(exc.value.code), exc.value.code
+
+
+
+@pytest.mark.parametrize("missing", ["--family", "--font-url"])
+def test_rows_without_both_font_proofs_are_refused(tmp_path, missing):
+    """compare-shots.py reads every rows file as evidence of the font, and a shot without --family and --font-url is a
+    picture, not evidence; so --rows without either is refused before any server starts (Impasse review of bd24d55,
+    F003). Mutation watched red on 2026-11-17: the refusal removed (main goes on to serve and shoot)."""
+    argv = [str(tmp_path / "o"), "--serve", str(tmp_path), "--pages", "x.html", "--rows",
+            "--family", "Probe", "--font-url", "/fonts/Probe.woff2"]
+    i = argv.index(missing)
+    del argv[i:i + 2]
+    with pytest.raises(SystemExit) as exc:
+        shoot.main(argv)
+    assert "--rows needs --family and --font-url" in str(exc.value.code), exc.value.code

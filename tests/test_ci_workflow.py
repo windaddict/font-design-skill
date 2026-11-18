@@ -165,8 +165,10 @@ def test_the_platform_template_is_manual_runs_three_oses_and_two_browsers_withou
     ff = [s for s in steps(doc, "shots") if "playwright install" in s.get("run", "")]
     assert ff and all('if [ "$BROWSER" = "firefox" ]' in s["run"].split("playwright install")[0] for s in ff), \
         "Firefox must be installed in its legs only"
-    shoots = [s["run"] for s in steps(doc, "shots") if "shoot.py" in s.get("run", "")]
-    assert shoots and all("--launcher playwright" in r for r in shoots), \
+    # each command line that runs shoot.py, not the step's whole text, so a flag left in a comment does not count
+    shoots = [ln for s in steps(doc, "shots") for ln in s.get("run", "").splitlines()
+              if "shoot.py" in ln and not ln.lstrip().startswith("#") and "pytest" not in ln]
+    assert len(shoots) == 2 and all("--launcher playwright" in ln.split("#", 1)[0] for ln in shoots), \
         "every leg must shoot through Playwright: Chrome's command line on Windows measures rows on a narrower layout"
     build = [s for s in steps(doc, "shots") if 'eval "$FD_BUILD"' in s.get("run", "")]
     assert build and "env.FD_BUILD != ''" in build[0]["if"], "FD_BUILD must run, and only when the slot is set (F002)"
@@ -280,6 +282,8 @@ def test_the_skills_platform_workflow_is_the_template_with_the_neutral_slots_fil
     assert need <= set(pr["paths"]), f"the pull_request paths lack {sorted(need - set(pr['paths']))}"
     extra = [s for s in steps(wf, "shots") if "pytest tests/test_shoot.py" in s.get("run", "")]
     assert len(extra) == 1 and " -k " in extra[0]["run"], "the per-leg pytest step (F010) is missing"
+    assert "tests/test_shoot_playwright.py" in extra[0]["run"] and 'K="$K or lays_the_page_out"' in extra[0]["run"], \
+        "the Chrome legs must run the Playwright Chrome test (Impasse review of bd24d55, F006)"
     wf["jobs"]["shots"]["steps"].remove(extra[0])
     for k in SLOTS:
         tpl["env"][k] = env[k]

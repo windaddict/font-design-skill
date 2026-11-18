@@ -36,7 +36,10 @@ scaling and ClearType tuning differ), not Safari, not phones. It is a record lin
   shot, so its row boxes were cropped from the wrong place (run 44227825840). A rows file measured on a page more than
   2 px wider or narrower than its shot now fails the shot in `shoot.py` and is refused by `compare-shots.py`.
 - `compare-shots.py` pairs font sizes that agree to 1/16 px: Firefox reports 16.8125px where Chrome says 16.8px, and
-  run 44227825840 dropped every such row as a mismatch.
+  run 44227825840 dropped every such row as a mismatch; all legs' sizes must lie within 1/16 px of each other.
+- From the Impasse review of that change: Chrome through Playwright keeps its sandbox and `--disable-gpu`, as the
+  command line does; `--rows` needs `--family` and `--font-url`; `compare-shots.py` refuses a PNG whose size is not
+  the shot its rows file describes; the Chrome legs run the Playwright Chrome test natively.
 - **`shoot.py`**: `--rows` (each `data-fd-row` and probed element's viewport box, written to `<stem>.rows.json`
   only after every proof passed; a scrolled shot is refused), `--meta FILE` (platform, browser user agent, Windows
   font-smoothing registry values, every verified shot, the failures), fractional `--scales` (`@1.25x`), repeatable

@@ -358,3 +358,28 @@ def test_compare_refuses_a_shot_laid_out_at_another_width(tmp_path):
     code, md, data = run(tmp_path / "out", [a, b, c])
     assert code == 0 and len(data["legs"]) == 2, md
     assert "laid out 284 px wide for a 300 px shot" in section(md, "Refused"), md
+
+
+
+def test_compare_refuses_a_png_whose_size_is_not_the_shot_the_rows_describe(tmp_path):
+    """The rows file says 300 x 200 at scale 1, the PNG beside it is 300 x 180 (cropped short): that shot is refused naming
+    both sizes, the other legs are compared (Impasse review of bd24d55, F004: the width check read only the rows file).
+    Mutation watched red on 2026-11-17: the PNG size check removed (three legs accepted)."""
+    a = make_leg(tmp_path, "A", [shot(rows=THREE)])
+    b = make_leg(tmp_path, "B", [shot(rows=THREE)], platform=WIN)
+    c = make_leg(tmp_path, "C", [shot(rows=THREE)])
+    png = c / "x-300@1x.png"
+    Image.open(png).crop((0, 0, 300, 180)).save(png)
+    code, md, data = run(tmp_path / "out", [a, b, c])
+    assert code == 0 and len(data["legs"]) == 2, md
+    assert "the PNG is (300, 180) px and the rows file describes a (300, 200) px shot" in section(md, "Refused"), md
+
+
+def test_compare_needs_every_legs_size_within_a_sixteenth_of_every_other(tmp_path):
+    """16.75, 16.8125 and 16.6875 px: each of the last two is within 1/16 px of the first, but they are 0.125 px apart, so
+    the row is not one element in every leg (Impasse review of bd24d55, F005). Mutation watched red on 2026-11-17: each
+    row compared with the first leg's only (the row is cropped)."""
+    legs = [make_leg(tmp_path, n, [shot(rows=[row("a", size=s)])]) for n, s in (("A", "16.75px"), ("B", "16.8125px"), ("C", "16.6875px"))]
+    code, md, data = run(tmp_path / "out", legs)
+    assert data["rows"] == [], data["rows"]
+    assert "`a`" in section(md, "Mismatched"), md

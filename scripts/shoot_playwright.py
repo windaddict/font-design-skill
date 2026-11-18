@@ -148,7 +148,9 @@ def capture(browser, url, out_png, width, height, scale, timeout, dump_dom=False
         if browser == "firefox":
             br = pw.firefox.launch(env=launch_env(), timeout=ms_left())
         else:
-            br = pw.chromium.launch(executable_path=str(executable), timeout=ms_left())
+            # Playwright turns Chrome's sandbox off unless asked (chromium_sandbox defaults to False); keep it, as the command
+            # line does, and keep --disable-gpu so both launchers draw through the same raster path
+            br = pw.chromium.launch(executable_path=str(executable), chromium_sandbox=True, args=["--disable-gpu"], timeout=ms_left())
         ctx = br.new_context(viewport={"width": width, "height": height}, device_scale_factor=scale)
         page = ctx.new_page()
         page.goto(url, wait_until="networkidle", timeout=ms_left())
