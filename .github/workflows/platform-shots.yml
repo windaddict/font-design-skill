@@ -43,6 +43,7 @@ on:
       - scripts/shoot.py
       - scripts/shoot_playwright.py
       - scripts/specimen.py
+      - scripts/specimen.html.tmpl
       - scripts/compare-shots.py
       - templates/platform-shots.yml
       - requirements-platform.txt
@@ -185,7 +186,7 @@ jobs:
         if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
         run: |
           source .fd-slots.sh
-          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --rows --meta leg/meta-specimen.json --bands none --jobs 2
+          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --rows --require-captured --meta leg/meta-specimen.json --bands none --jobs 2
       - name: shoot the pages
         # runs after a failed specimen shot too, so one failure does not lose the other invocation's evidence
         if: ${{ !cancelled() && env.LEG_ON == 'true' }}

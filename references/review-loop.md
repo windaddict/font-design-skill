@@ -93,8 +93,8 @@ protocol was written down.
   `workflow_dispatch` needs it there), and runs `gh workflow run platform-shots.yml`. Each **leg** is one
   runner OS and one browser: Windows Server, macOS and Ubuntu runners, each in Chrome and in Playwright's
   Firefox. A leg runs the site's copy of `shoot.py` at 1280 px and device scales 1 and 1.25 on the
-  specimen (only when the site has a `font.json`; shot with `--height 6000` so every row is inside the
-  capture) and on the named pages, always with `--family`, `--font-url`, `--rows` and `--meta`. Then a
+  specimen (only when the site has a `font.json`; shot with `--height 6000` and `--require-captured`, so a row
+  below the capture fails the leg instead of dropping out of the comparison) and on the named pages, always with `--family`, `--font-url`, `--rows` and `--meta`. Then a
   compare job runs `compare-shots.py` over every leg that finished. Read the result with
   `gh run download -n platform-shots-compare`: `compare.md` and one PNG per row.
   - `--browser firefox` shoots through `scripts/shoot_playwright.py` (Playwright's own Firefox build,

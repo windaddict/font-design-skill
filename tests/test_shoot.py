@@ -1334,3 +1334,34 @@ def test_chrome_is_given_an_absolute_screenshot_path_when_the_output_folder_is_r
     arg = next(a for a in seen["cmd"] if a.startswith("--screenshot="))[len("--screenshot="):]
     assert pathlib.Path(arg).is_absolute(), f"Chrome was given a relative screenshot path: {arg}"
     assert pathlib.Path(arg) == (tmp_path / "leg" / "x-1280@1x.png").resolve()
+
+
+@pytest.mark.parametrize("codes, ok", [([200], True), ([200, 200], True), ([200, 404], False), ([404, 200], False), ([304], False)])
+def test_check_font_urls_needs_every_response_for_a_named_path_to_be_200(codes, ok):
+    """The rule says every response this shot got for a named font path was 200. A path requested twice, once 200 and
+    once 404, passed while `200 in` the list was the test (Impasse F004). Mutation watched red on 2026-11-17:
+    `if 200 not in mine` restored (the two mixed cases pass)."""
+    served = [("s1", "/fonts/A.woff2", "", c) for c in codes]
+    if ok:
+        assert shoot.check_font_urls(served, ["/fonts/A.woff2"], "/x.html", "s1") == codes
+    else:
+        with pytest.raises(RuntimeError, match="not served 200"):
+            shoot.check_font_urls(served, ["/fonts/A.woff2"], "/x.html", "s1")
+
+
+def test_chrome_require_captured_fails_a_shot_with_a_row_below_the_capture(site, tmp_path):
+    """--require-captured (Impasse F002): the ROWS_BODY page has r-c at top 3000, below the 2400 capture. With
+    require_captured the shot raises, naming r-c, and writes no rows file; without it the same page passes (so the
+    page itself is fine and the failure is the flag's). Mutation watched red on 2026-11-17: the check removed."""
+    path = page(site, "rowsbelow", ROWS_BODY)
+    server, port = served(site, family="Probe")
+    try:
+        url = f"http://127.0.0.1:{port}{path}"
+        with pytest.raises(RuntimeError, match=r"end below the 2400 px capture \(r-c\)"):
+            shoot.shoot(url, tmp_path / "b.png", 500, 1, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True,
+                        require_captured=True)
+        assert not (tmp_path / "b.rows.json").exists()
+        res = shoot.shoot(url, tmp_path / "ok.png", 500, 1, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True)
+        assert res["rows"]
+    finally:
+        server.shutdown()

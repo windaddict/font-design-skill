@@ -133,7 +133,7 @@ def test_the_platform_template_is_manual_runs_three_oses_and_two_browsers_withou
     and meta, the specimen 6000 px tall; the download keeping one directory per artifact under legs/, read by `legs/*/`; Firefox
     installed in its legs only; FD_BUILD and the specimen steps conditioned on their slots; every step after checkout conditioned on the
     browsers input. Mutations watched red on 2026-11-17: `--family` dropped from the pages shoot line (a picture, not evidence);
-    `merge-multiple: true`; the download's `path` removed; `--height 6000` dropped; `if: always()` removed from the compare job."""
+    `merge-multiple: true`; the download's `path` removed; `--height 6000` dropped; `if: always()` removed from the compare job; `--require-captured` dropped."""
     doc = load(TEMPLATE)
     assert list(doc["on"]) == ["workflow_dispatch"], f"the template must run by hand only: {list(doc['on'])}"
     assert set(doc["on"]["workflow_dispatch"]["inputs"]) == {"pages", "scales", "font_urls", "family", "browsers"}, \
@@ -157,6 +157,7 @@ def test_the_platform_template_is_manual_runs_three_oses_and_two_browsers_withou
             assert flag in line, f"a shoot line lacks {flag.strip()}: {line}"
     spec = next(t for t in shoot if "review/specimen.html" in t)
     assert "--height 6000" in spec, "the specimen must be shot 6000 px tall, or most rows are below the capture (F004)"
+    assert "--require-captured" in spec, "the specimen must fail a row below its capture, not drop it (Impasse F002)"
     dl = next(s for s in steps(doc, "compare") if str(s.get("uses", "")).startswith("actions/download-artifact@"))
     assert dl["with"].get("pattern") == "platform-shots-*" and dl["with"].get("path") == "legs" and dl["with"].get("merge-multiple") is False, \
         f"the download must keep one directory per artifact under legs/ (F001): {dl['with']}"
@@ -262,14 +263,15 @@ def test_the_skills_platform_workflow_is_the_template_with_the_neutral_slots_fil
     """.github/workflows/platform-shots.yml is the template with its slots filled for the neutral fixture and exactly two additions: the
     `pull_request` trigger with its paths, and the per-leg `pytest tests/test_shoot.py -k ...` step (F010). Compared as parsed YAML, so
     the header comments may differ and nothing else may. Mutations watched red on 2026-11-17: `--jobs 2` changed to `--jobs 3` in the
-    workflow only; `scripts/compare-shots.py` dropped from the paths; the pytest step removed."""
+    workflow only; `scripts/compare-shots.py` dropped from the paths; the pytest step removed; `scripts/specimen.html.tmpl` dropped from the
+    paths (Impasse F006)."""
     tpl, wf = load(TEMPLATE), load(PLATFORM)
     env = wf["env"]
     assert env["FD_SCRIPTS"] == "scripts" and env["FD_FAMILY"] == "Sampler" and env["FD_FONT_JSON"] == "examples/neutral/font.json", env
     assert "scripts/build.py --font examples/neutral/font.json" in env["FD_BUILD"] and "tests/fixtures/site-sample" in env["FD_BUILD"], \
         "FD_BUILD must build the neutral font and stage the fixture site (F002)"
     pr = wf["on"].pop("pull_request")
-    need = {"scripts/shoot.py", "scripts/shoot_playwright.py", "scripts/specimen.py", "scripts/compare-shots.py",
+    need = {"scripts/shoot.py", "scripts/shoot_playwright.py", "scripts/specimen.py", "scripts/specimen.html.tmpl", "scripts/compare-shots.py",
             "templates/platform-shots.yml", "requirements-platform.txt", ".github/workflows/platform-shots.yml"}
     assert need <= set(pr["paths"]), f"the pull_request paths lack {sorted(need - set(pr['paths']))}"
     extra = [s for s in steps(wf, "shots") if "pytest tests/test_shoot.py" in s.get("run", "")]

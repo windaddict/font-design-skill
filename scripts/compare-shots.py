@@ -139,6 +139,9 @@ def load_leg(leg_dir, refused):
         except (OSError, ValueError) as exc:
             refuse(f"{mf.name} is not readable JSON ({exc})")
             continue
+        if not isinstance(meta, dict):
+            refuse(f"{mf.name} is JSON but not an object")
+            continue
         metas.append((mf.name, meta))
         for shot in meta.get("shots") or []:
             listed.append((mf.name, shot))
@@ -149,7 +152,8 @@ def load_leg(leg_dir, refused):
         return None
     shots = {}
     for mf_name, shot in listed:
-        png_name = pathlib.Path(str(shot.get("png") or "")).name
+        # the last part after / or \: a Windows leg records leg\x.png, which pathlib on this Linux job reads as one name
+        png_name = re.split(r"[\\/]", str(shot.get("png") or ""))[-1]
         if not png_name:
             refuse(f"a shot in {mf_name} has no PNG", shot=None)
             continue
@@ -169,6 +173,9 @@ def load_leg(leg_dir, refused):
             rows = read_json(rf)
         except (OSError, ValueError) as exc:
             refuse(f"{rf.name} is not readable JSON ({exc})", shot=png_name)
+            continue
+        if not isinstance(rows, dict) or not isinstance(rows.get("rows", []), list):
+            refuse(f"{rf.name} is JSON but not a rows object", shot=png_name)
             continue
         sx, sy = rows.get("scroll_x", 0) or 0, rows.get("scroll_y", 0) or 0
         if sx or sy:

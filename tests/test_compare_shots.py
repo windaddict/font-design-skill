@@ -276,3 +276,35 @@ def test_chrome_compare_reads_a_rows_file_shoot_py_wrote(tmp_path):
     assert code == 0 and data["refused"] == [] and data["mismatched"] == [], md
     assert sorted(r["key"] for r in data["rows"]) == ["r0", "r1", "r2"], md
     assert all(pathlib.Path(tmp_path / "out" / r["png"]).is_file() for r in data["rows"])
+
+
+def test_compare_reads_a_windows_legs_backslash_png_path(tmp_path):
+    """A Windows leg's meta records its PNG as leg\\x-300@1x.png (str() of a relative path there). The compare job runs on
+    Linux, where pathlib reads that string as one file name, so the leg was refused as "the PNG is not in the leg"
+    (Impasse F001). Here the Windows leg is accepted and its rows compared. Mutation watched red on 2026-11-17:
+    `pathlib.Path(...).name` restored (one leg accepted, exit 1)."""
+    a = make_leg(tmp_path, "A", [shot(rows=THREE)])
+    b = make_leg(tmp_path, "B", [shot(rows=THREE)], platform=WIN)
+    meta = json.loads((b / "meta.json").read_text(encoding="utf-8"))
+    for s in meta["shots"]:
+        s["png"] = s["png"].replace("/", "\\")
+    assert meta["shots"][0]["png"] == "leg\\x-300@1x.png", meta["shots"]
+    (b / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    code, md, data = run(tmp_path / "out", [a, b])
+    assert code == 0 and len(data["legs"]) == 2, md
+    assert sorted(r["key"] for r in data["rows"]) == ["a", "b", "c"], data
+
+
+@pytest.mark.parametrize("bad", ["meta", "rows"])
+def test_compare_refuses_json_of_the_wrong_shape_and_compares_the_other_legs(tmp_path, bad):
+    """A meta file, or a rows file, that is valid JSON but a list: that leg is refused and listed, the other two legs are
+    still compared, exit 0 (Impasse F005: it raised AttributeError and ended the run). Mutations watched red on
+    2026-11-17: each isinstance check removed (AttributeError)."""
+    a = make_leg(tmp_path, "A", [shot(rows=THREE)])
+    b = make_leg(tmp_path, "B", [shot(rows=THREE)], platform=WIN)
+    c = make_leg(tmp_path, "C", [shot(rows=THREE)])
+    target = c / "meta.json" if bad == "meta" else c / "x-300@1x.rows.json"
+    target.write_text("[1, 2]", encoding="utf-8")
+    code, md, data = run(tmp_path / "out", [a, b, c])
+    assert code == 0 and len(data["legs"]) == 2, md
+    assert "is JSON but not" in section(md, "Refused"), md

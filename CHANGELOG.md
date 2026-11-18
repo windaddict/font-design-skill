@@ -55,6 +55,11 @@ scaling and ClearType tuning differ), not Safari, not phones. It is a record lin
   pass the 0.2.0 tree unchanged. Detail and guards: `references/testing.md` section 8.
 
 ### Fixed
+- From the Impasse review of the finished diff: `compare-shots.py` reads a Windows leg's `leg\x.png` path on the
+  Linux compare job, and refuses a meta or rows file of the wrong JSON shape instead of crashing; `shoot.py` fails a
+  font path when any response for it was not 200 (one 200 among them passed before); the specimen shot fails a row
+  below its capture (`--require-captured`) instead of leaving it out; the skill's workflow also runs when
+  `specimen.html.tmpl` changes.
 - On Windows, `shoot.py` now gives Chrome an absolute `--screenshot` path; Chrome there wrote nothing for a
   relative one. `build.py` reads and writes its files as UTF-8, not the Windows default cp1252.
 - `package.json` said 0.1.0 in the 0.2.0 release. `test_version_is_the_same_everywhere` now checks it too.

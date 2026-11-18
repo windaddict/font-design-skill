@@ -121,7 +121,8 @@ browser's version that works on every OS (chrome.exe --version prints nothing on
 
 --rows writes <png-stem>.rows.json beside each VERIFIED PNG, after every proof above has passed (a
 failed shot writes none; a verified shot whose rows never arrived is failed, "no rows arrived", never
-written half). The sentinel, after its probe, records every [data-fd-row] element and every element
+written half). --require-captured also fails a shot with any row whose captured is false. The
+sentinel, after its probe, records every [data-fd-row] element and every element
 the probe counted (key: the attribute, or probe-<n> in document order), each with x, y, w, h from
 getBoundingClientRect() in CSS px relative to the VIEWPORT, its own text (80 characters), computed
 font-size, font-weight and font-style, and captured (y + h within the shot's height, passed to the
@@ -845,7 +846,7 @@ def check_font_urls(served, paths, page, shot_id):
                   f"{'; ' + str(len(others)) + ' response(s) for that path belonged to other shots' if others else ''})")
         if mine:
             requested.append(path)
-            if 200 not in mine:
+            if any(code != 200 for code in mine):  # every response, not one of them (Impasse F004: [200, 404] passed)
                 raise RuntimeError(reason + "; the screenshot is not evidence of the font")
         else:
             reasons.append(reason)
@@ -922,7 +923,7 @@ def launch_firefox(url, target, width, scale, height, timeout, dump_dom):
 
 def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
           shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None, dom_only=False,
-          browser="chrome", rows=False):
+          browser="chrome", rows=False, require_captured=False):
     """One headless capture, verified. Returns a dict (png, dom, shot, font, width_face, width_fallback,
     font_status, probe, ua, page, width, height, scale, browser, rows). Raises RuntimeError naming the
     first failed proof; see the module header for the list. `server` is the one from serve(); without
@@ -931,7 +932,8 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
     header): png is None in the result, dump_dom is implied, and item 1 is "Chrome exited 0 and printed
     the DOM". `font_url` is one path or a list (item 5). `browser` is "chrome" or "firefox".
     `rows` (needs `server`) writes <png stem>.rows.json after every proof passed (the header's --rows
-    paragraph); `rows` in the result is its path, or None."""
+    paragraph); `rows` in the result is its path, or None. `require_captured` (with `rows`) fails a shot with any
+    row below the capture, for a page such as the specimen whose every row must be compared."""
     dump_dom = dump_dom or dom_only
     if browser not in BROWSERS:
         raise ValueError(f"browser {browser!r} is not one of {', '.join(BROWSERS)}")
@@ -1027,6 +1029,10 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
         if got is None:
             raise RuntimeError(f"no rows arrived for {page}?shot={shot_id}: the sentinel's POST to {ROWS_PATH} was not recorded "
                                f"(the browser exited first, or the request lacked the shot's cookie); the shot is not counted without them")
+        below = [r.get("key") for r in got["rows"] if r.get("captured") is not True]
+        if require_captured and below:
+            raise RuntimeError(f"{page}?shot={shot_id}: {len(below)} row(s) end below the {height} px capture "
+                               f"({', '.join(map(str, below[:5]))}); raise --height so every row is shot")
         doc = {"shot": shot_id, "page": page, "width": width, "height": height, "scale": scale,
                "scroll_x": got.get("scroll_x"), "scroll_y": got.get("scroll_y"),
                "viewport_w": got.get("viewport_w"), "viewport_h": got.get("viewport_h"),
@@ -1107,6 +1113,8 @@ def main(argv=None):
     ap.add_argument("--browser", choices=BROWSERS, default="chrome", help="chrome (its CLI) or firefox (Playwright's build; needs "
                     "requirements-platform.txt)")
     ap.add_argument("--rows", action="store_true", help="write <png stem>.rows.json (row boxes in viewport CSS px) beside each verified PNG")
+    ap.add_argument("--require-captured", action="store_true", help="with --rows, fail a shot with any row below the "
+                    "capture (the specimen, whose every row is compared)")
     ap.add_argument("--meta", metavar="FILE", help="write the run's platform, browser, font smoothing, verified shots and failures as JSON")
     args = ap.parse_args(argv)
     bad = [w for w in args.widths if w < MIN_WIDTH]
@@ -1119,6 +1127,8 @@ def main(argv=None):
         sys.exit("refused: --family needs the sentinel; drop --no-sentinel")
     if args.probe and not args.family:
         sys.exit("refused: --probe needs --family to say which face the elements must be drawn in")
+    if args.require_captured and not args.rows:
+        sys.exit("refused: --require-captured reads the rows; add --rows")
     if args.rows and args.no_sentinel:
         sys.exit("refused: --rows needs the sentinel (the boxes are measured in the page); drop --no-sentinel")
     if args.browser == "firefox" and args.dom_only:
@@ -1181,7 +1191,7 @@ def main(argv=None):
         try:
             res = shoot(url, png, width, scale, height=args.height, profile_root=out, server=server,
                         require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome, dom_only=args.dom_only,
-                        browser=args.browser, rows=args.rows)
+                        browser=args.browser, rows=args.rows, require_captured=args.require_captured)
             return res, scale
         except (RuntimeError, ValueError) as exc:  # one failed page must not end the run; it is reported at the end
             failed.append(str(exc))
