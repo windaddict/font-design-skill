@@ -216,6 +216,8 @@ RESULT_CODE_HUNG = 2  # content::RESULT_CODE_HUNG, what Chrome's macOS shutdown 
 TEARDOWN_WATCHDOG = "Teardown watchdog expired"  # the line that watchdog logs to stderr before it exits
 SHOT_COOKIE = "fd_shot"  # set by every .html response carrying ?shot=; ties this Chrome's later requests to the shot
 BROWSERS = ("chrome", "firefox")
+LAUNCHERS = ("cli", "playwright")  # how Chrome is started; Firefox is always started through Playwright
+LAYOUT_WIDTH_SLACK = 2  # CSS px: the page's innerWidth may differ from the shot's width by rounding (Linux Chrome at 1.25x: 1282)
 SMOOTHING_KEYS = ("FontSmoothing", "FontSmoothingType", "FontSmoothingGamma", "FontSmoothingOrientation")
 SHOT_TOKEN_OK = re.compile(r"^[A-Za-z0-9._-]{1,80}$")  # what may go into the Set-Cookie header
 # Returned by translate_path for a request that escapes its root. It lies under os.devnull, which is
@@ -907,15 +909,16 @@ def playwright_launcher():
     return shoot_playwright
 
 
-def launch_firefox(url, target, width, scale, height, timeout, dump_dom):
-    """Item 1 for --browser firefox: scripts/shoot_playwright.py's capture(), imported here so this
-    module's own imports stay standard-library only. An ImportError (Playwright absent) propagates:
-    main() turns it into exit 3 before any shot. Returns the DOM text (or None)."""
-    cap = playwright_launcher().capture("firefox", url, str(target), width, height, scale, timeout, dump_dom=dump_dom)
+def launch_playwright(browser, url, target, width, scale, height, timeout, dump_dom, executable=None):
+    """Item 1 for --browser firefox and for --browser chrome --launcher playwright: scripts/shoot_playwright.py's
+    capture(), imported here so this module's own imports stay standard-library only. An ImportError (Playwright
+    absent) propagates: main() turns it into exit 3 before any shot. Returns the DOM text (or None)."""
+    name = "Playwright's Firefox" if browser == "firefox" else "Chrome through Playwright"
+    cap = playwright_launcher().capture(browser, url, str(target), width, height, scale, timeout, dump_dom=dump_dom, executable=executable)
     if cap.error:
-        raise RuntimeError(f"Playwright's Firefox failed for {url} at {width}@{scale:g}x: {str(cap.error)[-400:]}")
+        raise RuntimeError(f"{name} failed for {url} at {width}@{scale:g}x: {str(cap.error)[-400:]}")
     if not target.is_file():
-        raise RuntimeError(f"Playwright's Firefox raised nothing but wrote no screenshot for {url} at {width}@{scale:g}x")
+        raise RuntimeError(f"{name} raised nothing but wrote no screenshot for {url} at {width}@{scale:g}x")
     if dump_dom and not (cap.dom_text or "").strip():
         raise RuntimeError(f"--dump-dom produced no DOM for {url}; the screenshot is kept but the run is not verified")
     return cap.dom_text if dump_dom else None
@@ -923,7 +926,7 @@ def launch_firefox(url, target, width, scale, height, timeout, dump_dom):
 
 def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, timeout=300, server=None,
           shot_id=None, require_family=None, font_url=None, dump_dom=False, chrome=None, dom_only=False,
-          browser="chrome", rows=False, require_captured=False):
+          browser="chrome", rows=False, require_captured=False, launcher="cli"):
     """One headless capture, verified. Returns a dict (png, dom, shot, font, width_face, width_fallback,
     font_status, probe, ua, page, width, height, scale, browser, rows). Raises RuntimeError naming the
     first failed proof; see the module header for the list. `server` is the one from serve(); without
@@ -931,14 +934,18 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
     ("verified": False). `dom_only` asks Chrome for the DOM and no screenshot (see --dom-only in the
     header): png is None in the result, dump_dom is implied, and item 1 is "Chrome exited 0 and printed
     the DOM". `font_url` is one path or a list (item 5). `browser` is "chrome" or "firefox".
+    `launcher` is "cli" (Chrome's command line) or "playwright" (Chrome driven by Playwright; Firefox always is).
     `rows` (needs `server`) writes <png stem>.rows.json after every proof passed (the header's --rows
     paragraph); `rows` in the result is its path, or None. `require_captured` (with `rows`) fails a shot with any
     row below the capture, for a page such as the specimen whose every row must be compared."""
     dump_dom = dump_dom or dom_only
     if browser not in BROWSERS:
         raise ValueError(f"browser {browser!r} is not one of {', '.join(BROWSERS)}")
-    if browser != "chrome" and dom_only:
-        raise ValueError("--dom-only is a Chrome mode; Playwright's Firefox always takes the screenshot")
+    if launcher not in LAUNCHERS:
+        raise ValueError(f"launcher {launcher!r} is not one of {', '.join(LAUNCHERS)}")
+    via_playwright = browser == "firefox" or launcher == "playwright"
+    if via_playwright and dom_only:
+        raise ValueError("--dom-only is a mode of Chrome's command line; a Playwright capture always takes the screenshot")
     if rows and (server is None or not server.sentinel):
         raise ValueError("rows need the server and its sentinel: the boxes are measured in the page")
     if width < MIN_WIDTH:
@@ -964,10 +971,10 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
             server.departures.append(text)
         else:
             print(f"shoot.py: NOTE: {text}", file=sys.stderr)
-    if browser == "chrome":
+    if not via_playwright:
         dom_text = launch_chrome(chrome, url, target, width, scale, height, profile_root, timeout, dump_dom, dom_only, note)
     else:
-        dom_text = launch_firefox(url, target, width, scale, height, timeout, dump_dom)
+        dom_text = launch_playwright(browser, url, target, width, scale, height, timeout, dump_dom, executable=chrome)
     if dump_dom:
         dom_path.write_text(dom_text, encoding="utf-8")
     page = urllib.parse.urlparse(url).path
@@ -1029,6 +1036,11 @@ def shoot(url, out_png, width, scale, height=DEFAULT_HEIGHT, profile_root=None, 
         if got is None:
             raise RuntimeError(f"no rows arrived for {page}?shot={shot_id}: the sentinel's POST to {ROWS_PATH} was not recorded "
                                f"(the browser exited first, or the request lacked the shot's cookie); the shot is not counted without them")
+        vw = got.get("viewport_w")
+        if not isinstance(vw, (int, float)) or abs(vw - width) > LAYOUT_WIDTH_SLACK:
+            raise RuntimeError(f"{page}?shot={shot_id}: the rows were measured on a page {vw} px wide and the shot is {width} px "
+                               f"wide, so the boxes belong to another layout (Chrome's command line on Windows does this; "
+                               f"use --launcher playwright)")
         below = [r.get("key") for r in got["rows"] if r.get("captured") is not True]
         if require_captured and below:
             raise RuntimeError(f"{page}?shot={shot_id}: {len(below)} row(s) end below the {height} px capture "
@@ -1112,6 +1124,9 @@ def main(argv=None):
     ap.add_argument("--seconds", type=int, default=600, help="the server shuts itself down after this long")
     ap.add_argument("--browser", choices=BROWSERS, default="chrome", help="chrome (its CLI) or firefox (Playwright's build; needs "
                     "requirements-platform.txt)")
+    ap.add_argument("--launcher", choices=LAUNCHERS, default=None, help="how Chrome is started: cli (default, its command "
+                    "line) or playwright (needs requirements-platform.txt; the page is laid out at exactly --widths, which "
+                    "Chrome's command line on Windows does not do). Firefox is always started through Playwright")
     ap.add_argument("--rows", action="store_true", help="write <png stem>.rows.json (row boxes in viewport CSS px) beside each verified PNG")
     ap.add_argument("--require-captured", action="store_true", help="with --rows, fail a shot with any row below the "
                     "capture (the specimen, whose every row is compared)")
@@ -1131,8 +1146,11 @@ def main(argv=None):
         sys.exit("refused: --require-captured reads the rows; add --rows")
     if args.rows and args.no_sentinel:
         sys.exit("refused: --rows needs the sentinel (the boxes are measured in the page); drop --no-sentinel")
-    if args.browser == "firefox" and args.dom_only:
-        sys.exit("refused: --dom-only is a Chrome mode")
+    if args.browser == "firefox" and args.launcher == "cli":
+        sys.exit("refused: Firefox is started through Playwright only; drop --launcher cli")
+    args.launcher = args.launcher or ("playwright" if args.browser == "firefox" else "cli")
+    if args.launcher == "playwright" and args.dom_only:
+        sys.exit("refused: --dom-only is a mode of Chrome's command line; drop it or --launcher playwright")
     query = []
     for kv in args.query:
         if "=" not in kv:
@@ -1146,13 +1164,13 @@ def main(argv=None):
         except FileNotFoundError as exc:
             sys.exit(str(exc))
         launcher = chrome
-    else:
+    if args.launcher == "playwright":
         # the skip text and exit code come from the launcher module (imported lazily, standard library only at import),
         # so the two cannot drift; require() raises PlaywrightMissing (an ImportError) carrying SKIP_TEXT
         shoot_playwright = playwright_launcher()
         try:
             shoot_playwright.require()
-            launcher = f"playwright {importlib.metadata.version('playwright')}"
+            launcher = f"playwright {importlib.metadata.version('playwright')}" + (f" driving {chrome}" if chrome else "")
         except ImportError as exc:
             print(f"shoot.py: {exc.args[0] if isinstance(exc, shoot_playwright.PlaywrightMissing) else shoot_playwright.SKIP_TEXT}",
                   file=sys.stderr)
@@ -1191,7 +1209,7 @@ def main(argv=None):
         try:
             res = shoot(url, png, width, scale, height=args.height, profile_root=out, server=server,
                         require_family=args.family, font_url=args.font_url, dump_dom=args.dump_dom, chrome=chrome, dom_only=args.dom_only,
-                        browser=args.browser, rows=args.rows, require_captured=args.require_captured)
+                        browser=args.browser, rows=args.rows, require_captured=args.require_captured, launcher=args.launcher)
             return res, scale
         except (RuntimeError, ValueError) as exc:  # one failed page must not end the run; it is reported at the end
             failed.append(str(exc))

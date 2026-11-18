@@ -109,8 +109,10 @@ them when you edit the copy.
 
 ## No Playwright
 
-The platform run's Firefox legs need `playwright==1.64.1` from `requirements-platform.txt`; the template
-installs it in those legs only. On the operator's machine, `shoot.py --browser firefox` without the package
+The platform run's legs need `playwright==1.64.1` from `requirements-platform.txt`: every leg shoots through
+Playwright (`--launcher playwright` for Chrome), and the Firefox legs also download Playwright's Firefox. On the
+operator's machine Chrome needs no Playwright: without `--launcher`, `shoot.py` starts it from its command line,
+which lays out at the full width everywhere it was measured except a Windows runner. On the operator's machine, `shoot.py --browser firefox` without the package
 exits 3 with `SKIPPED, NOT PASSED` and the install command (`.venv/bin/pip install -r requirements-platform.txt`,
 then `.venv/bin/python3 -m playwright install firefox`), and `scripts/check-env.py` lists it as optional. A
 skipped Firefox leg is not a pass: the Chrome legs stand on their own, and the record says Firefox was not

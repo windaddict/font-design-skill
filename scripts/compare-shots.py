@@ -20,11 +20,15 @@ than one width), plus `compare.md` and `compare.json`; the path of `compare.md` 
 What is refused, each one listed under "Refused" in compare.md and the comparison going on without it: a leg folder
 with no `meta*.json`, a meta file that is not JSON, a leg whose meta files name no verified shot; a shot whose PNG is
 not in the leg, whose rows file is missing (shoot.py writes it only after every proof passed, so its absence means an
-unverified or hand-copied PNG), or whose page had scrolled (the boxes are viewport coordinates, which are PNG
-coordinates only at scroll 0). A row is cropped only when its key is in every accepted leg's shot of that page, width
-and scale, `captured` is true in every one, and its `text`, `font_size`, `font_weight` and `font_style` are equal in
-every one; otherwise it goes under "Not in every leg", "Below the capture" or "Mismatched" with the reason, and no
-PNG is written for it. Exit 0 when at least --min-legs legs (default 2) were accepted, whatever else was refused;
+unverified or hand-copied PNG), whose page had scrolled (the boxes are viewport coordinates, which are PNG coordinates
+only at scroll 0), or whose page was laid out more than 2 px narrower or wider than the shot (`viewport_w` against
+`width`: the boxes then belong to another layout; Chrome's command line on a Windows runner measured 1264 px for a
+1280 shot, and every row under a line that wrapped differently was cropped from the wrong place). A row is cropped
+only when its key is in every accepted leg's shot of that page, width and scale, `captured` is true in every one, its
+`text`, `font_weight` and `font_style` are equal in every one and its `font_size` agrees to 1/16 px (Firefox reports
+computed sizes rounded to 1/16 px: 16.8125px where Chrome says 16.8px); otherwise it goes under "Not in every leg",
+"Below the capture" or "Mismatched" with the reason, and no PNG is written for it. Exit 0 when at least --min-legs
+legs (default 2) were accepted, whatever else was refused;
 exit 1 below that, with compare.md still written so the reasons can be read; exit 1 also when Pillow is missing.
 
 The ink figure. For each crop, L_bg is the median luminance (Pillow's "L", ITU-R 601 luma) of the crop's one-pixel
@@ -59,6 +63,8 @@ MARGIN = 2  # CSS px added round every box
 LABEL_H = 16  # px of the label strip above each leg's crop
 BORDER_SPREAD = 32  # luminance levels: a crop border wider than this has no single background, so ink is n/a
 MATCH_FIELDS = ("text", "font_size", "font_weight", "font_style")
+SIZE_SLACK = 1 / 16 + 1e-6  # px: Firefox rounds a computed font-size to 1/16 px (16.8125 for Chrome's 16.8)
+WIDTH_SLACK = 2  # CSS px between the page's innerWidth and the shot's width (rounding; Linux Chrome at 1.25x read 1282)
 SMOOTHING_TYPE = {"2": "ClearType", "1": "grayscale"}
 ORIENTATION = {"1": "RGB", "0": "BGR"}
 
@@ -188,6 +194,10 @@ def load_leg(leg_dir, refused):
         if sx or sy:
             refuse(f"scrolled by {sx},{sy} px: boxes are not PNG coordinates", shot=png_name)
             continue
+        vw = rows.get("viewport_w")
+        if not isinstance(vw, (int, float)) or not isinstance(rows.get("width"), (int, float)) or abs(vw - rows["width"]) > WIDTH_SLACK:
+            refuse(f"laid out {vw} px wide for a {rows.get('width')} px shot: the boxes belong to another layout", shot=png_name)
+            continue
         try:
             unit = (str(rows["page"]), int(rows["width"]), float(rows["scale"]))
         except (KeyError, TypeError, ValueError) as exc:
@@ -266,6 +276,12 @@ def px_of(size):
         return float("inf")
 
 
+def same_element(a, b):
+    """Whether two legs' rows describe the same element: equal text, weight and style, and sizes within SIZE_SLACK."""
+    return (all(a.get(f) == b.get(f) for f in ("text", "font_weight", "font_style"))
+            and abs(px_of(a.get("font_size")) - px_of(b.get("font_size"))) <= SIZE_SLACK)
+
+
 def compare(out_dir, legs, zoom, only_keys):
     """Crops and writes every comparable row; returns (rows, mismatched, not_in_every_leg, below_capture)."""
     (image,) = need("PIL.Image")
@@ -309,7 +325,7 @@ def compare(out_dir, legs, zoom, only_keys):
             if uncaptured:
                 below.append({**entry, "legs": uncaptured, "font_size": rows[0].get("font_size"), "text": rows[0].get("text")})
                 continue
-            if any(tuple(r.get(f) for f in MATCH_FIELDS) != tuple(rows[0].get(f) for f in MATCH_FIELDS) for r in rows):
+            if not all(same_element(r, rows[0]) for r in rows):
                 mismatched.append({**entry, "fields": [{f: r.get(f) for f in MATCH_FIELDS} for r in rows],
                                    "reason": "text or computed style differs: not the same element in every leg"})
                 continue

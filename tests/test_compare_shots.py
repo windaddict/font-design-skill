@@ -327,3 +327,34 @@ def test_compare_refuses_a_meta_shot_entry_that_is_not_an_object(tmp_path):
     code, md, data = run(tmp_path / "out", [a, b])
     assert code == 0 and len(data["legs"]) == 2, md
     assert "lists a shot that is not an object" in section(md, "Refused"), md
+
+
+def test_compare_pairs_firefoxs_sixteenth_pixel_sizes_and_refuses_sizes_further_apart(tmp_path):
+    """Firefox reports a computed size rounded to 1/16 px (16.8125px for Chrome's 16.8px, platform-shots run 44227825840,
+    where every 16.8 px row went under Mismatched). Those pair; 16.9px against 16.8px (0.1 px apart) still does not.
+    Mutation watched red on 2026-11-17: exact string comparison of font_size restored (the 1/16 px pair mismatches)."""
+    chrome = [row("a", size="16.8px"), row("b", y=60, size="16.8px", text="Bay")]
+    firefox = [row("a", size="16.8125px"), row("b", y=60, size="16.9px", text="Bay")]
+    a = make_leg(tmp_path, "A", [shot(rows=chrome)])
+    b = make_leg(tmp_path, "B", [shot(rows=firefox, ua=FIREFOX_UA)], platform=WIN)
+    code, md, data = run(tmp_path / "out", [a, b])
+    assert code == 0, md
+    assert [r["key"] for r in data["rows"]] == ["a"], data["rows"]
+    assert "`b`" in section(md, "Mismatched") and "16.9px" in section(md, "Mismatched"), section(md, "Mismatched")
+
+
+def test_compare_refuses_a_shot_laid_out_at_another_width(tmp_path):
+    """A rows file with viewport_w 284 for a 300 px shot (16 px narrower, as Chrome's command line on a Windows runner
+    measured 1264 for 1280): that shot is refused naming both widths, the other legs are compared; 302 (2 px,
+    rounding) is accepted. Mutation watched red on 2026-11-17: the width check removed (three legs accepted)."""
+    a = make_leg(tmp_path, "A", [shot(rows=THREE)])
+    b = make_leg(tmp_path, "B", [shot(rows=THREE)], platform=WIN)
+    c = make_leg(tmp_path, "C", [shot(rows=THREE)])
+    for leg, w in ((b, 302), (c, 284)):
+        f = leg / "x-300@1x.rows.json"
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        doc["viewport_w"] = w
+        f.write_text(json.dumps(doc), encoding="utf-8")
+    code, md, data = run(tmp_path / "out", [a, b, c])
+    assert code == 0 and len(data["legs"]) == 2, md
+    assert "laid out 284 px wide for a 300 px shot" in section(md, "Refused"), md

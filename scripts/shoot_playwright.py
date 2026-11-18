@@ -1,15 +1,23 @@
-"""The Firefox launcher for shoot.py: takes one screenshot in Playwright's Firefox of a page shoot.py's server is serving.
+"""The Playwright launcher for shoot.py: takes one screenshot, in Playwright's Firefox or in an installed Chrome driven by
+Playwright, of a page shoot.py's server is serving.
 
 WHAT IT'S FOR: shoot.py proves a shot from the server's side (the tokenised page answered 200, the shot's cookie on every
 later request, the sentinel's beacon, the element and italic probes, the missing-character probe), so the same proofs hold
 for any browser pointed at the same URL. Chrome is launched through its command line; this module is the second launcher,
 so a platform run can also show what Firefox's own text path draws (on Windows it drew grayscale where Chrome drew
-subpixel; operator's measurement, 2026-11-17). shoot.py imports it only for `--browser firefox`, so shoot.py keeps a
-standard-library import block and a machine without Playwright loses nothing but this leg.
+subpixel; operator's measurement, 2026-11-17). shoot.py imports it only for `--browser firefox` and for
+`--browser chrome --launcher playwright`, so shoot.py keeps a standard-library import block and a machine without
+Playwright loses nothing but those legs.
 
-    capture(browser, url, out_png, width, height, scale, timeout, dump_dom=False) -> Capture(ua, dom_text, error)
+Why Chrome too: Chrome's command line on a Windows runner lays the page out in a window 16 px narrower than its
+--window-size (innerWidth 1264 for 1280, platform-shots run 44227825840) and then captures at 1280, so the row boxes the
+sentinel measured belonged to a different layout from the PNG (text that wrapped in 1264 px moved every row under it).
+Playwright sets the page's viewport itself, so the page is measured and captured at one width. `chrome` launches the
+Chrome binary shoot.py found (`executable`), not Playwright's own Chromium build: the leg is meant to show Google Chrome.
 
-`browser` is "firefox". "webkit" is refused (designed, not built: docs/plan-platform-shots.md section 2.5). Playwright is
+    capture(browser, url, out_png, width, height, scale, timeout, dump_dom=False, executable=None) -> Capture(ua, dom_text, error)
+
+`browser` is "firefox" or "chrome" (which needs `executable`). "webkit" is refused (designed, not built: docs/plan-platform-shots.md section 2.5). Playwright is
 imported inside capture() (through require()); when it is not installed, PlaywrightMissing is raised carrying SKIP_TEXT,
 and shoot.py turns that into exit 3, SKIPPED, NOT PASSED, never 0. A Playwright that is installed without its Firefox, and
 every other fault (a launch that fails, a navigation timeout, a screenshot error), is returned as `error`, and shoot.py
@@ -31,7 +39,7 @@ request had been in flight for half a second, was tried and removed: no page was
 even with the server taking 1.5 s to answer the beacon (the request is on the wire when the attribute appears, and the
 server records it whether or not the browser is still open).
 
-Exact guarantee: a returned Capture with error None means Playwright's Firefox loaded the URL, the page settled by the rule
+Exact guarantee: a returned Capture with error None means the browser Playwright launched loaded the URL, the page settled by the rule
 above, and Playwright wrote out_png and raised nothing (item 1 of shoot.py's list, for Firefox). It says nothing about the
 font: that is shoot.py's server proofs, which run on the same records as for Chrome. The browser is Playwright's own
 Firefox build at the version playwright==1.64.1 bundles (requirements-platform.txt), not Mozilla's release and not a
@@ -63,8 +71,8 @@ import tempfile
 import time
 
 EXIT_SKIPPED = 3
-SKIP_TEXT = ("SKIPPED, NOT PASSED: --browser firefox needs playwright: .venv/bin/pip install -r requirements-platform.txt, "
-             "then .venv/bin/python3 -m playwright install firefox")
+SKIP_TEXT = ("SKIPPED, NOT PASSED: --browser firefox and --launcher playwright need playwright: .venv/bin/pip install -r "
+             "requirements-platform.txt, then (for Firefox) .venv/bin/python3 -m playwright install firefox")
 WEBKIT_REFUSAL = ("--browser webkit is designed, not built: Playwright's WebKit is not Safari (not Safari's version, its "
                   "font loading or its font-synthesis), on Linux and Windows it draws through a text stack no reader has, and "
                   "Safari itself is on the macOS runner, where safaridriver is the better future leg (plan section 2.5)")
@@ -111,15 +119,19 @@ def launch_env():
     return {**os.environ, "CFFIXED_USER_HOME": firefox_home()}
 
 
-def capture(browser, url, out_png, width, height, scale, timeout, dump_dom=False):
+def capture(browser, url, out_png, width, height, scale, timeout, dump_dom=False, executable=None):
     """One Playwright capture of `url` into `out_png`, settled by the header's rule. Returns Capture(ua, dom_text, error):
     `ua` is the page's navigator.userAgent (None if the page never loaded), `dom_text` the serialised DOM when `dump_dom`
     (else None), `error` None or a one-line description of what failed. Raises ValueError for a browser it does not launch
-    and PlaywrightMissing when Playwright is not installed; it never raises for a fault in the run itself."""
+    and PlaywrightMissing when Playwright is not installed; it never raises for a fault in the run itself. `executable`
+    is the Chrome binary for browser "chrome" (required there, ignored for Firefox)."""
     if browser == "webkit":
         raise ValueError(WEBKIT_REFUSAL)
-    if browser != "firefox":
-        raise ValueError(f"shoot_playwright launches firefox only, not {browser!r}")
+    if browser not in ("firefox", "chrome"):
+        raise ValueError(f"shoot_playwright launches firefox and chrome only, not {browser!r}")
+    if browser == "chrome" and not executable:
+        raise ValueError("browser chrome needs the Chrome binary (executable): shoot.py passes the one it found")
+    name = "Firefox" if browser == "firefox" else "Chrome (through Playwright)"
     sync_playwright, PlaywrightTimeout = require()
     deadline = time.monotonic() + timeout
     ua = dom_text = None
@@ -128,12 +140,15 @@ def capture(browser, url, out_png, width, height, scale, timeout, dump_dom=False
     def ms_left():
         left = deadline - time.monotonic()
         if left <= 0:
-            raise TimeoutError(f"Firefox took over {timeout}s for {url}")
+            raise TimeoutError(f"{name} took over {timeout}s for {url}")
         return max(1, int(left * 1000))
 
     try:
         pw = sync_playwright().start()
-        br = pw.firefox.launch(env=launch_env(), timeout=ms_left())
+        if browser == "firefox":
+            br = pw.firefox.launch(env=launch_env(), timeout=ms_left())
+        else:
+            br = pw.chromium.launch(executable_path=str(executable), timeout=ms_left())
         ctx = br.new_context(viewport={"width": width, "height": height}, device_scale_factor=scale)
         page = ctx.new_page()
         page.goto(url, wait_until="networkidle", timeout=ms_left())

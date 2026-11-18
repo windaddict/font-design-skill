@@ -142,8 +142,11 @@ jobs:
       - name: fontTools and brotli for the specimen's charset check
         if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
         run: python -m pip install "fonttools==4.68.*" brotli
-      - name: Playwright and its Firefox (Firefox legs only)
-        if: env.LEG_ON == 'true' && matrix.browser == 'firefox'
+      # Every leg shoots through Playwright: Firefox has no other launcher, and Chrome's command line on a Windows runner
+      # lays the page out 16 px narrower than it captures (shoot_playwright.py's header). Chrome legs launch the installed
+      # Chrome, so only the Firefox legs download a browser.
+      - name: Playwright (every leg), and its Firefox (Firefox legs only)
+        if: env.LEG_ON == 'true'
         run: |
           REQ="$FD_SCRIPTS/../requirements-platform.txt"
           if [ -f "$REQ" ]; then
@@ -152,10 +155,12 @@ jobs:
             echo "NOTE: $REQ is not in this repository; installing the pin it carries in the skill: playwright==1.64.1"
             python -m pip install "playwright==1.64.1"
           fi
-          if [ "$RUNNER_OS" = "Linux" ]; then
-            python -m playwright install --with-deps firefox
-          else
-            python -m playwright install firefox
+          if [ "$BROWSER" = "firefox" ]; then
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              python -m playwright install --with-deps firefox
+            else
+              python -m playwright install firefox
+            fi
           fi
       - uses: browser-actions/setup-chrome@v1
         id: chrome
@@ -186,13 +191,13 @@ jobs:
         if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
         run: |
           source .fd-slots.sh
-          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --rows --require-captured --meta leg/meta-specimen.json --bands none --jobs 2
+          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --require-captured --meta leg/meta-specimen.json --bands none --jobs 2
       - name: shoot the pages
         # runs after a failed specimen shot too, so one failure does not lose the other invocation's evidence
         if: ${{ !cancelled() && env.LEG_ON == 'true' }}
         run: |
           source .fd-slots.sh
-          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages "${PAGES[@]}" --widths 1280 --scales "${SCALES[@]}" --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --rows --meta leg/meta-pages.json --bands none --jobs 2
+          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages "${PAGES[@]}" --widths 1280 --scales "${SCALES[@]}" --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --meta leg/meta-pages.json --bands none --jobs 2
       - name: the shoot.py tests of the Windows teardown, fractional scales, the meta file and the rows, run natively on this runner (F010)
         if: ${{ !cancelled() && env.LEG_ON == 'true' }}
         run: |

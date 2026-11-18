@@ -94,14 +94,21 @@ protocol was written down.
   runner OS and one browser: Windows Server, macOS and Ubuntu runners, each in Chrome and in Playwright's
   Firefox. A leg runs the site's copy of `shoot.py` at 1280 px and device scales 1 and 1.25 on the
   specimen (only when the site has a `font.json`; shot with `--height 6000` and `--require-captured`, so a row
-  below the capture fails the leg instead of dropping out of the comparison) and on the named pages, always with `--family`, `--font-url`, `--rows` and `--meta`. Then a
-  compare job runs `compare-shots.py` over every leg that finished. Read the result with
+  below the capture fails the leg instead of dropping out of the comparison) and on the named pages, always
+  with `--family`, `--font-url`, `--rows`, `--meta` and `--launcher playwright`. Then a compare job runs `compare-shots.py` over every leg that finished. Read the result with
   `gh run download -n platform-shots-compare`: `compare.md` and one PNG per row.
   - `--browser firefox` shoots through `scripts/shoot_playwright.py` (Playwright's own Firefox build,
     pinned by `requirements-platform.txt` to `playwright==1.64.1`) and runs the same server proofs as a
     Chrome shot. It is optional: install it with `.venv/bin/pip install -r requirements-platform.txt`, then
     `.venv/bin/python3 -m playwright install firefox`. Without the package, `shoot.py --browser firefox`
     exits 3 with `SKIPPED, NOT PASSED` and that command (references/fallbacks.md, "No Playwright").
+  - `--launcher playwright` starts Chrome through the same module: Playwright drives the Chrome binary
+    `shoot.py` found, not a Chromium of its own. The platform run uses it on every Chrome leg because
+    Chrome's command line on a Windows runner lays the page out 16 px narrower than it captures (innerWidth
+    1264 for a 1280 shot, run 44227825840), so the row boxes belonged to another layout; Playwright sets the
+    viewport itself. Without `--launcher`, Chrome is started from its command line, as before. A rows file
+    whose page width differs from the shot's by more than 2 px fails the shot in `shoot.py` and is refused
+    by `compare-shots.py`.
   - `--rows` writes `<png>.rows.json` beside each PNG, only after that shot's proofs passed: the box of
     every `data-fd-row` element and of every element the probe counted, in viewport CSS px, with its text
     and computed size, weight and style, and the page's scroll offset. `--meta FILE` writes the platform,
@@ -232,7 +239,7 @@ nothing about Safari, Firefox, Windows (DirectWrite), Android or iOS, and nothin
 
 **The platform run's exact guarantee** (section 2; every other document that names the run refers here).
 A leg's PNG is what the recorded browser drew: Chrome of the recorded version, headless with
-`--disable-gpu`, or Playwright's Firefox of the recorded version. It drew on a GitHub-hosted virtual
+`--disable-gpu` and driven by Playwright, or Playwright's Firefox of the recorded version. It drew on a GitHub-hosted virtual
 machine of the recorded OS (Windows Server, macOS and Ubuntu runners, as the leg's `meta*.json` records
 them), with the recorded font-smoothing settings, no physical display, at the recorded device scale. The
 shot passed the same served-200, sentinel, element and italic proofs as every other `shoot.py` shot.

@@ -163,7 +163,11 @@ def test_the_platform_template_is_manual_runs_three_oses_and_two_browsers_withou
         f"the download must keep one directory per artifact under legs/ (F001): {dl['with']}"
     assert any("compare-shots.py" in s["run"] and "legs/*/" in s["run"] for _, s in runs(doc)), "the compare line must read legs/*/"
     ff = [s for s in steps(doc, "shots") if "playwright install" in s.get("run", "")]
-    assert ff and all("matrix.browser == 'firefox'" in s["if"] for s in ff), "Firefox must be installed in its legs only"
+    assert ff and all('if [ "$BROWSER" = "firefox" ]' in s["run"].split("playwright install")[0] for s in ff), \
+        "Firefox must be installed in its legs only"
+    shoots = [s["run"] for s in steps(doc, "shots") if "shoot.py" in s.get("run", "")]
+    assert shoots and all("--launcher playwright" in r for r in shoots), \
+        "every leg must shoot through Playwright: Chrome's command line on Windows measures rows on a narrower layout"
     build = [s for s in steps(doc, "shots") if 'eval "$FD_BUILD"' in s.get("run", "")]
     assert build and "env.FD_BUILD != ''" in build[0]["if"], "FD_BUILD must run, and only when the slot is set (F002)"
     specimen_steps = [s for s in steps(doc, "shots") if "specimen" in s.get("run", "")]

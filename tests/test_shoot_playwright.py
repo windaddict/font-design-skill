@@ -113,7 +113,9 @@ def test_capture_refuses_webkit_and_unknown_browsers_before_importing_anything(m
     monkeypatch.setitem(sys.modules, "playwright", None)
     with pytest.raises(ValueError, match="designed, not built: Playwright's WebKit is not Safari"):
         shoot_playwright.capture("webkit", "http://127.0.0.1:9/x.html", tmp_path / "x.png", 1280, 2400, 1, 30)
-    with pytest.raises(ValueError, match="firefox only"):
+    with pytest.raises(ValueError, match="firefox and chrome only"):
+        shoot_playwright.capture("safari", "http://127.0.0.1:9/x.html", tmp_path / "x.png", 1280, 2400, 1, 30)
+    with pytest.raises(ValueError, match="needs the Chrome binary"):
         shoot_playwright.capture("chrome", "http://127.0.0.1:9/x.html", tmp_path / "x.png", 1280, 2400, 1, 30)
 
 
@@ -232,3 +234,52 @@ def test_firefox_shot_is_verified_by_the_same_server_proofs(firefox, site, tmp_p
     assert (tmp_path / "good.png").is_file()
     msg = str(info.value)
     assert "rendered without 'Probe'" in msg and "sentinel font=missing" in msg and "not evidence" in msg, msg
+
+
+@pytest.fixture(scope="module")
+def playwright_chrome():
+    """The Chrome binary shoot.py finds, when Playwright is installed; skips LOUDLY otherwise. Chrome through Playwright
+    needs no `playwright install`: it launches that binary."""
+    try:
+        shoot_playwright.require()
+    except shoot_playwright.PlaywrightMissing:
+        pytest.skip("SKIPPED, NOT PASSED: playwright is not installed in this interpreter (the repo venv has none on purpose): "
+                    "pip install -r requirements-platform.txt to run it here; the skill's platform-shots workflow runs it on every OS")
+    try:
+        return shoot.find_chrome()
+    except FileNotFoundError as exc:
+        pytest.skip(f"SKIPPED, NOT PASSED: {exc}")
+
+
+@pytest.mark.parametrize("scale", [1, 1.25])
+def test_playwright_chrome_lays_the_page_out_at_the_shots_width_and_passes_every_proof(site, tmp_path, playwright_chrome, scale):
+    """shoot.py --launcher playwright: a page marked with one row, shot at 1280 x 900 at scale 1 and 1.25 through
+    Playwright driving the Chrome shoot.py found. The shot passes the server proofs (the same records as the command
+    line), the browser is Chrome (HeadlessChrome or Chrome in the user agent, not Firefox), the rows were measured on a
+    page exactly 1280 px wide and 900 tall (Chrome's command line on a Windows runner measured 1264, platform-shots run
+    44227825840), and the PNG is 1280 x 900 times the scale. Mutation watched red on 2026-11-17: shoot() calling
+    launch_chrome() for every Chrome shot whatever the launcher (the meta's launcher reads the command-line path and the
+    capture is not Playwright's)."""
+    path = page(site, "pwchrome", "<h1 data-fd-row='pc-1'>Harbour Review</h1>")
+    server, port = shoot.serve(site, 120, family="Probe")
+    calls = []
+    real = shoot.launch_playwright
+
+    def spy(*a, **k):
+        calls.append(a[0])
+        return real(*a, **k)
+    try:
+        shoot.launch_playwright = spy
+        png = tmp_path / f"pc-1280@{scale:g}x.png"
+        res = shoot.shoot(f"http://127.0.0.1:{port}{path}", png, 1280, scale, height=900, server=server, chrome=playwright_chrome,
+                          require_family="Probe", rows=True, launcher="playwright")
+    finally:
+        shoot.launch_playwright = real
+        server.shutdown()
+    assert calls == ["chrome"], calls
+    assert "Chrome/" in res["ua"] and "Firefox" not in res["ua"], res["ua"]
+    import json
+    doc = json.loads(open(res["rows"], encoding="utf-8").read())
+    assert doc["viewport_w"] == 1280 and doc["viewport_h"] == 900, doc
+    from PIL import Image
+    assert Image.open(png).size == (round(1280 * scale), round(900 * scale))

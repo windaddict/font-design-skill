@@ -1400,3 +1400,44 @@ def test_rows_whose_entries_are_not_objects_are_ignored_and_noted(tmp_path):
         assert any("rows for shot 'shotA' ignored" in d and "row objects" in d for d in server.departures), server.departures
     finally:
         server.shutdown()
+
+
+def test_chrome_rows_measured_on_a_page_of_another_width_fail_the_shot(site, tmp_path, monkeypatch):
+    """The rows endpoint is made to record viewport_w 1264 for a 1280 shot, as Chrome's command line on a Windows runner
+    did (platform-shots run 44227825840: every row under a line that wrapped differently was cropped from the wrong place).
+    The shot raises naming both widths and writes no rows file; 1282 (Linux Chrome's rounding at 1.25x) passes. Mutation
+    watched red on 2026-11-17: the width check removed (the 1264 shot writes its rows)."""
+    real = shoot.Handler.do_POST
+    narrow = {"w": 1264}
+
+    def post(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        body = json.loads(self.rfile.read(length))
+        body["viewport_w"] = narrow["w"]
+        data = json.dumps(body).encode()
+        self.rfile = __import__("io").BytesIO(data)
+        self.headers.replace_header("Content-Length", str(len(data)))
+        return real(self)
+    monkeypatch.setattr(shoot.Handler, "do_POST", post)
+    path = page(site, "rowswide", "<h1 data-fd-row='w-1'>Harbour Review</h1>")
+    server, port = served(site, family="Probe")
+    try:
+        url = f"http://127.0.0.1:{port}{path}"
+        with pytest.raises(RuntimeError, match="measured on a page 1264 px wide and the shot is 1280 px wide"):
+            shoot.shoot(url, tmp_path / "n.png", 1280, 1, height=900, server=server, chrome=chrome_or_skip(), require_family="Probe", rows=True)
+        assert not (tmp_path / "n.rows.json").exists()
+        narrow["w"] = 1282
+        assert shoot.shoot(url, tmp_path / "r.png", 1280, 1, height=900, server=server, chrome=chrome_or_skip(), require_family="Probe",
+                           rows=True)["rows"]
+    finally:
+        server.shutdown()
+
+
+@pytest.mark.parametrize("argv, why", [(["--browser", "firefox", "--launcher", "cli"], "Firefox is started through Playwright only"),
+                                       (["--launcher", "playwright", "--dom-only"], "--dom-only is a mode of Chrome's command line")])
+def test_launcher_combinations_that_cannot_run_are_refused(tmp_path, argv, why):
+    """Firefox has no command-line launcher here, and --dom-only exists only for Chrome's command line: both are refused
+    before any server starts. Mutations watched red on 2026-11-17: each refusal removed."""
+    with pytest.raises(SystemExit) as exc:
+        shoot.main([str(tmp_path / "o"), "--serve", str(tmp_path), "--pages", "x.html", *argv])
+    assert why in str(exc.value.code), exc.value.code
