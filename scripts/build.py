@@ -35,7 +35,8 @@ path stays absolute. (The first version resolved --static and --out-dir from fon
 twice while the tests' `--static-dir` with the same text read the working directory; independent
 re-review, docs F007.) --out-dir DIR is a whole build elsewhere: the woff2s AND the manifest go into
 DIR (the `manifest` key is ignored under --out-dir, so a key that points the manifest back beside the
-tool cannot write outside DIR; second dry run, finding 15), and the manifest's `file` entries name the
+tool cannot write outside DIR; second dry run, finding 15; likewise a group's `file` keeps only its name, so
+`../../static/F-VF.woff2` lands in DIR as `F-VF.woff2`), and the manifest's `file` entries name the
 woff2s where they were written, relative to font.json's directory, with `..` steps when they lie outside it
 (a site that keeps font.json in tools/face/ and ships the woff2 under static/ records
 `../../static/F-VF.woff2`, so the manifest, and `--check` against it, work in any clone); only a woff2
@@ -257,6 +258,7 @@ def load_config(font_path, out_dir_override=None):
     # directory too, whatever the `manifest` key says
     cfg["_out_dir"] = resolve_arg(out_dir_override) if out_dir_override else resolve_from(font_path.parent, cfg["out_dir"])
     cfg["_manifest"] = resolve_from(cfg["_out_dir"], cfg["manifest"]) if cfg.get("manifest") and not out_dir_override else cfg["_out_dir"] / "manifest.json"
+    cfg["_out_dir_override"] = bool(out_dir_override)
     cfg.setdefault("fold_units", dict(DEFAULT_FOLD_UNITS))
     cfg.setdefault("raster", json.loads(json.dumps(DEFAULT_RASTER)))
     names = cfg["names"]
@@ -311,9 +313,13 @@ def family_token(cfg):
 
 
 def group_file(cfg, group_name):
-    """Where the group's woff2 lives: out_dir/<Family>-VF.woff2, -Italic-VF for an italic group, or group.file."""
+    """Where the group's woff2 lives: out_dir/<Family>-VF.woff2, -Italic-VF for an italic group, or group.file.
+    Under --out-dir only group.file's NAME is kept, so a file such as ../../static/F-VF.woff2 cannot write
+    outside DIR (the same rule as the manifest key; it used to escape DIR by its .. steps)."""
     g = cfg["groups"][group_name]
     if g.get("file"):
+        if cfg.get("_out_dir_override"):
+            return cfg["_out_dir"] / pathlib.PurePath(g["file"]).name
         return (cfg["_out_dir"] / g["file"]).resolve()
     return cfg["_out_dir"] / (f"{family_token(cfg)}-Italic-VF.woff2" if g["italic"] else f"{family_token(cfg)}-VF.woff2")
 

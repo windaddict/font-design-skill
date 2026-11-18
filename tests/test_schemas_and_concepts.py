@@ -377,6 +377,32 @@ console.log(JSON.stringify([m.kern(a, b, P), m.kern(a, b, P, null), m.kern(a, b,
     assert -20 <= tighter < 0, f"kern(..., -20) returned {tighter}"
 
 
+def test_a_numeric_sparse_cap_reaches_the_exported_kerns(tmp_path):
+    """A cap other than -50 and null must reach kern() too: with -20 the Bold `.|Y` and `-|S`, -149 and -170
+    uncapped, export at -20 (Impasse review of this change, F003). The two tests above see only null and the
+    absent key, so export.js replacing every number with -50 would pass them. Mutation watched red: export.js
+    passing `SPARSE_CAP === null ? null : undefined` (every number becomes the default)."""
+    k = bract_kerns(tmp_path, "tight", sparse_cap=-20)["TextBold"]
+    assert k[".|Y"] == -20 and k["-|S"] == -20, {p: k[p] for p in (".|Y", "-|S")}
+
+
+def test_lay_word_takes_the_cap_from_its_options():
+    """layWord() is the preview layout render.js draws the concept pages with; it took the default cap whatever
+    the face set (Impasse review of this change, F001). Laid with sparseCap null, ".Y" in Bract's text cut is
+    narrower than with the default, by the uncapped kern's excess over -50. Mutation watched red: layWord
+    calling kern(prev, g, P) without the option again."""
+    script = r"""
+const m = require(process.argv[1]); const P = m.params(m.loadConcepts(process.argv[2])[0], 1);
+const w = cap => m.layWord(".Y", P, { kern: true, liga: true, sparseCap: cap }).w;
+console.log(JSON.stringify({ dflt: w(undefined), off: w(null), kern: m.kern(m.glyph(".", P), m.glyph("Y", P), P, null) }));
+"""
+    r = run([node(), "-e", script, str(REPO / "scripts" / "gen.js"), str(BRACT / "concepts.js")])
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["kern"] < -50, out
+    assert abs((out["dflt"] - out["off"]) - (-50 - out["kern"])) < 1e-6, out
+
+
 @pytest.mark.parametrize("value", [10, "off", -50.5, True])
 def test_export_refuses_a_malformed_sparse_cap(tmp_path, value):
     """Nothing enforces the schema at run time, so export.js checks the value before drawing: a positive cap would

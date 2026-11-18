@@ -1062,12 +1062,15 @@ function keysFor(word, liga) {
   }
   return out;
 }
+// layWord lays a word for a preview (the concept pages, through render.js): automatic kerning only, with no
+// hand pairs, no threshold and no rounding, so it approximates the exported font, not reproduces it.
+// opt.sparseCap is font.json's kerning.sparse_cap, passed on to kern() (undefined = the -50 default).
 function layWord(word, P, opt) {
   var x = 0, prev = null, items = [];
   keysFor(word, opt.liga).forEach(function (k) {
     var g = glyph(k, P);
     if (!g) { x += 200; prev = null; return; }
-    if (prev && opt.kern) x += kern(prev, g, P);
+    if (prev && opt.kern) x += kern(prev, g, P, opt.sparseCap);
     items.push({ g: g, x: x }); x += g.adv; prev = g;
   });
   return { items: items, w: x };

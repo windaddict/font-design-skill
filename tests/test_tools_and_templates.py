@@ -662,3 +662,46 @@ def test_a_group_file_outside_font_json_dir_is_recorded_relative(tmp_path):
     shutil.copytree(tmp_path / "site", moved)
     r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(moved / "tools" / "face" / "font.json"), "--check"], cwd=moved)
     assert r.returncode == 0 and "manifest identical" in r.stderr, f"a copied site fails --check:\n{r.stderr[-1500:]}"
+
+
+def test_a_build_under_out_dir_records_a_relative_file_that_survives_a_copy(tmp_path):
+    """The same portability under --out-dir (Impasse review of this change, F004): font.json in site/tools/face,
+    the build in site/build. The entry must be `../../build/<Family>-VF.woff2`, and after the site is copied
+    elsewhere, a --check that names the copied font.json and the copied --out-dir must still match its
+    manifest. Mutation watched red: relpath_posix returning the absolute path."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["groups"] = {"roman": cfg["groups"]["roman"]}
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    shutil.copyfile(NEUTRAL / "requirements.json", face / "requirements.json")
+    (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    fam = cfg["family"].replace(" ", "")
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(face / "font.json"), "--out-dir", str(tmp_path / "site" / "build")])
+    assert r.returncode == 0, r.stderr[-1500:]
+    entry = json.loads((tmp_path / "site" / "build" / "manifest.json").read_text(encoding="utf-8"))["groups"]["roman"]["file"]
+    assert entry == f"../../build/{fam}-VF.woff2", f"the manifest records {entry!r}"
+    moved = tmp_path / "elsewhere" / "site"
+    shutil.copytree(tmp_path / "site", moved)
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(moved / "tools" / "face" / "font.json"),
+             "--out-dir", str(moved / "build"), "--check"])
+    assert r.returncode == 0 and "manifest identical" in r.stderr, f"a copied --out-dir build fails --check:\n{r.stderr[-1500:]}"
+
+
+def test_out_dir_keeps_a_group_file_inside_dir(tmp_path):
+    """A group whose `file` climbs out of out_dir (`../../static/F-VF.woff2`, as hopsafari.com's does) used to escape
+    --out-dir by its .. steps: a trial build into a scratch folder wrote the woff2 two levels above it. Under
+    --out-dir only the name is kept, like the `manifest` key. Mutation watched red: group_file ignoring the override."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["out_dir"] = "."
+    cfg["groups"] = {"roman": dict(cfg["groups"]["roman"], file="../../static/F-VF.woff2")}
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    shutil.copyfile(NEUTRAL / "requirements.json", face / "requirements.json")
+    (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    out = tmp_path / "scratch" / "deep" / "o"
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(face / "font.json"), "--out-dir", str(out)])
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert (out / "F-VF.woff2").is_file(), sorted(p.name for p in out.iterdir())
+    assert not (tmp_path / "scratch" / "static").exists() and not (tmp_path / "site" / "static").exists(), "the woff2 escaped --out-dir"

@@ -18,7 +18,7 @@ function render(el, text, P, size, opt) {
   opt = opt || {};
   var avail = Math.max(120, el.clientWidth || 300), max = avail / size * 1000;
   var words = String(text).split(/\s+/).filter(Boolean);
-  var res = wrap(words, P, { kern: opt.kern !== false, liga: opt.liga !== false }, max), lh = opt.lh || 1120, base0 = 800, d = [], maxW = 0, count = 0;
+  var res = wrap(words, P, { kern: opt.kern !== false, liga: opt.liga !== false, sparseCap: opt.sparseCap }, max), lh = opt.lh || 1120, base0 = 800, d = [], maxW = 0, count = 0;
   res.lines.forEach(function (ln, li) {
     var x = 0, by = base0 + li * lh;
     ln.words.forEach(function (lw, wi) {

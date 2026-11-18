@@ -15,11 +15,18 @@ repository.
   cap of trap 34 off, for a face whose kerning was reviewed without it (Bract: `.|Y` −149 at Bold). `kern()`
   takes the cap as a fourth argument and keys its cache on it; `export.js` refuses any other value before
   drawing; the schema, `templates/font.example.json` and the font suite's `restate_kern` carry it.
+  `layWord()` (the concept-page preview layout, through `render.js`) takes it as `opt.sparseCap`.
 
 ### Fixed
 - **The manifest's `file` entry is relative to `font.json`'s directory even when the woff2 lies outside it**
   (`../../static/F-VF.woff2`). It used to be recorded absolute, so the manifest named one clone's home
   directory and `--check` failed in any other clone. Only a file on another Windows drive is still absolute.
+- **`--out-dir` keeps a group's `file` inside DIR.** A `file` with `..` steps (`../../static/F-VF.woff2`) escaped
+  DIR by them; under `--out-dir` only its name is kept now, the same rule as the `manifest` key.
+
+The Impasse review of this release (4 findings: `layWord` ignoring the cap, an over-broad pair-count claim in
+`examples/bract/README.md`, and two test gaps, a numeric cap and `--out-dir` portability) is reconciled in the
+pull request; each fix has a test watched red under its mutation.
 
 ## [0.3.0] — 2026-11-17
 
