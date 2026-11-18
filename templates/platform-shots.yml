@@ -79,6 +79,8 @@ defaults:
     shell: bash # Git Bash on Windows: one set of lines for the three systems
 
 env:
+  # Python on a Windows runner reads and writes text as cp1252 unless told otherwise; the skill's files are UTF-8.
+  PYTHONUTF8: "1"
   FD_SCRIPTS: tools/FACE/scripts
   FD_SERVE: static-pages
   FD_BUILD: ""
