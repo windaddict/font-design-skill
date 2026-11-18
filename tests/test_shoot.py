@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from types import SimpleNamespace
 
@@ -1056,7 +1057,7 @@ def test_run_chrome_returns_after_a_kill_even_when_a_helper_holds_stdout(monkeyp
 # detached helper holds the file open; on POSIX the profile's PARENT is made read-only. (Making the profile itself
 # read-only does not work: TemporaryDirectory's cleanup chmods a path that refuses removal and tries again.)
 PROFILE_HELD = r'''
-import os, pathlib, subprocess, sys
+import os, pathlib, sys, time
 args = sys.argv[1:]
 prof = next(a.split("=", 1)[1] for a in args if a.startswith("--user-data-dir="))
 held = os.path.join(prof, "Cookies")
@@ -1065,8 +1066,7 @@ for a in args:
     if a.startswith("--screenshot="):
         pathlib.Path(a.split("=", 1)[1]).write_bytes(b"PNG")
 if os.name == "nt":
-    subprocess.Popen([sys.executable, "-c", "import sys, time; f = open(sys.argv[1]); time.sleep(8)", held],
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=0x00000008)
+    time.sleep(2)  # the test holds Cookies open from its own process (see the test); give its watcher time to open it
 else:
     os.chmod(os.path.dirname(prof), 0o555)
 '''
@@ -1081,6 +1081,24 @@ def test_shoot_notes_a_profile_directory_a_helper_left_behind(tmp_path, capsys):
     profiles = tmp_path / "profiles"
     profiles.mkdir()
     fake = py_exe(tmp_path / "bin" / "chrome", PROFILE_HELD)
+    # On Windows the holder is this test's own thread, not a child of the fake Chrome: kill_group()'s taskkill /T kills
+    # the fake's whole tree, so a helper child died before the cleanup and nothing was left (run 44226847590).
+    done, handles = threading.Event(), []
+
+    def hold():
+        while not done.is_set() and not handles:
+            for f in profiles.glob("*/Cookies"):
+                try:
+                    handles.append(open(f))
+                except OSError:
+                    pass
+            time.sleep(0.02)
+        done.wait(30)
+        for h in handles:
+            h.close()
+    holder = threading.Thread(target=hold, daemon=True) if os.name == "nt" else None
+    if holder:
+        holder.start()
     try:
         res = shoot.shoot("http://127.0.0.1:1/x.html", tmp_path / "x.png", 500, 1, chrome=fake, profile_root=profiles, timeout=20)
         left = [p for p in profiles.iterdir()]
@@ -1089,6 +1107,9 @@ def test_shoot_notes_a_profile_directory_a_helper_left_behind(tmp_path, capsys):
         assert len(left) == 1, left
         assert f"NOTE: profile {left[0]} left behind" in err, err
     finally:
+        done.set()
+        if holder:
+            holder.join(5)
         profiles.chmod(0o755)
 
 
