@@ -308,3 +308,17 @@ def test_compare_refuses_json_of_the_wrong_shape_and_compares_the_other_legs(tmp
     code, md, data = run(tmp_path / "out", [a, b, c])
     assert code == 0 and len(data["legs"]) == 2, md
     assert "is JSON but not" in section(md, "Refused"), md
+
+
+def test_compare_refuses_a_meta_shot_entry_that_is_not_an_object(tmp_path):
+    """A meta file whose `shots` list holds null beside a real shot: the null entry is refused and listed, the real shot
+    is still compared, exit 0 (Impasse re-review F001: shot.get() raised AttributeError). Mutation watched red on
+    2026-11-17: the isinstance(shot, dict) check removed."""
+    a = make_leg(tmp_path, "A", [shot(rows=THREE)])
+    b = make_leg(tmp_path, "B", [shot(rows=THREE)], platform=WIN)
+    meta = json.loads((b / "meta.json").read_text(encoding="utf-8"))
+    meta["shots"].insert(0, None)
+    (b / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    code, md, data = run(tmp_path / "out", [a, b])
+    assert code == 0 and len(data["legs"]) == 2, md
+    assert "lists a shot that is not an object" in section(md, "Refused"), md

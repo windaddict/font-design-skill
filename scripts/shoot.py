@@ -552,8 +552,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         else:
             try:
                 data = json.loads(body)
-                if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
-                    raise ValueError("not an object with a rows list")
+                if not isinstance(data, dict) or not isinstance(data.get("rows"), list) or not all(isinstance(r, dict) for r in data["rows"]):
+                    raise ValueError("not an object with a list of row objects")
                 self.server.rows[shot] = data
             except ValueError as exc:
                 self.server.departures.append(f"rows for shot {shot[:80]!r} ignored: unreadable JSON ({exc})")

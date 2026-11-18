@@ -144,6 +144,9 @@ def load_leg(leg_dir, refused):
             continue
         metas.append((mf.name, meta))
         for shot in meta.get("shots") or []:
+            if not isinstance(shot, dict):
+                refuse(f"{mf.name} lists a shot that is not an object ({str(shot)[:60]})")
+                continue
             listed.append((mf.name, shot))
     if not metas:
         return None

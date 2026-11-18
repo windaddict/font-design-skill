@@ -1365,3 +1365,17 @@ def test_chrome_require_captured_fails_a_shot_with_a_row_below_the_capture(site,
         assert res["rows"]
     finally:
         server.shutdown()
+
+
+def test_rows_whose_entries_are_not_objects_are_ignored_and_noted(tmp_path):
+    """A rows POST under the shot's cookie whose `rows` list holds a scalar is not recorded, and the departure says why;
+    shoot() then fails the shot "no rows arrived" rather than raising AttributeError on r.get() in --require-captured's
+    check, which the per-shot handler does not catch (Impasse re-review F002). Mutation watched red on 2026-11-17: the
+    all(isinstance(r, dict)) clause removed (the rows are recorded)."""
+    server, port = served(tmp_path)
+    try:
+        assert post_rows(port, "shotA", "shotA", body=b'{"scroll_x": 0, "scroll_y": 0, "rows": [3]}') == 204
+        assert "shotA" not in server.rows, server.rows
+        assert any("rows for shot 'shotA' ignored" in d and "row objects" in d for d in server.departures), server.departures
+    finally:
+        server.shutdown()
