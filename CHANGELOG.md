@@ -16,6 +16,11 @@ repository.
   takes the cap as a fourth argument and keys its cache on it; `export.js` refuses any other value before
   drawing; the schema, `templates/font.example.json` and the font suite's `restate_kern` carry it.
 
+### Fixed
+- **The manifest's `file` entry is relative to `font.json`'s directory even when the woff2 lies outside it**
+  (`../../static/F-VF.woff2`). It used to be recorded absolute, so the manifest named one clone's home
+  directory and `--check` failed in any other clone. Only a file on another Windows drive is still absolute.
+
 ## [0.3.0] — 2026-11-17
 
 The cross-platform rendering check (`docs/plan-platform-shots.md`), planned by Fable, reviewed before code by an

@@ -36,7 +36,10 @@ twice while the tests' `--static-dir` with the same text read the working direct
 re-review, docs F007.) --out-dir DIR is a whole build elsewhere: the woff2s AND the manifest go into
 DIR (the `manifest` key is ignored under --out-dir, so a key that points the manifest back beside the
 tool cannot write outside DIR; second dry run, finding 15), and the manifest's `file` entries name the
-woff2s where they were written, relative to font.json's directory when they lie under it. The exporter's
+woff2s where they were written, relative to font.json's directory, with `..` steps when they lie outside it
+(a site that keeps font.json in tools/face/ and ships the woff2 under static/ records
+`../../static/F-VF.woff2`, so the manifest, and `--check` against it, work in any clone); only a woff2
+on another drive (Windows), where no relative path exists, is recorded absolute. The exporter's
 masters JSON (about 10 MB per group) is written to a temporary directory and discarded unless
 --keep-masters PATH names where to keep it; nothing but the woff2s, the manifest and (with --static)
 the statics is ever written into out_dir.
@@ -209,6 +212,15 @@ def check(cond, msg):
 def ok(what):
     """One line per self-check that passed, so a reader can tell a check that ran from one that was skipped."""
     log(f"SELF-CHECK ok: {what}")
+
+
+def relpath_posix(path, base_dir):
+    """`path` relative to `base_dir` as a POSIX string, `..` steps included; the absolute path only when the two share
+    no anchor (os.path.relpath raises ValueError across Windows drives)."""
+    try:
+        return pathlib.PurePath(os.path.relpath(path, base_dir)).as_posix()
+    except ValueError:
+        return pathlib.Path(path).as_posix()
 
 
 def resolve_from(base_dir, value):
@@ -1211,8 +1223,9 @@ def build_group(cfg, group_name, eps, masters_path, tmp, ttf_out=None, requireme
         vf.flavor = "woff2"
     gfile = group_file(cfg, group_name)
     # where the woff2 was WRITTEN: under --out-dir that is the override, not the configured out_dir (re-review,
-    # code-a F009); relative to font.json's directory when it lies under it, else absolute
-    file_rec = gfile.relative_to(cfg["_dir"]).as_posix() if gfile.is_relative_to(cfg["_dir"]) else gfile.as_posix()
+    # code-a F009); relative to font.json's directory, with .. steps when it lies outside it, so the manifest is the
+    # same in every clone; absolute only where no relative path exists (another drive on Windows)
+    file_rec = relpath_posix(gfile, cfg["_dir"])
     entry = {
         "file": file_rec, "italic": bool(group["italic"]), "italic_angle": group["_angle"],
         "woff2_sha256": hashlib.sha256(woff2_bytes).hexdigest(), "woff2_bytes": len(woff2_bytes),

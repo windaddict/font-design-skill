@@ -633,3 +633,32 @@ def test_the_vertical_metrics_line_claims_only_what_the_tables_make_true(tmp_pat
     assert r.returncode == 0, r.stderr[-800:]
     line = next(ln for ln in r.stderr.splitlines() if "vertical metrics written" in ln)
     assert "wherever the platform reads hhea or typo" in line and "win metrics is not covered" in line and "on every platform" not in line, line
+
+
+def test_a_group_file_outside_font_json_dir_is_recorded_relative(tmp_path):
+    """A site keeps font.json in tools/face/ and ships the woff2 under static/ (hopsafari.com does). The manifest
+    recorded that file as an ABSOLUTE path, so it named one clone's home directory and `--check` failed in any
+    other clone. It is now `../../static/F-VF.woff2`. Built for real with out_dir "." (group.file resolves
+    against out_dir), then checked from a different working directory, then the whole site copied elsewhere and
+    checked again: the manifest must still match. Mutation watched red: the old absolute fallback restored."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["out_dir"] = "."
+    cfg["groups"]["roman"]["file"] = "../../static/F-VF.woff2"
+    cfg["groups"] = {"roman": cfg["groups"]["roman"]}
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    shutil.copyfile(NEUTRAL / "requirements.json", face / "requirements.json")
+    (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    build = [sys.executable, str(REPO / "scripts" / "build.py"), "--font", "font.json"]
+    r = run(build, cwd=face)
+    assert r.returncode == 0, r.stderr[-1500:]
+    assert (tmp_path / "site" / "static" / "F-VF.woff2").is_file()
+    entry = json.loads((face / "manifest.json").read_text(encoding="utf-8"))["groups"]["roman"]["file"]
+    assert entry == "../../static/F-VF.woff2", f"the manifest records {entry!r}"
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(face / "font.json"), "--check"], cwd=tmp_path)
+    assert r.returncode == 0 and "manifest identical" in r.stderr, r.stderr[-1500:]
+    moved = tmp_path / "elsewhere" / "site"
+    shutil.copytree(tmp_path / "site", moved)
+    r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(moved / "tools" / "face" / "font.json"), "--check"], cwd=moved)
+    assert r.returncode == 0 and "manifest identical" in r.stderr, f"a copied site fails --check:\n{r.stderr[-1500:]}"
