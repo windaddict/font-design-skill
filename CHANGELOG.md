@@ -13,6 +13,14 @@ Firefox. **What a result proves:** how headless Chrome and Playwright's Firefox 
 Windows Server, macOS and Ubuntu runners, as each leg's `meta*.json` records them; not a reader's laptop (display,
 scaling and ClearType tuning differ), not Safari, not phones. It is a record line, not a publication blocker.
 
+**Acceptance run:** platform-shots run 44238569295 on the neutral fixture (Sampler), commit 4b7085d: all six legs
+verified, 6 legs accepted, 208 row images, 0 rows mismatched, missing, below the capture or refused. At 16.8 px
+Windows Chrome 156 drew ClearType with colour fringes, Windows Firefox 157 drew greyscale, Linux Chrome 158 drew
+subpixel, both macOS browsers drew greyscale, and no stroke broke up in any leg. Earlier runs on the same pull
+request found the faults fixed in this release: Git Bash path rewriting and cp1252 on Windows, a relative screenshot
+path Chrome on Windows would not write, Chrome's command line on Windows measuring the page 16 px narrower than it
+captured, Firefox's 1/16 px font sizes, and the sentinel starting before an external stylesheet had loaded.
+
 ### Added
 - **`templates/platform-shots.yml`**: a manually started GitHub Actions workflow a site copies into
   `.github/workflows/`. Three OSes × two browsers; each leg shoots the review specimen (6000 CSS px tall, so
