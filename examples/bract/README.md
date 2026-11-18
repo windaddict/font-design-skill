@@ -37,6 +37,14 @@ was restored and `dropAmt` added, and `flareAmt 0.28` was dropped from the two c
 generator now refuses it beside `tear: true`; the teardrop keeps its default `dropAmt` 0.55, so the
 outlines are the same.
 
+**The kerning is not the same on sparse pairs.** This example keeps the skill's default
+`kerning.sparse_cap` (−50), so at each of the five reviewed locations 103 to 144 of the 4,100 kern values
+(pairs with a period, hyphen, dash, colon or quote) sit at −50 where the shipped font has more (`.|Y` −102 at
+Regular, `endash|five` −170 at Bold). The site's own `font.json` sets `sparse_cap: null` and reproduces the
+shipped kerning. This file is not changed to match, because it is one of the five backward-compatibility
+groups (`tests/fixtures/baseline-0.1.0.json`). The cap clamps values; it does not change which pairs reach the
+threshold, so both builds carry 4,100 pairs.
+
 ## Outcome and status
 
 Shipped as hopsafari.com's display face on 2026-11-15 (site commit `90a085c`) after three

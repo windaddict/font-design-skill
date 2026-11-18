@@ -35,7 +35,8 @@
         "hand": { "$ref": "#/$defs/handKerns" },
         "space": { "$ref": "#/$defs/spaceKerns" },
         "italic_hand": { "$ref": "#/$defs/handKerns" },
-        "italic_space": { "$ref": "#/$defs/spaceKerns" }
+        "italic_space": { "$ref": "#/$defs/spaceKerns" },
+        "sparse_cap": { "type": ["integer", "null"], "maximum": 0, "description": "the automatic kern of a pair where either glyph covers under 35 % of the band is capped here (default -50); null switches the cap off, for a face whose kerning was reviewed without it" }
       }
     },
     "titles": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "real titles the kerning test lays at every master" },

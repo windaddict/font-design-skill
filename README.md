@@ -1,6 +1,6 @@
 # font-design — a Claude Code skill for making a website its own typeface
 
-![version](https://img.shields.io/badge/version-0.3.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
+![version](https://img.shields.io/badge/version-0.3.1-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
 
 A skill that designs, builds and ships a custom display typeface for a website as a self-hosted
 variable web font. The face is generated from centre-line skeletons by a parametric generator, chosen
@@ -42,6 +42,10 @@ git clone https://github.com/windaddict/font-design-skill ~/.claude/skills/font-
 cd ~/.claude/skills/font-design
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
+
+A site can also carry the skill as a git submodule pinned to a commit (hopsafari.com does, at
+`tools/font-design`). The site then keeps its own `font.json`, `concepts.js` and tests, and a skill change
+reaches its font only when the site moves the pin and rebuilds.
 
 Requirements: Node ≥ 20; Python ≥ 3.10 with `fonttools==4.68.*`, `brotli`, `skia-pathops`, `pillow`, `uharfbuzz`, `unicodedata2`
 (CI runs 3.12; 3.10 and 3.11 are not run by anything here); Chrome or Chromium for the review tools

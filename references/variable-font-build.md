@@ -240,6 +240,7 @@ is a valid instance. Paths are relative to the file.
 | `kerning.threshold` | yes | a pair enters the list when its automatic value reaches this in any master |
 | `kerning.hand`, `kerning.space` | yes | hand pairs (`"L|V": -60`; 0 suppresses a pair) and word-space triples |
 | `kerning.italic_hand`, `kerning.italic_space` | no | added for an italic group |
+| `kerning.sparse_cap` | no | integer ≤ 0 or `null`: the automatic kern of a pair where either glyph covers under 35 % of the band is capped here; default −50; `null` = no cap (export.js refuses any other value) |
 | `titles` | no | real titles the exporter lays and the kerning test checks at every reviewed location (plan finding F010) |
 | `size_budget_bytes` | yes | the woff2 ceiling |
 | `raster` | no | `budget {decimation, union, seam}` in grey levels and `sizes` in px for the FreeType checks |
