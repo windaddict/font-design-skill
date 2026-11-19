@@ -3,6 +3,65 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [0.4.0] — 2026-11-18
+
+A site runs the platform shots through the skill's own workflow instead of a copy of it. The site keeps a short
+caller pinned to a skill commit; the run happens in the site's repository, checks out the site's pages and fonts
+there and the skill's scripts at the pinned commit, and is billed to the site. Nothing of the site enters this
+repository. Planned by Fable and reviewed before code by an independent cross-provider reviewer (Impasse, 5
+findings, all accepted: consumer details kept out of this repository, the weight rule's width and italic/oblique
+limits, the specimen's `requirements.json` path, one test mutation Bash could not fail, GitHub Enterprise Server).
+The finished diff was reviewed the same way (5 findings, all accepted and fixed: oblique angles, `font-synthesis`,
+a consumer named in a test docstring, the leg filter's substring match, one README sentence). One re-review of the fixes
+found three more, all accepted: the two limits above, now stated, and a test that read the probe's own answer
+instead of the face Chrome chose.
+
+### Changed
+- **`.github/workflows/platform-shots-reusable.yml`** (new, `on: workflow_call`) holds the six legs (Windows,
+  macOS and Ubuntu runners × Chrome and Playwright's Firefox) and the compare job: the only copy of them. Inputs
+  `serve`, `family`, `font_urls`, `pages` (required), `font_json`, `scales`, `browsers`, `oses`, `build`,
+  `run_tool_tests`; every value reaches a script through `env:`, never `${{ }}` inside `run:`.
+- **The scripts come from the pinned commit, or the leg refuses.** Each job first requires `job.workflow_sha` to
+  be a full 40-hex SHA, checks out `job.workflow_repository` at it, and verifies `git rev-parse HEAD` equals it;
+  it never falls back to a branch. GitHub Enterprise Server, which has no `job.workflow_*` context, is not
+  supported.
+- **`templates/platform-shots.yml` is now a caller** (`workflow_dispatch`, one job `uses:` the reusable workflow
+  at a full commit SHA, `with:` the inputs). `FD_SCRIPTS` is gone: a site keeps no copy of `scripts/`. A site
+  that copied the 0.3 template keeps working; its copy is its own.
+- **The skill's own `platform-shots.yml` calls the reusable workflow locally** (`uses: ./…`) on pull requests that
+  touch the tools, with the neutral fixture and `run_tool_tests: true`, so a pull request runs its own scripts.
+- **The probe's weight rule follows the browser's font matching** (`shoot.py` item 6). It used to require a face
+  whose declared range covers the computed weight, which failed a static family of 400/500/700 asked for 600,
+  although Chrome draws the 700 file without synthesis (measured 2026-11-18 on a live site's static faces).
+  `pickFace()` now applies CSS Fonts 4 § 5.2 to the loaded faces of the element's style, italic and oblique kept
+  apart. **Exact guarantee:** the visible text in the family is drawn by a loaded face of the right style that the
+  browser's weight matching selects without synthesising bold; it does not check that the selected weight is the
+  one the design intended (a 500 request with 400 and 700 files draws Regular and passes), and it models faces of
+  normal width and one oblique angle only. It reads the faces' load state and the computed style, not the face
+  that painted the element, so text that `font-display: optional` left in the fallback is not detected (the
+  screenshot is the check there). An italic element needs a face declared italic: CSS would fall back to an
+  oblique face, and the probe fails that on purpose (`no-italic-face`). New failing verdicts: `synthetic-bold` (a request of 600 or more
+  whose selected face is below 600, with weight synthesis allowed), `lighter-face` (the same with
+  `font-synthesis` turning weight synthesis off, so the lighter face is drawn as is), `unmodelled-stretch` (a
+  loaded face of the family with a non-normal `font-stretch`) and `unmodelled-style` (an oblique element whose
+  loaded oblique faces declare more than one angle).
+  `no-weight-face` is removed. Each probed element carries `data-fd-probe-weight`, the weight selected.
+
+### Fixed
+- **The shot server's listen backlog is 128, not 5.** Several browsers at once (`--jobs`, default 3) each open a
+  burst of connections; on macOS a full backlog refused the extra ones, so a font request never reached the
+  server, the browser drew the fallback, and the shot failed as `font=missing` or `no-italic-face` with nothing in
+  the response log. Measured 2026-11-18 on a 12-shot site at `--jobs 6`: three of three runs failed so at 5, five of
+  five clean at 128; at the default `--jobs 3`, one shot in fifteen. It failed shots, never passed one wrongly.
+
+- **The leg filter matches whole words.** The `browsers` and `oses` inputs were tested with `contains()`,
+  which on a string is a substring test; a shell step now matches exact words and fails the leg on an unknown
+  or empty one.
+
+### Removed
+- The copy template's `FD_SCRIPTS` slot and the `requirements-platform.txt` fallback install; the reusable
+  workflow installs `playwright==1.64.1` by name, held equal to `requirements-platform.txt` by a test.
+
 ## [0.3.1] — 2026-11-18
 
 Lets a site build its face from the skill's scripts instead of a private copy of them. hopsafari.com is the

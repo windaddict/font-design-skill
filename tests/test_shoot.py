@@ -18,6 +18,7 @@ import os
 import pathlib
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -153,7 +154,7 @@ def test_find_chrome_ignores_a_windows_variable_that_is_unset(no_chrome, monkeyp
     assert shoot.chrome_candidates() == [shoot.CHROME_MAC_APP, str(no_chrome / "L" / "Google" / "Chrome" / "Application" / "chrome.exe")]
 
 
-def make_font(path, italic, chars=LETTERS, family="Probe"):
+def make_font(path, italic, chars=LETTERS, family="Probe", advance=1000):
     """A real woff2: box glyphs on 1000-unit advances for `chars` (so any text measures far wider than the
     fallback serif), the italic one flagged in OS/2 fsSelection, post.italicAngle and head.macStyle."""
     from fontTools.fontBuilder import FontBuilder
@@ -162,7 +163,7 @@ def make_font(path, italic, chars=LETTERS, family="Probe"):
     cmap = {0x20: "space"}
     for ch in chars:
         name = f"u{ord(ch):04X}"
-        glyphs[name] = 1000
+        glyphs[name] = advance
         cmap[ord(ch)] = name
     fb = FontBuilder(1000, isTTF=True)
     fb.setupGlyphOrder(list(glyphs))
@@ -190,13 +191,18 @@ def make_font(path, italic, chars=LETTERS, family="Probe"):
     return path
 
 
+WIDE = (1150, 1300)  # extra upright files in the site fixture, Probe-<advance>.woff2
+
+
 @pytest.fixture(scope="module")
 def site(tmp_path_factory):
-    """A served directory with fonts/Probe.woff2 and fonts/Probe-Italic.woff2."""
+    """A served directory with fonts/Probe.woff2, fonts/Probe-Italic.woff2 and the wider fonts/Probe-<WIDE>.woff2."""
     d = tmp_path_factory.mktemp("site")
     (d / "fonts").mkdir()
     make_font(d / "fonts" / "Probe.woff2", italic=False)
     make_font(d / "fonts" / "Probe-Italic.woff2", italic=True)
+    for adv in WIDE:  # the same box glyphs on wider advances: which file drew a line shows in its width
+        make_font(d / "fonts" / f"Probe-{adv}.woff2", italic=False, advance=adv)
     return d
 
 
@@ -208,7 +214,7 @@ def page(site, name, body, faces=("normal",), extra_css="", html_attrs=""):
     if "italic" in faces:
         css += '@font-face { font-family: Probe; src: url(/fonts/Probe-Italic.woff2) format("woff2"); font-style: italic; }\n'
     # font-weight 400: the user agent's h1 default is bold, and the Probe faces declare no weight (so 400 only), which
-    # the weight check (re-review code-b F004) would report as no-weight-face on every h1
+    # the weight check (re-review code-b F004) would report as synthetic-bold on every h1
     css += ("h1 { font-family: Probe, serif; font-size: 48px; font-weight: 400; font-synthesis: none; } "
             ".i { font-style: italic } p { font-family: Georgia, serif }\n" + extra_css)
     (site / f"{name}.html").write_text(f"<!doctype html><html{html_attrs}><head><meta charset='utf-8'><style>{css}</style></head>"
@@ -398,7 +404,8 @@ def test_chrome_probe_fails_an_italic_element_served_without_an_italic_face_c5(s
     """A page whose only @font-face is upright, with an italic h1 in the family: font-synthesis none means
     Chrome draws it upright, the hidden family probe passes, and only the element probe can see it.
     Mutation watched red: faces() ignoring the style (`(/italic|oblique/.test(f.style) === italic)`
-    dropped), so the upright face satisfies the italic element."""
+    dropped), so the upright face satisfies the italic element; re-watched red 2026-11-18 after the 0.4 weight
+    rule, as faces(kind) returning every face of the family."""
     path = page(site, "noital", "<h1>Harbour Review</h1><h1 class='i'>Italic row</h1>", faces=("normal",))
     server, port = served(site, family="Probe")
     try:
@@ -484,24 +491,241 @@ def test_chrome_probe_counts_an_element_hidden_by_an_ancestors_opacity_as_hidden
         server.shutdown()
 
 
-def test_chrome_probe_fails_an_element_whose_weight_no_face_covers(site, tmp_path):
+def test_chrome_probe_fails_an_element_whose_weight_the_browser_would_synthesise(site, tmp_path):
     """Re-review code-b F004: the only @font-face is weight 400 (the default) and the h1 asks for 700;
     document.fonts.check() answers true (no face matches the request, which the API counts as "all loaded")
     and a loaded upright face exists, so the first probe passed while Chrome drew a synthesised bold. The
-    face's declared weight range must cover the element's computed weight: verdict no-weight-face.
-    Mutation watched red: faces() ignoring the weight argument (the shot passes)."""
+    face pickFace() selects is used at 400, below 600, for a request of 600 or more, so the element fails
+    (no-weight-face until 0.4). With font-synthesis: weight style the verdict is synthetic-bold (Chrome synthesises);
+    with font-synthesis none, which page() sets on h1, it is lighter-face (Chrome draws Regular as designed,
+    and the bold asked for is not on the page). A ranged 400 700 face contains 700 and passes.
+    Mutations watched red 2026-11-18: the synthetic-bold branch deleted from the sentinel (both shots pass);
+    the font-synthesis check ignored, always synthetic-bold (the none case reads synthetic-bold); the check
+    inverted (the auto case reads lighter-face)."""
     path = page(site, "wght", "<h1 style='font-weight:700'>Harbour Review</h1>", faces=("normal",))
+    auto = page(site, "wghtauto", "<h1 style='font-weight:700'>Harbour Review</h1>", faces=("normal",),
+                extra_css="h1 { font-synthesis: weight style }")
     server, port = served(site, family="Probe")
     try:
-        with pytest.raises(RuntimeError, match=r"1 of 1 probed element\(s\).*h1:no-weight-face"):
+        with pytest.raises(RuntimeError, match=r"1 of 1 probed element\(s\).*h1:lighter-face"):
             one_shot(server, port, path, tmp_path / "wght.png", require_family="Probe", dump_dom=True)
-        assert 'data-fd-probe-result="no-weight-face"' in (tmp_path / "wght.dom.html").read_text(encoding="utf-8")
+        assert 'data-fd-probe-result="lighter-face"' in (tmp_path / "wght.dom.html").read_text(encoding="utf-8")
+        with pytest.raises(RuntimeError, match=r"1 of 1 probed element\(s\).*h1:synthetic-bold"):
+            one_shot(server, port, auto, tmp_path / "wghtauto.png", require_family="Probe", dump_dom=True)
+        assert 'data-fd-probe-result="synthetic-bold"' in (tmp_path / "wghtauto.dom.html").read_text(encoding="utf-8")
         ranged = page(site, "wghtok", "<h1 style='font-weight:700'>Harbour Review</h1>", faces=(),
                       extra_css='@font-face { font-family: Probe; src: url(/fonts/Probe.woff2) format("woff2"); font-weight: 400 700; }')
         res = one_shot(server, port, ranged, tmp_path / "wghtok.png", require_family="Probe")
         assert res["probe"]["bad"] == "0" and res["probe"]["probe"] == "1", res
     finally:
         server.shutdown()
+
+
+def static_faces(*faces):
+    """@font-face rules for Probe, all from the one upright file (or the italic file for style italic/oblique), one per
+    (weight, style, stretch) triple: a family in static files, as SKILL.md phase 7's --static writes one."""
+    css = ""
+    for weight, style, stretch in faces:
+        src = "Probe-Italic.woff2" if style != "normal" else "Probe.woff2"
+        css += (f'@font-face {{ font-family: Probe; src: url(/fonts/{src}) format("woff2"); font-weight: {weight}; '
+                f'font-style: {style}; font-stretch: {stretch}; }}\n')
+    return css
+
+
+def probe_results(dom):
+    """{element id: (data-fd-probe-result, data-fd-probe-weight or None)} from a dumped DOM."""
+    out = {}
+    for tag in re.findall(r"<h1\b[^>]*>", dom):
+        i = re.search(r'\bid="([^"]+)"', tag)
+        r = re.search(r'data-fd-probe-result="([^"]+)"', tag)
+        w = re.search(r'data-fd-probe-weight="([^"]+)"', tag)
+        if i:
+            out[i.group(1)] = (r and r.group(1), w and w.group(1))
+    return out
+
+
+def probe_page(site, tmp_path, name, faces, rows, extra_css=""):
+    """Shoots one page whose h1s are `rows` [(id, inline style)] in Probe with `faces` declared; returns
+    (the RuntimeError or None, probe_results of the dumped DOM). page() sets font-synthesis: none on h1."""
+    body = "".join(f"<h1 id='{i}' style='{st}'>Harbour Review</h1>" for i, st in rows)
+    path = page(site, name, body, faces=(), extra_css=static_faces(*faces) + extra_css)
+    server, port = served(site, family="Probe")
+    try:
+        err = None
+        try:
+            one_shot(server, port, path, tmp_path / f"{name}.png", require_family="Probe", dump_dom=True)
+        except RuntimeError as exc:
+            err = exc
+        return err, probe_results((tmp_path / f"{name}.dom.html").read_text(encoding="utf-8"))
+    finally:
+        server.shutdown()
+
+
+N = "normal"
+
+
+def test_chrome_probe_accepts_a_600_request_the_browser_serves_with_a_700_file_and_fails_one_it_would_synthesise(site, tmp_path):
+    """Plan 2.6 (0.4): the probe selects the face by CSS Fonts Level 4 section 5.2's weight matching instead of
+    requiring a face whose range contains the computed weight. A static family of 400, 500 and 700 asked for 600
+    is drawn by the 700 file with no synthesis (Chrome's own choice; a site's 600-weight wordmark over static
+    400/500/700 faces, measured 2026-11-18), so it passes; the same family without the 700 file fails, as
+    lighter-face under page()'s font-synthesis none and as synthetic-bold under font-synthesis weight.
+    Every face in each page is used by some h1, so every face is loaded and the selection has a choice to get
+    wrong (an unused face stays unloaded and is invisible to the probe). The three search directions are each
+    pinned through data-fd-probe-weight: above 500 heavier first; 400 to 500 heavier up to 500, then lighter;
+    below 400 lighter first. An upright 600 next to an italic 700 face is lighter-face: the italic face is not
+    the element's style. A 500 request with only 400 and 700 draws Regular and passes (the stated limit: the
+    probe does not check that the selected weight is the one the design intended).
+    Mutations watched red 2026-11-18: the containment rule restored (pickFace returns null when no face contains
+    the weight: the 600 case fails no-face); the threshold `>= 600` made `> 700` (the 400/500 cases pass); the
+    style narrowing dropped (faces(kind) returning every face of the family: the italic 700 serves the upright
+    600); the >500 branch searching lighter first (the 600 case selects 500); the 400-500 branch searching
+    above 500 before lighter (450 with 300 and 600 selects 600); the <400 branch searching heavier first (350
+    with 200 and 380 selects 380)."""
+    err, res = probe_page(site, tmp_path, "w600", [(400, N, N), (500, N, N), (700, N, N)],
+                          [("w600", "font-weight:600"), ("w450", "font-weight:450"), ("w300", "font-weight:300"),
+                           ("w550", "font-weight:550")])
+    assert err is None, err
+    assert res == {"w600": ("face", "700"), "w450": ("face", "500"), "w300": ("face", "400"), "w550": ("face", "700")}, res
+
+    err, res = probe_page(site, tmp_path, "w600syn", [(400, N, N), (500, N, N)],
+                          [("w600", "font-weight:600"), ("w400", "font-weight:400"), ("w500", "font-weight:500")])
+    assert err is not None and re.search(r"1 of 3 probed element\(s\).*h1:lighter-face", str(err)), err
+    assert res["w600"] == ("lighter-face", "500") and res["w400"][0] == "face" and res["w500"][0] == "face", res
+    err, res = probe_page(site, tmp_path, "w600synauto", [(400, N, N), (500, N, N)],
+                          [("w600", "font-weight:600"), ("w400", "font-weight:400"), ("w500", "font-weight:500")],
+                          extra_css="h1 { font-synthesis: weight style }")
+    assert err is not None and re.search(r"1 of 3 probed element\(s\).*h1:synthetic-bold", str(err)), err
+    assert res["w600"] == ("synthetic-bold", "500"), res
+
+    err, res = probe_page(site, tmp_path, "wmid", [(300, N, N), (600, N, N)],
+                          [("w450", "font-weight:450"), ("w300", "font-weight:300"), ("w600", "font-weight:600")])
+    assert err is None, err
+    assert res["w450"] == ("face", "300"), res
+
+    err, res = probe_page(site, tmp_path, "wlow", [(200, N, N), (380, N, N)],
+                          [("w350", "font-weight:350"), ("w200", "font-weight:200"), ("w380", "font-weight:380")])
+    assert err is None, err
+    assert res["w350"] == ("face", "200"), res
+
+    err, res = probe_page(site, tmp_path, "w500", [(400, N, N), (700, N, N)],
+                          [("w500", "font-weight:500"), ("w700", "font-weight:700")])
+    assert err is None, err
+    assert res["w500"] == ("face", "400"), res
+
+    err, res = probe_page(site, tmp_path, "wstyle", [(400, N, N), (700, "italic", N)],
+                          [("up600", "font-weight:600"), ("it700", "font-weight:700;font-style:italic")])
+    assert err is not None and re.search(r"1 of 2 probed element\(s\).*h1:lighter-face", str(err)), err
+    assert res["up600"] == ("lighter-face", "400") and res["it700"] == ("face", "700"), res
+
+
+FILES = {1000: "Probe.woff2", 1150: "Probe-1150.woff2", 1300: "Probe-1300.woff2"}  # advance -> file
+
+
+def test_chrome_probe_selects_the_face_chrome_draws_measured_by_width(site, tmp_path):
+    """The weight-selection test above reads data-fd-probe-weight, which pickFace() itself writes, and its faces
+    all share one file, so it cannot see pickFace() disagreeing with Chrome. Here each static face is a different
+    file with different advances, and Chrome's own choice is measured: every h1 in Probe is set inline-block, so
+    its width is its text's, and a reference span per file (one alias family per file, one @font-face each) gives
+    the width that file draws. The h1's width (the --rows box) must equal the reference of the file pickFace()
+    named, and that file must be the one CSS Fonts 4 section 5.2 selects. Cases: 600 over 400/500/700 and 650 over
+    600/700 (above 500: heavier first, the 700 file); 450 over 300/600 (400 to 500: nothing heavier up to 500, so lighter, the 300
+    file); 350 over 200/380 (below 400: lighter first, the 200 file).
+    Mutations watched red 2026-11-18, each on the width assertion (Chrome drew one file, pickFace() named
+    another): the >500 branch searching lighter first (650 names the 600 file; the 600 case, run after it, fails as
+    lighter-face); the 400-500 branch searching above 500 before lighter; the <400 branch searching heavier first."""
+    text = "Harbour Review"
+    cases = [  # page, {declared weight: advance of its file}, [(id, requested weight, expected advance)]
+        ("chosen650", {600: 1150, 700: 1300}, [("w650", 650, 1300), ("w600", 600, 1150)]),
+        ("chosen600", {400: 1000, 500: 1150, 700: 1300}, [("w600", 600, 1300), ("w400", 400, 1000), ("w500", 500, 1150)]),
+        ("chosen450", {300: 1000, 600: 1300}, [("w450", 450, 1000), ("w600", 600, 1300)]),
+        ("chosen350", {200: 1000, 380: 1150}, [("w350", 350, 1000), ("w380", 380, 1150)]),
+    ]
+    server, port = served(site, family="Probe")
+    try:
+        for name, faces, rows in cases:
+            css = "".join(f'@font-face {{ font-family: Probe; src: url(/fonts/{FILES[adv]}) format("woff2"); font-weight: {w}; }}\n'
+                          for w, adv in faces.items())
+            css += "".join(f'@font-face {{ font-family: Ref{adv}; src: url(/fonts/{f}) format("woff2"); }}\n' for adv, f in FILES.items())
+            css += ("h1 { display: inline-block; margin: 0 0 8px; } "
+                    ".ref { display: inline-block; font-size: 48px; font-weight: 400; font-synthesis: none; white-space: nowrap; }\n")
+            body = "".join(f"<div><h1 id='{i}' data-fd-row='{i}' style='font-weight:{w}'>{text}</h1></div>" for i, w, _ in rows)
+            body += "".join(f"<div><span class='ref' data-fd-row='ref{adv}' style='font-family:Ref{adv}'>{text}</span></div>" for adv in FILES)
+            path = page(site, name, body, faces=(), extra_css=css)
+            res = shoot.shoot(f"http://127.0.0.1:{port}{path}", tmp_path / f"{name}.png", 1280, 1, server=server,
+                              chrome=chrome_or_skip(), require_family="Probe", rows=True, dump_dom=True, launcher=ROWS_LAUNCHER)
+            width = {r["key"]: r["w"] for r in json.loads(pathlib.Path(res["rows"]).read_text(encoding="utf-8"))["rows"]}
+            refs = {adv: width[f"ref{adv}"] for adv in FILES}
+            assert len({round(v) for v in refs.values()}) == 3, refs  # the three files are told apart by width
+            picked = probe_results((tmp_path / f"{name}.dom.html").read_text(encoding="utf-8"))
+            for i, w, expect in rows:
+                drawn = [adv for adv, rw in refs.items() if abs(width[i] - rw) <= 0.5]
+                named = faces[int(float(picked[i][1]))]
+                assert drawn == [named], f"{name} {i}: Chrome drew the {drawn} file, pickFace() named {named} ({width}, {picked})"
+                assert drawn == [expect], f"{name} {i}: Chrome drew the {drawn} file, expected {expect}"
+    finally:
+        server.shutdown()
+
+
+def test_chrome_probe_keeps_italic_and_oblique_faces_apart(site, tmp_path):
+    """Plan section 13, F002: the style narrowing distinguishes italic from oblique as the @font-face font-style
+    descriptor does. This is a deliberate quality rule, not the browser's matching: CSS Fonts 4 lets an italic
+    request fall back to an oblique face (and an oblique request to an italic one) when no face of the asked-for
+    style exists, but such a stand-in is not the design's italic, so the probe fails it. An oblique element with
+    only an italic face loaded, and an italic element with only an oblique face loaded, each fail no-italic-face;
+    an element of each style with its own face passes. Each page also uses
+    the other slanted face, so it is loaded and an "ignore the italic/oblique difference" probe would accept it.
+    Mutations watched red 2026-11-18: styleKind() collapsing italic and oblique into one kind (the 0.3 regex
+    /italic|oblique/: the oblique element passes); faces("italic") also accepting oblique faces, the one-sided
+    version (the oblique-only page's italic element passes)."""
+    err, res = probe_page(site, tmp_path, "obl", [(400, N, N), (400, "italic", N)],
+                          [("it", "font-style:italic"), ("ob", "font-style:oblique")])
+    assert err is not None and re.search(r"1 of 2 probed element\(s\).*h1:no-italic-face", str(err)), err
+    assert res["it"][0] == "face" and res["ob"][0] == "no-italic-face", res
+
+    err, res = probe_page(site, tmp_path, "ita", [(400, N, N), (400, "oblique", N)],
+                          [("ob", "font-style:oblique"), ("it", "font-style:italic")])
+    assert err is not None and re.search(r"1 of 2 probed element\(s\).*h1:no-italic-face", str(err)), err
+    assert res["ob"][0] == "face" and res["it"][0] == "no-italic-face", res
+
+
+def test_chrome_probe_refuses_an_oblique_element_whose_faces_declare_several_angles(site, tmp_path):
+    """CSS Fonts 4 matches the oblique angle before the weight; pickFace() models weight only. With oblique 10deg at
+    700 and oblique 20deg at 400 both loaded, a 20deg 600 element is drawn from the 20deg 400 face (synthesised),
+    while weight-only matching would pick the 10deg 700 face and pass. So an oblique element whose loaded faces
+    declare more than one angle is unmodelled-style, a failure and never a pass. One angle at 400 and 700 is
+    modelled: a 600 request selects 700 and passes.
+    Mutation watched red 2026-11-18: the unmodelled-style branch removed (the 20deg 600 element reads face, 700)."""
+    err, res = probe_page(site, tmp_path, "oblang", [(700, "oblique 10deg", N), (400, "oblique 20deg", N)],
+                          [("a20w600", "font-style:oblique 20deg;font-weight:600"),
+                           ("a10w700", "font-style:oblique 10deg;font-weight:700"),
+                           ("a20w400", "font-style:oblique 20deg;font-weight:400")])
+    assert err is not None and re.search(r"3 of 3 probed element\(s\).*h1:unmodelled-style", str(err)), err
+    assert {k: v[0] for k, v in res.items()} == {"a20w600": "unmodelled-style", "a10w700": "unmodelled-style",
+                                                 "a20w400": "unmodelled-style"}, res
+
+    err, res = probe_page(site, tmp_path, "oblone", [(400, "oblique 10deg", N), (700, "oblique 10deg", N)],
+                          [("w600", "font-style:oblique 10deg;font-weight:600"),
+                           ("w400", "font-style:oblique 10deg;font-weight:400")])
+    assert err is None, err
+    assert res == {"w600": ("face", "700"), "w400": ("face", "400")}, res
+
+
+def test_chrome_probe_refuses_a_family_with_a_face_of_another_width(site, tmp_path):
+    """Plan section 13, F002: width matching (font-stretch, tried before style and weight) is not modelled, so a
+    loaded face of the family with a stretch other than 100% makes every element of the family unmodelled-stretch,
+    a failure and never a pass. A face declared font-stretch: 100% is normal width and passes.
+    Mutations watched red 2026-11-18: the unmodelled-stretch branch deleted (the shot passes); stretchIsNormal()
+    returning true for any value (the same)."""
+    err, res = probe_page(site, tmp_path, "wdth", [(400, N, N), (400, N, "75%")],
+                          [("n", "font-weight:400"), ("c", "font-stretch:75%")])
+    assert err is not None and re.search(r"2 of 2 probed element\(s\).*h1:unmodelled-stretch", str(err)), err
+    assert res["n"][0] == "unmodelled-stretch" and res["c"][0] == "unmodelled-stretch", res
+
+    err, res = probe_page(site, tmp_path, "wdth100", [(400, N, "100%"), (700, N, N)],
+                          [("n", "font-weight:400"), ("b", "font-weight:700")])
+    assert err is None, err
+    assert res == {"n": ("face", "400"), "b": ("face", "700")}, res
 
 
 def test_chrome_probe_selector_fails_an_element_set_in_another_family(site, tmp_path):
@@ -1462,3 +1686,27 @@ def test_rows_without_both_font_proofs_are_refused(tmp_path, missing):
     with pytest.raises(SystemExit) as exc:
         shoot.main(argv)
     assert "--rows needs --family and --font-url" in str(exc.value.code), exc.value.code
+
+
+def test_the_server_queues_a_burst_of_connections_from_several_browsers(tmp_path):
+    """Several browsers at once (--jobs, default 3) each open a burst of connections. With socketserver's default listen
+    backlog of 5, macOS refused the extra ones: a font request never reached the server, so the shot drew the fallback
+    and failed as font=missing or no-italic-face with nothing in the response log (2026-11-18, three of three --jobs 6
+    runs over a 12-shot site; five of five clean at 128). Here the real server's accept loop is stopped, so only the
+    kernel's queue holds connections, and 40 connects must all complete. Watched red 2026-11-18 with
+    request_queue_size = 5 (on macOS 11 of 40 connected). Linux completes a handshake even when the accept queue is
+    full, so on Linux this test cannot fail; the macOS legs and the operator's Mac are where it guards."""
+    server, port = shoot.serve(tmp_path, seconds=60)
+    server.shutdown()  # stops serve_forever; the listening socket stays open until server_close()
+    socks = []
+    try:
+        for _ in range(40):
+            s = socket.socket()
+            s.settimeout(1.0)
+            socks.append(s)
+        connected = sum(1 for s in socks if s.connect_ex(("127.0.0.1", port)) == 0)
+    finally:
+        for s in socks:
+            s.close()
+        server.server_close()
+    assert connected == 40, f"only {connected} of 40 connections were queued; the listen backlog is too small for --jobs bursts"

@@ -1,0 +1,370 @@
+name: platform-shots-reusable
+
+# WHAT IT'S FOR: the one copy of the cross-platform rendering shots. It shows how a site's custom font is drawn
+# by Chrome and Firefox on Windows, macOS and Linux, so the review can look at the smallest rows on the
+# renderers the author's Mac does not have (DirectWrite on Windows above all). A site does not copy it: a short
+# caller in the site's repository (templates/platform-shots.yml) calls it with `uses:` pinned to a full commit
+# SHA, and the run happens in the site's repository. Each leg checks out the site (its fonts go to that
+# runner and nowhere else) and this repository's scripts/ at the commit the caller pinned, runs shoot.py on
+# one GitHub-hosted runner with the same proofs as every other shoot.py shot, and uploads the leg; a last job
+# crops every row from every leg into one image per row with compare-shots.py and writes compare.md. The
+# skill's own .github/workflows/platform-shots.yml calls it the same way, with `uses: ./`, on the neutral fixture.
+#
+# WHAT IT PROVES, exactly: references/review-loop.md section 9 states it; in short, what the recorded browser
+# drew on a GitHub-hosted virtual machine of the recorded OS, at the recorded scale and font-smoothing
+# settings, with the served-200, sentinel, element and italic proofs, using the skill's scripts at the commit
+# the caller pinned, which each leg's log names ("skill: <repo> @ <sha>"). Nothing about a reader's machine.
+#
+# THE SELF-CHECKOUT FAILS CLOSED. The first step of both jobs refuses to run unless job.workflow_sha is a full
+# 40-hex commit SHA, because an empty `ref:` would make actions/checkout take this repository's default branch;
+# the scripts never come from a branch tip. After the checkout a step holds `git rev-parse HEAD` equal to that
+# SHA. GitHub Enterprise Server has no job.workflow_* context, so it is not supported (the guard refuses).
+#
+# INPUTS. Lists are separated by spaces or newlines, so no page path or font URL may contain whitespace; the
+# family is one value and may.
+#   serve           (required) the built static root, relative to the caller's checkout, served at /
+#   family          (required) the font-family name every shot must prove it drew with
+#   font_urls       (required) the root-relative woff2 paths the site's stylesheet requests (a query string on
+#                   the stylesheet's URL is ignored: shoot.py compares paths); each shot must request at least
+#                   one and be served 200 for every one it requests. With font_json, the first is the roman the
+#                   specimen loads and the second, when given, the italic.
+#   pages           (required) the pages to shoot, paths under serve
+#   font_json       the skill's font.json for the face, relative to the caller's checkout, or empty for a font
+#                   the skill did not build: no specimen is rendered or shot, and the pages are the whole leg.
+#                   A requirements.json beside it is passed to the specimen.
+#   scales          device scales (default "1 1.25"); 1 is where hairlines break, 1.25 is Windows' most common scaling
+#   browsers        "chrome", "firefox" or both (default both)
+#   oses            runner labels to run (default all three); a leg left out skips every step after the checkouts
+#   build           shell commands run with `eval` in the caller's checkout before shooting, to build or stage
+#                   serve; empty (the default) skips the step. It is a command the caller wrote in its own
+#                   workflow file and runs with the caller's token, the same trust as any `run:` line the caller
+#                   already has. The other direction is the one that matters: this file and the skill's scripts
+#                   run with the caller's token too, which is why a caller pins a full commit SHA it has read.
+#   run_tool_tests  (boolean, default false) the skill's own release proof runs the shoot.py tests on each leg
+#
+# COST (GitHub's billing pages, read 2026-11-17; re-check before relying on it): billed to the caller, never to
+# this repository. Free for standard runners in a public repository. In a private one each job is billed per
+# started minute, rounded up, at Linux $0.006, Windows $0.010 and macOS $0.062 a minute. Estimated, not
+# measured: six legs plus the compare job about $0.40; a leg left out by browsers or oses still starts its
+# runner for about a minute.
+#
+# ARTIFACTS: platform-shots-<os>-<browser> per leg and platform-shots-compare, kept 14 days, on the caller's run
+# (`gh run download <run id> -n platform-shots-compare`). Two calls of this workflow in one caller run would
+# collide on those names.
+
+on:
+  workflow_call:
+    inputs:
+      serve:
+        type: string
+        required: true
+      family:
+        type: string
+        required: true
+      font_urls:
+        type: string
+        required: true
+      pages:
+        type: string
+        required: true
+      font_json:
+        type: string
+        required: false
+        default: ""
+      scales:
+        type: string
+        required: false
+        default: "1 1.25"
+      browsers:
+        type: string
+        required: false
+        default: "chrome firefox"
+      oses:
+        type: string
+        required: false
+        default: "windows-latest macos-latest ubuntu-latest"
+      build:
+        type: string
+        required: false
+        default: ""
+      run_tool_tests:
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash # Git Bash on Windows: one set of lines for the three systems
+
+env:
+  # Python on a Windows runner reads and writes text as cp1252 unless told otherwise; the skill's files are UTF-8.
+  PYTHONUTF8: "1"
+  # Git Bash on Windows rewrites an argument that starts with / into a Windows path before Python sees it
+  # (/fonts/X.woff2 became C:/Program Files/Git/fonts/X.woff2); these two turn that off.
+  MSYS_NO_PATHCONV: "1"
+  MSYS2_ARG_CONV_EXCL: "*"
+  # every caller value reaches the scripts through these, never pasted into a run: line
+  IN_SERVE: ${{ inputs.serve }}
+  IN_BUILD: ${{ inputs.build }}
+  IN_FAMILY: ${{ inputs.family }}
+  IN_FONT_URLS: ${{ inputs.font_urls }}
+  IN_PAGES: ${{ inputs.pages }}
+  IN_FONT_JSON: ${{ inputs.font_json }}
+  IN_SCALES: ${{ inputs.scales }}
+  FD: fd # where the skill is checked out, at job.workflow_sha
+  SITE: site # where the caller's repository is checked out
+
+jobs:
+  shots:
+    name: ${{ matrix.os }} / ${{ matrix.browser }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false # one leg's failure must not cancel the others
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        browser: [chrome, firefox]
+    env:
+      BROWSER: ${{ matrix.browser }}
+      LEG_OS: ${{ matrix.os }}
+    steps:
+      - name: refuse to run unless the skill's commit is known (job.workflow_sha), so the scripts can never come from a branch tip
+        env:
+          WF_SHA: ${{ job.workflow_sha }}
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_REF: ${{ job.workflow_ref }}
+        run: |
+          if ! [[ "$WF_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "refused: job.workflow_sha is '$WF_SHA', not a full commit SHA; the skill's scripts cannot be checked out at the pinned commit (GitHub Enterprise Server has no job.workflow_* context)" >&2
+            exit 1
+          fi
+          echo "skill: $WF_REPO @ $WF_SHA ($WF_REF)"
+      - name: the caller's repository (its pages and fonts)
+        uses: actions/checkout@v4
+        with:
+          path: site
+      - name: the skill's scripts at the commit the caller pinned
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: fd
+          persist-credentials: false
+      - name: verify the skill checkout is that commit (git rev-parse HEAD equals job.workflow_sha)
+        env:
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          HEAD_SHA="$(git -C "$FD" rev-parse HEAD)"
+          if [ "$HEAD_SHA" != "$WF_SHA" ]; then
+            echo "refused: the skill checkout is at '$HEAD_SHA', not job.workflow_sha '$WF_SHA'" >&2
+            exit 1
+          fi
+          echo "skill checkout verified at $HEAD_SHA"
+      # a call with browsers "chrome" or fewer oses skips every later step of the other legs (a runner still starts).
+      # Exact words, not contains(): contains() on a string is a substring test, so "nochrome" would have run Chrome.
+      - name: decide whether this leg runs (the exact words of the browsers and oses inputs; an unknown word fails)
+        env:
+          IN_BROWSERS: ${{ inputs.browsers }}
+          IN_OSES: ${{ inputs.oses }}
+        run: |
+          on=true
+          pick() { # $1 the input's name, $2 its value, $3 the words it may hold, $4 this leg's word
+            local words=() w found=false
+            read -r -d '' -a words <<< "$2" || true
+            if [ "${#words[@]}" -eq 0 ]; then echo "refused: the $1 input is empty" >&2; exit 1; fi
+            for w in "${words[@]}"; do
+              case " $3 " in *" $w "*) ;; *) echo "refused: the $1 input holds '$w', not one of: $3" >&2; exit 1 ;; esac
+              if [ "$w" = "$4" ]; then found=true; fi
+            done
+            if [ "$found" != true ]; then on=false; fi
+          }
+          pick browsers "$IN_BROWSERS" "chrome firefox" "$BROWSER"
+          pick oses "$IN_OSES" "windows-latest macos-latest ubuntu-latest" "$LEG_OS"
+          echo "LEG_ON=$on" >> "$GITHUB_ENV"
+          echo "leg $LEG_OS / $BROWSER: runs=$on"
+      - uses: actions/setup-python@v5
+        if: env.LEG_ON == 'true'
+        with:
+          python-version: "3.12" # the macOS image's own Python is 3.15
+      - name: build or stage the served root (inputs.build), in the caller's checkout
+        if: env.LEG_ON == 'true' && env.IN_BUILD != ''
+        run: cd "$SITE" && eval "$IN_BUILD"
+      - name: resolve the inputs into .fd-slots.sh (sourced by the shooting steps)
+        if: env.LEG_ON == 'true'
+        run: |
+          cat > .fd-slots.sh <<'SLOTS'
+          # shellcheck disable=SC2034 # the arrays are read by the steps that source this file
+          # bash 3.2 has no mapfile, so each list is read one word a line
+          FAMILY="$IN_FAMILY"
+          PAGES=()
+          while read -r w; do if [ -n "$w" ]; then PAGES+=("$w"); fi; done < <(printf '%s\n' "$IN_PAGES" | tr -s ' \t' '\n')
+          SCALES=()
+          while read -r w; do if [ -n "$w" ]; then SCALES+=("$w"); fi; done < <(printf '%s\n' "$IN_SCALES" | tr -s ' \t' '\n')
+          FONT_URLS=()
+          FONT_URL_ARGS=()
+          while read -r w; do if [ -n "$w" ]; then FONT_URLS+=("$w"); FONT_URL_ARGS+=(--font-url "$w"); fi; done < <(printf '%s\n' "$IN_FONT_URLS" | tr -s ' \t' '\n')
+          SLOTS
+          # shellcheck disable=SC1091
+          source .fd-slots.sh
+          echo "family: $FAMILY"
+          echo "pages: ${PAGES[*]}"
+          echo "scales: ${SCALES[*]}"
+          echo "font urls: ${FONT_URLS[*]}"
+          EMPTY=""
+          if [ -z "$IN_SERVE" ]; then EMPTY="$EMPTY serve"; fi
+          if [ -z "$FAMILY" ]; then EMPTY="$EMPTY family"; fi
+          if [ "${#FONT_URLS[@]}" -eq 0 ]; then EMPTY="$EMPTY font_urls"; fi
+          if [ "${#PAGES[@]}" -eq 0 ]; then EMPTY="$EMPTY pages"; fi
+          if [ "${#SCALES[@]}" -eq 0 ]; then EMPTY="$EMPTY scales"; fi
+          if [ -n "$EMPTY" ]; then
+            echo "an input is empty:$EMPTY (serve, family, font_urls, pages and scales must each name at least one value)" >&2
+            exit 1
+          fi
+      - name: fontTools and brotli for the specimen's charset check
+        if: env.LEG_ON == 'true' && env.IN_FONT_JSON != ''
+        run: python -m pip install "fonttools==4.68.*" brotli
+      # Every leg shoots through Playwright: Firefox has no other launcher, and Chrome's command line on a Windows runner
+      # lays the page out 16 px narrower than it captures (shoot_playwright.py's header). Chrome legs launch the installed
+      # Chrome, so only the Firefox legs download a browser. The pin is requirements-platform.txt's (the tests hold them
+      # equal); installing that file would pull requirements.txt onto every leg for nothing.
+      - name: Playwright (every leg), and its Firefox (Firefox legs only)
+        if: env.LEG_ON == 'true'
+        run: |
+          python -m pip install "playwright==1.64.1"
+          if [ "$BROWSER" = "firefox" ]; then
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              python -m playwright install --with-deps firefox
+            else
+              python -m playwright install firefox
+            fi
+          fi
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+        if: env.LEG_ON == 'true' && matrix.os == 'ubuntu-latest' && matrix.browser == 'chrome'
+        with:
+          chrome-version: stable
+          install-dependencies: true
+      - name: point shoot.py at that Chrome, and let it use its sandbox (Ubuntu 24.04 restricts unprivileged user namespaces)
+        if: env.LEG_ON == 'true' && matrix.os == 'ubuntu-latest' && matrix.browser == 'chrome'
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          echo "CHROME=$CHROME_PATH" >> "$GITHUB_ENV"
+          if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: render the review specimen into the served root (inputs.font_json)
+        if: env.LEG_ON == 'true' && env.IN_FONT_JSON != ''
+        run: |
+          source .fd-slots.sh
+          REQS="$(dirname "$SITE/$IN_FONT_JSON")/requirements.json"
+          ARGS=(--font "$SITE/$IN_FONT_JSON" --font-url "${FONT_URLS[0]}")
+          if [ -f "$REQS" ]; then ARGS+=(--requirements "$REQS"); fi
+          if [ "${#FONT_URLS[@]}" -ge 2 ]; then ARGS+=(--italic-url "${FONT_URLS[1]}"); fi
+          mkdir -p "$SITE/$IN_SERVE/review"
+          python "$FD/scripts/specimen.py" "${ARGS[@]}" "$SITE/$IN_SERVE/review/specimen.html"
+      - name: shoot the specimen (6000 px tall, so every row is inside the capture)
+        if: env.LEG_ON == 'true' && env.IN_FONT_JSON != ''
+        run: |
+          source .fd-slots.sh
+          python "$FD/scripts/shoot.py" leg --serve "$SITE/$IN_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --require-captured --meta leg/meta-specimen.json --bands none --jobs 2
+      - name: shoot the pages
+        # runs after a failed specimen shot too, so one failure does not lose the other invocation's evidence
+        if: ${{ !cancelled() && env.LEG_ON == 'true' }}
+        run: |
+          source .fd-slots.sh
+          python "$FD/scripts/shoot.py" leg --serve "$SITE/$IN_SERVE" --pages "${PAGES[@]}" --widths 1280 --scales "${SCALES[@]}" --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --meta leg/meta-pages.json --bands none --jobs 2
+      - name: the shoot.py tests of the Windows teardown, fractional scales, the meta file and the rows, run natively on this runner (F010), and on Chrome legs the Playwright Chrome test (inputs.run_tool_tests, the skill's own proof only)
+        if: ${{ !cancelled() && env.LEG_ON == 'true' && inputs.run_tool_tests == true }}
+        run: |
+          python -m pip install pytest pillow
+          K="kill or fraction or meta or rows or profile"
+          # Chrome legs only: on Ubuntu only they let Chrome use its sandbox, which the Playwright launch keeps on
+          if [ "$BROWSER" = "chrome" ]; then K="$K or lays_the_page_out"; fi
+          # the skill's tests, from the skill checkout, so tests/conftest.py's REPO is the skill and not the caller
+          cd "$FD"
+          python -m pytest tests/test_shoot.py tests/test_shoot_playwright.py -q -rs -k "$K"
+      # the artifact's root is leg/ itself, so download-artifact puts meta*.json at legs/<artifact name>/ (F001)
+      - uses: actions/upload-artifact@v4
+        if: always() && env.LEG_ON == 'true'
+        with:
+          name: platform-shots-${{ matrix.os }}-${{ matrix.browser }}
+          path: leg/
+          retention-days: 14
+          if-no-files-found: error
+
+  compare:
+    name: compare the legs
+    needs: shots
+    if: always() # one leg's failure must not lose the others' comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: refuse to run unless the skill's commit is known (job.workflow_sha), so the scripts can never come from a branch tip
+        env:
+          WF_SHA: ${{ job.workflow_sha }}
+          WF_REPO: ${{ job.workflow_repository }}
+          WF_REF: ${{ job.workflow_ref }}
+        run: |
+          if ! [[ "$WF_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "refused: job.workflow_sha is '$WF_SHA', not a full commit SHA; the skill's scripts cannot be checked out at the pinned commit (GitHub Enterprise Server has no job.workflow_* context)" >&2
+            exit 1
+          fi
+          echo "skill: $WF_REPO @ $WF_SHA ($WF_REF)"
+      - name: the skill's scripts at the commit the caller pinned
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: fd
+          persist-credentials: false
+      - name: verify the skill checkout is that commit (git rev-parse HEAD equals job.workflow_sha)
+        env:
+          WF_SHA: ${{ job.workflow_sha }}
+        run: |
+          HEAD_SHA="$(git -C "$FD" rev-parse HEAD)"
+          if [ "$HEAD_SHA" != "$WF_SHA" ]; then
+            echo "refused: the skill checkout is at '$HEAD_SHA', not job.workflow_sha '$WF_SHA'" >&2
+            exit 1
+          fi
+          echo "skill checkout verified at $HEAD_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pillow for the crops
+        run: python -m pip install pillow
+      # with merge-multiple false each artifact is extracted into its own directory, legs/<artifact name>/
+      # (actions/download-artifact v4 README, read 2026-11-17)
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: platform-shots-*
+          path: legs
+          merge-multiple: false
+      - name: compare every row across the legs (a bad leg is refused and listed; the others are still compared)
+        run: |
+          ls -R legs || echo "NOTE: no leg uploaded an artifact"
+          python "$FD/scripts/compare-shots.py" compare legs/*/
+      - name: compare.md into the job summary
+        if: always()
+        run: |
+          if [ -f compare/compare.md ]; then
+            cat compare/compare.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "compare-shots.py wrote no compare.md; read the compare step's log" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: platform-shots-compare
+          path: compare/
+          retention-days: 14
+      - name: fail the run when a leg failed (after the upload, so the evidence that exists is kept)
+        if: always() && needs.shots.result != 'success'
+        env:
+          SHOTS_RESULT: ${{ needs.shots.result }}
+        run: |
+          echo "the shots job ended '$SHOTS_RESULT': at least one leg failed; its meta*.json names the failure" >&2
+          exit 1

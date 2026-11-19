@@ -7,7 +7,9 @@ precedent fixtures broken and every guard decorative. The workflow cannot be exe
 GitHub), so this reads the file: a check on text, stated as such, kept because the text is
 what GitHub runs. The `test` job must run `scripts/smoke.sh` without `--from`, which is steps 1-7.
 """
+import os
 import re
+import subprocess
 
 import pytest
 from conftest import REPO
@@ -101,14 +103,19 @@ def test_the_lint_job_runs_eslint_pinned_and_shellcheck_on_smoke():
     assert scripts["lint:sh"].split() == ["shellcheck", "scripts/smoke.sh"], scripts["lint:sh"]
 
 
-# ---- the cross-platform rendering shots (plan docs/plan-platform-shots.md, sections 5 and 7; work item C1t) ----
-# Like the tests above, these read the workflow files: GitHub runs them, the suite cannot. A check on text (parsed as YAML where the
-# structure matters), stated as such. What executes the template is the skill's own platform-shots workflow on a pull request.
+# ---- the cross-platform rendering shots as a reusable workflow (docs/plan-reusable-shots.md sections 2-5 and 13; work item C1t) ----
+# GitHub runs these files and the suite cannot, so most tests below read the parsed YAML, stated as such in each docstring; the real
+# check of what only GitHub executes (which job calls which file, what `uses` resolves to, the matrix) is the skill's pull-request run
+# and a site's dispatched run (plan section 9, steps 3 and 4). Three tests EXECUTE the shipped shell instead: run_step() takes a step's
+# `run:` text out of the parsed YAML and runs it with bash the way GitHub does, under a controlled environment, with a stub `python`
+# on PATH that records its arguments, so the guard, the slot script and the argument building are exercised as code, not matched as text.
 
+
+REUSABLE = REPO / ".github" / "workflows" / "platform-shots-reusable.yml"
+SKILL_CALLER = REPO / ".github" / "workflows" / "platform-shots.yml"
 TEMPLATE = REPO / "templates" / "platform-shots.yml"
-PLATFORM = REPO / ".github" / "workflows" / "platform-shots.yml"
-SLOTS = ("FD_SCRIPTS", "FD_SERVE", "FD_BUILD", "FD_FAMILY", "FD_FONT_URLS", "FD_PAGES", "FD_FONT_JSON", "FD_SCALES")
 TOOLS = ("shoot.py", "specimen.py", "compare-shots.py")
+SHA_CHECKOUT = {"repository": "${{ job.workflow_repository }}", "ref": "${{ job.workflow_sha }}", "path": "fd", "persist-credentials": False}
 
 
 def load(path):
@@ -123,21 +130,82 @@ def steps(doc, job):
 
 
 def runs(doc):
-    return [(job, s) for job in doc["jobs"] for s in steps(doc, job) if "run" in s]
+    return [(job, s) for job in doc["jobs"] for s in doc["jobs"][job].get("steps", []) if "run" in s]
 
 
-def test_the_platform_template_is_manual_runs_three_oses_and_two_browsers_without_fail_fast_and_compares_whatever_finished():
-    """The template's structure, clause by clause (plan 5.1 and findings F001, F002, F004, F007, F013, H1): manual only, with the five
-    dispatch inputs; three `-latest` systems by two browsers with `fail-fast: false`; timeouts on both jobs; a compare job that runs after
-    any outcome of the shots, and uploads that run after a failure; bash everywhere; both shoot lines proving the family and writing rows
-    and meta, the specimen 6000 px tall; the download keeping one directory per artifact under legs/, read by `legs/*/`; Firefox
-    installed in its legs only; FD_BUILD and the specimen steps conditioned on their slots; every step after checkout conditioned on the
-    browsers input. Mutations watched red on 2026-11-17: `--family` dropped from the pages shoot line (a picture, not evidence);
-    `merge-multiple: true`; the download's `path` removed; `--height 6000` dropped; `if: always()` removed from the compare job; `--require-captured` dropped."""
-    doc = load(TEMPLATE)
-    assert list(doc["on"]) == ["workflow_dispatch"], f"the template must run by hand only: {list(doc['on'])}"
-    assert set(doc["on"]["workflow_dispatch"]["inputs"]) == {"pages", "scales", "font_urls", "family", "browsers"}, \
-        "the dispatch inputs must be pages, scales, font_urls, family and browsers (F013)"
+def step(doc, job, name_fragment):
+    found = [s for s in steps(doc, job) if name_fragment in s.get("name", "")]
+    assert len(found) == 1, f"expected one step in {job} named like {name_fragment!r}, found {len(found)}"
+    return found[0]
+
+
+def stub_python(tmp_path):
+    """A `python` on PATH that writes its arguments, NUL-separated, to $ARGV_OUT and exits 0: the shoot and specimen steps then run
+    their real shell up to the interpreter call, and the test reads the exact argument vector the step built."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    py = bindir / "python"
+    py.write_text("#!/bin/sh\nprintf '%s\\0' \"$@\" > \"$ARGV_OUT\"\n", encoding="utf-8")
+    py.chmod(0o755)
+    return bindir
+
+
+def run_step(doc, job, name_fragment, env, cwd, bindir=None):
+    """Execute one shipped step: its `run:` text written to a file and run as GitHub's bash shell runs it
+    (`bash --noprofile --norc -eo pipefail`). The environment is PATH and HOME, the workflow's and the job's literal `env:` values
+    (FD, SITE, PYTHONUTF8; never a `${{ }}` value, which only GitHub can resolve), then `env` from the test standing in for them."""
+    s = step(doc, job, name_fragment)
+    script = cwd.parent / f"step-{abs(hash(name_fragment))}.sh"
+    script.write_text(s["run"], encoding="utf-8")
+    full = {"PATH": (f"{bindir}{os.pathsep}" if bindir else "") + os.environ["PATH"], "HOME": os.environ.get("HOME", str(cwd))}
+    for scope in (doc.get("env") or {}, doc["jobs"][job].get("env") or {}):
+        full.update({k: str(v) for k, v in scope.items() if "${{" not in str(v)})
+    full.update(env)
+    return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", str(script)], cwd=cwd, env=full,
+                          capture_output=True, text=True, timeout=60)
+
+
+def argv(path):
+    return path.read_text(encoding="utf-8").split("\0")[:-1]
+
+
+def test_the_reusable_workflow_is_callable_only_and_declares_the_inputs_both_callers_pass():
+    """The reusable workflow's contract with its two callers (plan 2.3). A YAML structure assertion is unavoidable: GitHub alone checks a
+    call's `with:` against `on.workflow_call.inputs`, and it does so only when a caller runs (plan section 9, steps 3 and 4). Mutations
+    watched red on 2026-11-18: `family` renamed `face` in the callee only; `required: true` dropped from `family`; `oses` dropped from the
+    template's `with:`."""
+    doc, caller, tpl = load(REUSABLE), load(SKILL_CALLER), load(TEMPLATE)
+    assert list(doc["on"]) == ["workflow_call"], f"the reusable workflow must be callable only: {list(doc['on'])}"
+    inputs = doc["on"]["workflow_call"]["inputs"]
+    want = {"serve", "family", "font_urls", "pages", "font_json", "scales", "browsers", "oses", "build", "run_tool_tests"}
+    assert set(inputs) == want, f"the inputs must be exactly {sorted(want)}: {sorted(inputs)}"
+    for name, spec in inputs.items():
+        assert spec["type"] == ("boolean" if name == "run_tool_tests" else "string"), f"{name} has type {spec['type']}"
+    required = {n for n, s in inputs.items() if s.get("required") is True}
+    assert required == {"serve", "family", "font_urls", "pages"}, f"the required inputs are {sorted(required)}"
+    defaults = {n: inputs[n].get("default") for n in ("scales", "browsers", "oses", "font_json", "build", "run_tool_tests")}
+    assert defaults == {"scales": "1 1.25", "browsers": "chrome firefox", "oses": "windows-latest macos-latest ubuntu-latest",
+                        "font_json": "", "build": "", "run_tool_tests": False}, defaults
+    for name, other in (("the skill's caller", caller), ("the template", tpl)):
+        (job,) = other["jobs"].values()
+        given = set(job["with"])
+        assert given <= want, f"{name} passes inputs the reusable workflow does not declare: {sorted(given - want)}"
+        assert required <= given, f"{name} omits required inputs: {sorted(required - given)}"
+    (tjob,) = tpl["jobs"].values()
+    assert {"browsers", "oses"} <= set(tjob["with"]), "the template must pass its browsers and oses dispatch inputs on"
+
+
+def test_the_reusable_workflow_runs_three_oses_and_two_browsers_without_fail_fast_and_compares_whatever_finished():
+    """The legs' structure, clause by clause, moved from the 0.3 template test (plan 5): three `-latest` systems by two browsers with
+    `fail-fast: false`; timeouts; a compare job that runs after any outcome and uploads after a failure; bash everywhere; both shoot lines
+    proving the family through Playwright and writing rows and meta, the specimen 6000 px tall with --require-captured; the download
+    keeping one directory per artifact under legs/, read by `legs/*/`; Firefox installed in its legs only; the build and specimen steps
+    conditioned on their inputs; LEG_ON deciding from both inputs.browsers and inputs.oses; every step after the checkouts and the verify
+    step conditioned on it; no FD_SCRIPTS left. A YAML structure assertion is unavoidable: only GitHub runs a matrix (plan section 9 step
+    3). Mutations watched red on 2026-11-18: `--family` dropped from the pages shoot line; `merge-multiple: true`; `--height 6000` dropped;
+    `if: always()` removed from the compare job."""
+    doc = load(REUSABLE)
+    text = REUSABLE.read_text(encoding="utf-8")
     shots, compare = doc["jobs"]["shots"], doc["jobs"]["compare"]
     assert shots["strategy"]["fail-fast"] is False, "one leg's failure must not cancel the others"
     m = shots["strategy"]["matrix"]
@@ -146,39 +214,159 @@ def test_the_platform_template_is_manual_runs_three_oses_and_two_browsers_withou
     assert compare.get("needs") == "shots" and compare.get("if") == "always()", "the compare job must run whatever the legs did (F007)"
     assert doc["defaults"]["run"]["shell"] == "bash" and not [s for _, s in runs(doc) if s.get("shell", "bash") != "bash"], \
         "every run step must be bash (Git Bash on Windows)"
+    for k, v in (("PYTHONUTF8", "1"), ("MSYS_NO_PATHCONV", "1"), ("MSYS2_ARG_CONV_EXCL", "*")):
+        assert doc["env"].get(k) == v, f"the workflow env must set {k}={v} (the Windows fixes of 0.3)"
     uploads = [s for j in ("shots", "compare") for s in steps(doc, j) if str(s.get("uses", "")).startswith("actions/upload-artifact@")]
     assert len(uploads) == 2 and all("always()" in s.get("if", "") for s in uploads), "both uploads must run after a failure (F007)"
     assert uploads[0]["with"]["path"] == "leg/", "a leg uploads its own directory, so meta*.json is at the artifact root (F001)"
-    shoot = [s["run"] for _, s in runs(doc) if "shoot.py" in s["run"]]
-    assert len(shoot) == 2, f"expected the specimen and the pages shoot steps: {len(shoot)}"
-    for text in shoot:
-        line = next(ln for ln in text.splitlines() if "shoot.py" in ln)
-        for flag in ("--family ", "--rows", "--meta ", "--bands none", "--browser "):
-            assert flag in line, f"a shoot line lacks {flag.strip()}: {line}"
-    spec = next(t for t in shoot if "review/specimen.html" in t)
+    shoots = [ln for s in steps(doc, "shots") for ln in s.get("run", "").splitlines()
+              if "shoot.py" in ln and not ln.lstrip().startswith("#") and "pytest" not in ln]
+    assert len(shoots) == 2, f"expected the specimen and the pages shoot lines: {len(shoots)}"
+    for line in shoots:
+        for flag in ("--family ", "--rows", "--meta ", "--bands none", "--browser ", "--launcher playwright", '--serve "$SITE/$IN_SERVE"'):
+            assert flag in line.split("#", 1)[0], f"a shoot line lacks {flag.strip()}: {line.strip()}"
+    spec = next(ln for ln in shoots if "review/specimen.html" in ln)
     assert "--height 6000" in spec, "the specimen must be shot 6000 px tall, or most rows are below the capture (F004)"
     assert "--require-captured" in spec, "the specimen must fail a row below its capture, not drop it (Impasse F002)"
     dl = next(s for s in steps(doc, "compare") if str(s.get("uses", "")).startswith("actions/download-artifact@"))
     assert dl["with"].get("pattern") == "platform-shots-*" and dl["with"].get("path") == "legs" and dl["with"].get("merge-multiple") is False, \
         f"the download must keep one directory per artifact under legs/ (F001): {dl['with']}"
-    assert any("compare-shots.py" in s["run"] and "legs/*/" in s["run"] for _, s in runs(doc)), "the compare line must read legs/*/"
+    assert any('"$FD/scripts/compare-shots.py"' in s["run"] and "legs/*/" in s["run"] for _, s in runs(doc)), \
+        "the compare line must run the skill checkout's compare-shots.py on legs/*/"
     ff = [s for s in steps(doc, "shots") if "playwright install" in s.get("run", "")]
     assert ff and all('if [ "$BROWSER" = "firefox" ]' in s["run"].split("playwright install")[0] for s in ff), \
         "Firefox must be installed in its legs only"
-    # each command line that runs shoot.py, not the step's whole text, so a flag left in a comment does not count
-    shoots = [ln for s in steps(doc, "shots") for ln in s.get("run", "").splitlines()
-              if "shoot.py" in ln and not ln.lstrip().startswith("#") and "pytest" not in ln]
-    assert len(shoots) == 2 and all("--launcher playwright" in ln.split("#", 1)[0] for ln in shoots), \
-        "every leg must shoot through Playwright: Chrome's command line on Windows measures rows on a narrower layout"
-    build = [s for s in steps(doc, "shots") if 'eval "$FD_BUILD"' in s.get("run", "")]
-    assert build and "env.FD_BUILD != ''" in build[0]["if"], "FD_BUILD must run, and only when the slot is set (F002)"
+    build = [s for s in steps(doc, "shots") if 'eval "$IN_BUILD"' in s.get("run", "")]
+    assert build and "env.IN_BUILD != ''" in build[0]["if"] and 'cd "$SITE"' in build[0]["run"], \
+        "the build input must run, in the caller's checkout, and only when it is set (F002)"
     specimen_steps = [s for s in steps(doc, "shots") if "specimen" in s.get("run", "")]
-    assert len(specimen_steps) == 2 and all("env.FD_FONT_JSON != ''" in s["if"] for s in specimen_steps), \
+    assert len(specimen_steps) == 2 and all("env.IN_FONT_JSON != ''" in s["if"] for s in specimen_steps), \
         "the specimen render and shot must be skipped for a site with no font.json (H1)"
-    leg_on = shots["env"]["LEG_ON"]
-    assert "inputs.browsers" in leg_on and "matrix.browser" in leg_on, f"the browsers input must decide which legs run: {leg_on}"
-    later = steps(doc, "shots")[1:]
-    assert all("env.LEG_ON == 'true'" in s.get("if", "") for s in later), "every step after checkout must skip in a leg the browsers input left out"
+    assert "LEG_ON" not in (shots.get("env") or {}), "LEG_ON is decided by the shell step, not a contains() expression (diff review F004)"
+    assert "decide whether this leg runs" in steps(doc, "shots")[4].get("name", ""), "step 5 of the shots job must decide LEG_ON"
+    later = steps(doc, "shots")[5:]
+    assert [s.get("uses", s.get("name", ""))[:20] for s in steps(doc, "shots")[1:3]] == ["actions/checkout@v4"] * 2, \
+        "steps 2 and 3 of the shots job must be the two checkouts"
+    assert all("env.LEG_ON == 'true'" in s.get("if", "") for s in later), \
+        "every step after the checkouts and the verify step must skip in a leg the browsers or oses input left out"
+    assert "FD_SCRIPTS" not in text, "the scripts are the skill checkout's; FD_SCRIPTS must be gone"
+
+
+def test_the_reusable_workflow_checks_out_its_own_scripts_at_job_workflow_sha_and_never_a_branch(tmp_path):
+    """The self-checkout fails closed (plan 2.2). In both jobs: the guard step comes first and takes job.workflow_sha through env:,
+    the skill checkout follows with repository/ref from job.workflow_*, path fd and no persisted credentials, and a verify step after
+    it compares `git rev-parse HEAD` with WF_SHA. The order and the `with:` are YAML assertions because only GitHub runs a checkout
+    (plan section 9 step 5(c) is the live red). The guard script itself is EXECUTED with bad and good SHAs. The plan's "no `@v` anywhere"
+    clause cannot hold beside `actions/checkout@v4`, so the branch check is on `ref:` values and the skill's own `uses:` lines.
+    Mutations watched red on 2026-11-18: the regex quantifier `{40}` changed to `+`; the guard moved after the skill checkout; the
+    `ref:` line removed from the shots job's skill checkout; the verify step's `!=` turned into `=` (it then refused the right commit and
+    accepted the wrong one). The verify step is EXECUTED too, against a one-commit git repository at fd/."""
+    doc = load(REUSABLE)
+    text = REUSABLE.read_text(encoding="utf-8")
+    for job in ("shots", "compare"):
+        st = steps(doc, job)
+        guard = [i for i, s in enumerate(st) if "WF_SHA" in (s.get("env") or {}) and "=~" in s.get("run", "")]
+        fd = [i for i, s in enumerate(st) if str(s.get("uses", "")).startswith("actions/checkout@") and (s.get("with") or {}).get("path") == "fd"]
+        verify = [i for i, s in enumerate(st) if "rev-parse HEAD" in s.get("run", "") and "WF_SHA" in s.get("run", "")]
+        assert guard == [0], f"{job}: the SHA guard must be the job's first step: {guard}"
+        assert st[0]["env"]["WF_SHA"] == "${{ job.workflow_sha }}", f"{job}: the guard must read job.workflow_sha through env:"
+        assert len(fd) == 1 and fd[0] > guard[0], f"{job}: one skill checkout, after the guard: {fd}"
+        assert st[fd[0]]["with"] == SHA_CHECKOUT, f"{job}: the skill checkout must be {SHA_CHECKOUT}: {st[fd[0]]['with']}"
+        assert verify and verify[0] > fd[0] and all(i < 4 for i in verify), f"{job}: a verify step must follow the skill checkout: {verify}"
+        assert st[verify[0]]["env"]["WF_SHA"] == "${{ job.workflow_sha }}", f"{job}: the verify step must compare with job.workflow_sha"
+    refs = re.findall(r"^\s*ref:\s*(.+)$", text, re.M)
+    assert refs and all(r.strip() == "${{ job.workflow_sha }}" for r in refs), f"every ref: must be job.workflow_sha: {refs}"
+    assert not re.search(r"font-design-skill/\S*@", text) and "ref: main" not in text and "ref: master" not in text, \
+        "the reusable workflow must never name a branch or tag of the skill"
+    work = tmp_path / "work"
+    work.mkdir()
+    sha = "0123456789abcdef0123456789abcdef01234567"
+    for bad in ("", "main", sha[:39], sha[:39] + "A"):
+        r = run_step(doc, "shots", "refuse to run unless", {"WF_SHA": bad, "WF_REPO": "o/r", "WF_REF": "o/r/x@refs/heads/main"}, work)
+        assert r.returncode == 1 and "refused: job.workflow_sha is" in r.stderr, f"the guard let WF_SHA={bad!r} through: {r.returncode} {r.stderr!r}"
+    r = run_step(doc, "shots", "refuse to run unless", {"WF_SHA": sha, "WF_REPO": "o/r", "WF_REF": "o/r/x@refs/heads/main"}, work)
+    assert r.returncode == 0 and f"skill: o/r @ {sha}" in r.stdout, f"the guard refused a full SHA: {r.stderr!r}"
+    for job in ("shots", "compare"):
+        assert step(doc, job, "refuse to run unless")["run"] == step(doc, "shots", "refuse to run unless")["run"], \
+            "the compare job's guard must be the same script as the one executed above"
+    git = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    for cmd in (["init", "-q", "fd"], ["-C", "fd", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "x"]):
+        subprocess.run(["git", *cmd], cwd=work, check=True, env={"PATH": os.environ["PATH"], **git})
+    head = subprocess.run(["git", "-C", "fd", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True, check=True).stdout.strip()
+    for job in ("shots", "compare"):
+        ok = run_step(doc, job, "verify the skill checkout", {"WF_SHA": head, **git}, work)
+        assert ok.returncode == 0 and head in ok.stdout, f"{job}: the verify step refused the checkout's own HEAD: {ok.stderr!r}"
+        bad = run_step(doc, job, "verify the skill checkout", {"WF_SHA": sha, **git}, work)
+        assert bad.returncode == 1 and "refused: the skill checkout is at" in bad.stderr, f"{job}: the verify step accepted another SHA: {bad.returncode}"
+
+
+def slot_env(**over):
+    env = {"IN_SERVE": "static-pages", "IN_FAMILY": "Driftwood MA", "IN_PAGES": "index.html essays/a-b.html about.html",
+           "IN_SCALES": "1 1.25", "IN_FONT_JSON": "", "BROWSER": "chrome",
+           "IN_FONT_URLS": "/fonts/d/A-Regular.woff2\n/fonts/d/A-Italic.woff2\n/fonts/d/A-Medium.woff2?v=1.001\n/fonts/d/A-Bold.woff2\n"
+                           "/fonts/d/A-MediumItalic.woff2\n"}
+    env.update(over)
+    return env
+
+
+def test_the_slot_script_reads_the_inputs_into_quoted_arrays_and_the_shoot_line_passes_them_whole(tmp_path):
+    """EXECUTES the slot step and then the pages shoot step (with a stub `python` that records its arguments): a two-word family stays
+    one argument all the way to shoot.py, five newline-separated font URLs become five `--font-url` pairs, three space-separated pages
+    become three `--pages` values, `--serve` is the site checkout's root, and an empty input fails the slot step naming it. Plan F004:
+    quoting the assignment cannot fail (Bash does not word-split an assignment), so the mutation is on the use. Mutations watched red on
+    2026-11-18: `--family $FAMILY` unquoted on the pages shoot line (the family split in two); the emptiness check removed (exit 0)."""
+    doc = load(REUSABLE)
+    work = tmp_path / "work"
+    work.mkdir()
+    r = run_step(doc, "shots", "resolve the inputs", slot_env(), work)
+    assert r.returncode == 0, r.stderr
+    probe = work.parent / "probe.sh"
+    probe.write_text('source .fd-slots.sh\nprintf "%s\\n" "$FAMILY" "${#FONT_URLS[@]}" "${#FONT_URL_ARGS[@]}" "${#PAGES[@]}" '
+                     '"${FONT_URL_ARGS[0]}" "${FONT_URL_ARGS[2]}" "${FONT_URL_ARGS[5]}"\n', encoding="utf-8")
+    out = subprocess.run(["bash", str(probe)], cwd=work, env={"PATH": os.environ["PATH"], **slot_env()}, capture_output=True, text=True)
+    assert out.stdout.splitlines() == ["Driftwood MA", "5", "10", "3", "--font-url", "--font-url", "/fonts/d/A-Medium.woff2?v=1.001"], out
+    bindir = stub_python(tmp_path)
+    got = work.parent / "argv"
+    r = run_step(doc, "shots", "shoot the pages", {**slot_env(), "ARGV_OUT": str(got)}, work, bindir)
+    assert r.returncode == 0, r.stderr
+    a = argv(got)
+    assert a[0] == "fd/scripts/shoot.py", f"the pages must be shot by the skill checkout's shoot.py: {a[0]}"
+    assert a[a.index("--family") + 1] == "Driftwood MA" and "MA" not in a, f"the family must reach shoot.py as one argument: {a}"
+    assert a[a.index("--serve") + 1] == "site/static-pages", a
+    assert a[a.index("--pages") + 1:a.index("--pages") + 4] == ["index.html", "essays/a-b.html", "about.html"], a
+    assert a.count("--font-url") == 5 and a[a.index("--browser") + 1] == "chrome", a
+    for empty in ("IN_PAGES", "IN_FAMILY", "IN_FONT_URLS"):
+        r = run_step(doc, "shots", "resolve the inputs", slot_env(**{empty: ""}), work)
+        name = empty[3:].lower()
+        assert r.returncode == 1 and f"an input is empty: {name}" in r.stderr, f"an empty {name} passed the slot step: {r.returncode} {r.stderr!r}"
+
+
+def test_the_specimen_step_reads_font_json_and_requirements_from_the_site_checkout(tmp_path):
+    """EXECUTES the specimen render step (plan F003): with font_json `tools/FACE/font.json` and a requirements.json beside it in the
+    site checkout, specimen.py gets `--font site/tools/FACE/font.json` and `--requirements site/tools/FACE/requirements.json`; with no
+    requirements.json there it gets no --requirements, even though a decoy requirements.json sits at the same path relative to the
+    workspace root (where the 0.3 form would have looked). Mutation watched red on 2026-11-18: the old form
+    `REQS="$(dirname "$IN_FONT_JSON")/requirements.json"` (it took the decoy)."""
+    doc = load(REUSABLE)
+    work = tmp_path / "work"
+    (work / "site" / "tools" / "FACE").mkdir(parents=True)
+    (work / "tools" / "FACE").mkdir(parents=True)
+    (work / "site" / "tools" / "FACE" / "font.json").write_text("{}", encoding="utf-8")
+    (work / "site" / "tools" / "FACE" / "requirements.json").write_text("{}", encoding="utf-8")
+    (work / "tools" / "FACE" / "requirements.json").write_text('{"decoy": true}', encoding="utf-8")
+    env = slot_env(IN_FONT_JSON="tools/FACE/font.json", IN_FONT_URLS="/fonts/F-VF.woff2 /fonts/F-Italic-VF.woff2")
+    assert run_step(doc, "shots", "resolve the inputs", env, work).returncode == 0
+    bindir = stub_python(tmp_path)
+    got = work.parent / "argv"
+    r = run_step(doc, "shots", "render the review specimen", {**env, "ARGV_OUT": str(got)}, work, bindir)
+    assert r.returncode == 0, r.stderr
+    assert argv(got) == ["fd/scripts/specimen.py", "--font", "site/tools/FACE/font.json", "--font-url", "/fonts/F-VF.woff2",
+                         "--requirements", "site/tools/FACE/requirements.json", "--italic-url", "/fonts/F-Italic-VF.woff2",
+                         "site/static-pages/review/specimen.html"], argv(got)
+    assert (work / "site" / "static-pages" / "review").is_dir(), "the step must create the review directory in the served root"
+    (work / "site" / "tools" / "FACE" / "requirements.json").unlink()
+    r = run_step(doc, "shots", "render the review specimen", {**env, "ARGV_OUT": str(got)}, work, bindir)
+    assert r.returncode == 0 and "--requirements" not in argv(got), f"a requirements.json outside the site checkout was passed: {argv(got)}"
 
 
 def unquoted_expansions(line):
@@ -212,82 +400,150 @@ def unquoted_expansions(line):
     return out
 
 
-def test_the_template_quotes_every_expansion():
-    """Every shell expansion in the template's and the skill workflow's `run:` lines is inside double quotes (F008: a family name
-    has spaces, and an unquoted list splits on them), the arrays are expanded only as "${NAME[@]}", and no `${{ }}` expression is
-    pasted into a script (each reaches the shell through `env:`). The scanner is checked against two known lines first, so it cannot
-    pass by seeing nothing. Mutations watched red on 2026-11-17: `--family "$FAMILY"` unquoted in the pages shoot line;
-    `"${FONT_URL_ARGS[@]}"` unquoted; `--browser "${{ matrix.browser }}"` pasted into the run line."""
+def shell_texts(path):
+    """Every piece of shell a workflow file carries: each `run:` script, and a caller's `with.build` (the reusable workflow runs it with
+    `eval`, so it is shell too)."""
+    doc = load(path)
+    out = [(job, s.get("name", s["run"][:40]), s["run"]) for job, s in runs(doc)]
+    for job, spec in doc["jobs"].items():
+        build = (spec.get("with") or {}).get("build")
+        if build:
+            out.append((job, "with.build", build))
+    return out
+
+
+def test_the_workflows_quote_every_expansion():
+    """Every shell expansion in the three files' shell (the reusable workflow's `run:` lines, the skill caller's `build`) is inside
+    double quotes (F008: a family name has spaces, and an unquoted list splits on them), the arrays are expanded only as "${NAME[@]}",
+    and no `${{ }}` expression is pasted into a script (each reaches the shell through `env:`). A source assertion because the expressions
+    are resolved by GitHub, not by bash; the executed slot test above covers the family's quoting as code. The scanner is checked against
+    two known lines first, so it cannot pass by seeing nothing. Mutations watched red on 2026-11-18: `"${FONT_URL_ARGS[@]}"` unquoted;
+    `--serve "$SITE/${{ inputs.serve }}"` pasted into the pages shoot line."""
     assert unquoted_expansions('python x --family $FAMILY') == ["$FAMILY"]
-    assert unquoted_expansions('R="$(dirname "$FD_FONT_JSON")/r" # $not') == []
-    for path in (TEMPLATE, PLATFORM):
-        for job, s in runs(load(path)):
-            assert "${{" not in s["run"], f"{path.name} {job}: a ${{{{ }}}} expression inside a run script; pass it through env: {s.get('name')}"
-            for line in s["run"].splitlines():
-                bad = unquoted_expansions(line)
-                assert not bad, f"{path.name} {job}: unquoted expansion {bad} in: {line.strip()}"
-                for arr in re.findall(r"\$\{(\w+)\[@\]\}", line):
-                    assert f'"${{{arr}[@]}}"' in line, f"{path.name}: the array {arr} must be expanded as \"${{{arr}[@]}}\": {line.strip()}"
+    assert unquoted_expansions('R="$(dirname "$SITE/$IN_FONT_JSON")/r" # $not') == []
+    texts = [(p, *t) for p in (REUSABLE, SKILL_CALLER, TEMPLATE) for t in shell_texts(p)]
+    assert len([t for t in texts if t[0] == REUSABLE]) >= 10 and any(t[2] == "with.build" for t in texts), "the scan found too little shell"
+    for path, job, name, text in texts:
+        assert "${{" not in text, f"{path.name} {job}: a ${{{{ }}}} expression inside shell; pass it through env: {name}"
+        for line in text.splitlines():
+            bad = unquoted_expansions(line)
+            assert not bad, f"{path.name} {job}: unquoted expansion {bad} in: {line.strip()}"
+            for arr in re.findall(r"\$\{(\w+)\[@\]\}", line):
+                assert f'"${{{arr}[@]}}"' in line, f"{path.name}: the array {arr} must be expanded as \"${{{arr}[@]}}\": {line.strip()}"
 
 
-def test_the_template_run_lines_use_flags_the_scripts_parse():
-    """Every `--flag` in a `run:` step that names shoot.py, specimen.py or compare-shots.py is one that script registers, checked with
-    `registered_flags()` imported from tests/test_docs_commands.py (the shipped checker, not a copy). The step that builds FONT_URL_ARGS
-    names no script but feeds `--font-url` to shoot.py, so it is checked against shoot.py. Mutation watched red on 2026-11-17: `--meta`
-    misspelled `--metta` in the pages shoot line. (Until work items A1 and B1 land, this is red for `--rows`, `--meta`, `--browser` and
-    the missing compare-shots.py: the template is written to the plan's flag names.)"""
+def test_the_workflow_run_lines_use_flags_the_scripts_parse():
+    """Every `--flag` in a reusable-workflow `run:` step that names shoot.py, specimen.py or compare-shots.py is one that script
+    registers, checked with `registered_flags()` imported from tests/test_docs_commands.py (the shipped checker, not a copy). The step
+    that builds FONT_URL_ARGS names no script but feeds `--font-url` to shoot.py; the tool-tests step names tests/test_shoot.py and runs
+    pytest, so it is left out. A source assertion: these lines run only on GitHub's runners. Mutation watched red on 2026-11-18: `--meta`
+    misspelt `--metta` in the pages shoot line."""
     from test_docs_commands import registered_flags
-    for path in (TEMPLATE, PLATFORM):
-        for job, s in runs(load(path)):
-            named = [t for t in TOOLS if t in s["run"]] or (["shoot.py"] if "FONT_URL_ARGS+=" in s["run"] else [])
-            if not named:
-                continue
-            assert len(named) == 1, f"{path.name} {job}: one step names several tools, so its flags cannot be attributed: {named}"
-            script = REPO / "scripts" / named[0]
-            assert script.is_file(), f"{path.name} runs scripts/{named[0]}, which does not exist"
-            used = set(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", s["run"])) - {"--with-deps"}
-            unknown = sorted(used - registered_flags(script))
-            assert not unknown, f"{path.name} {job}: {named[0]} does not register {unknown}"
+    checked = 0
+    for job, s in runs(load(REUSABLE)):
+        if "pytest" in s["run"]:
+            continue
+        named = [t for t in TOOLS if t in s["run"]] or (["shoot.py"] if "FONT_URL_ARGS+=" in s["run"] else [])
+        if not named:
+            continue
+        assert len(named) == 1, f"{job}: one step names several tools, so its flags cannot be attributed: {named}"
+        script = REPO / "scripts" / named[0]
+        assert script.is_file(), f"the workflow runs scripts/{named[0]}, which does not exist"
+        used = set(re.findall(r"(?<![\w-])--[a-z][a-z0-9-]*", s["run"])) - {"--with-deps"}
+        unknown = sorted(used - registered_flags(script))
+        assert not unknown, f"{job}: {named[0]} does not register {unknown}"
+        checked += 1
+    assert checked >= 5, f"only {checked} tool steps were checked"
 
 
-def test_the_template_pins_what_the_requirements_files_pin():
-    """The template's fontTools spec is requirements.txt's, and its fallback `playwright==` pin (used when a site did not copy
-    requirements-platform.txt) is requirements-platform.txt's, so a pin bumped in one place cannot drift from the other. Mutation watched
-    red on 2026-11-17: `fonttools==4.67.*` in the template. (Red until work item E1 writes requirements-platform.txt.)"""
-    text = TEMPLATE.read_text(encoding="utf-8")
+def test_the_workflow_pins_what_the_requirements_files_pin():
+    """The reusable workflow's fontTools spec is requirements.txt's and its one `playwright==` literal is requirements-platform.txt's,
+    so a pin bumped in one place cannot drift from the other; the 0.3 fallback branch (a second literal, used when a site had not
+    copied requirements-platform.txt) is gone, since the skill checkout always carries the file. A source assertion: pip runs on the
+    runner. Mutations watched red on 2026-11-18: `fonttools==4.67.*` in the workflow; the `if [ -f "$REQ" ]` fallback put back with
+    `pip install -r "$REQ"` and the literal moved into its else branch (one literal still, so the count alone let it through: the
+    `-r` clause is what fails it); a second `playwright==1.64.1` literal added."""
+    text = REUSABLE.read_text(encoding="utf-8")
     req = (REPO / "requirements.txt").read_text(encoding="utf-8")
     ft = re.search(r"^fonttools(\S*)", req, re.M).group(1)
-    assert re.findall(r"fonttools[=<>~!][^\"'\s]*", text) == [f"fonttools{ft}"], f"the template's fonttools pin must be requirements.txt's: fonttools{ft}"
-    plat = REPO / "requirements-platform.txt"
-    assert plat.is_file(), "requirements-platform.txt does not exist (work item E1)"
-    pin = re.search(r"^playwright==(\S+)", plat.read_text(encoding="utf-8"), re.M)
+    assert re.findall(r"fonttools[=<>~!][^\"'\s]*", text) == [f"fonttools{ft}"], f"the workflow's fonttools pin must be requirements.txt's: fonttools{ft}"
+    pin = re.search(r"^playwright==(\S+)", (REPO / "requirements-platform.txt").read_text(encoding="utf-8"), re.M)
     assert pin, "requirements-platform.txt pins no playwright== version"
-    assert set(re.findall(r"playwright==([\w.]+)", text)) == {pin.group(1)}, f"the template's playwright pin must be {pin.group(1)}"
+    assert re.findall(r"playwright==([\w.]+)", text) == [pin.group(1)], f"the workflow must carry exactly one playwright=={pin.group(1)}"
+    installs = [ln.strip() for ln in text.splitlines() if "pip install" in ln and not ln.lstrip().startswith("#")]
+    assert installs and not [ln for ln in installs if " -r " in ln], \
+        f"a leg installs named pins only; a requirements file (the 0.3 fallback's -r requirements-platform.txt) pulls requirements.txt onto every leg: {installs}"
 
 
-def test_the_skills_platform_workflow_is_the_template_with_the_neutral_slots_filled():
-    """.github/workflows/platform-shots.yml is the template with its slots filled for the neutral fixture and exactly two additions: the
-    `pull_request` trigger with its paths, and the per-leg `pytest tests/test_shoot.py -k ...` step (F010). Compared as parsed YAML, so
-    the header comments may differ and nothing else may. Mutations watched red on 2026-11-17: `--jobs 2` changed to `--jobs 3` in the
-    workflow only; `scripts/compare-shots.py` dropped from the paths; the pytest step removed; `scripts/specimen.html.tmpl` dropped from the
-    paths (Impasse F006)."""
-    tpl, wf = load(TEMPLATE), load(PLATFORM)
-    env = wf["env"]
-    assert env["FD_SCRIPTS"] == "scripts" and env["FD_FAMILY"] == "Sampler" and env["FD_FONT_JSON"] == "examples/neutral/font.json", env
-    assert "scripts/build.py --font examples/neutral/font.json" in env["FD_BUILD"] and "tests/fixtures/site-sample" in env["FD_BUILD"], \
-        "FD_BUILD must build the neutral font and stage the fixture site (F002)"
-    pr = wf["on"].pop("pull_request")
+def test_the_skills_own_platform_workflow_calls_the_reusable_one_at_the_same_commit_with_the_neutral_fixture():
+    """The skill's release proof is a local caller (plan section 3): by hand and on a pull request touching the tools, the template or
+    either workflow; one job whose `uses:` is the local path, so a pull request runs its own scripts rather than main's; the neutral
+    fixture's inputs; the tool tests switched on. A YAML structure assertion is unavoidable: which file a job calls is resolved by
+    GitHub (plan section 9 step 3 reads the guard's SHA line). Mutations watched red on 2026-11-18: `uses:` changed to
+    `windaddict/font-design-skill/.github/workflows/platform-shots-reusable.yml@<40 hex>`; `run_tool_tests: false`; the reusable file
+    dropped from `paths`."""
+    doc = load(SKILL_CALLER)
+    assert set(doc["on"]) == {"workflow_dispatch", "pull_request"} and "push" not in doc["on"], f"triggers: {list(doc['on'])}"
     need = {"scripts/shoot.py", "scripts/shoot_playwright.py", "scripts/specimen.py", "scripts/specimen.html.tmpl", "scripts/compare-shots.py",
-            "templates/platform-shots.yml", "requirements-platform.txt", ".github/workflows/platform-shots.yml"}
-    assert need <= set(pr["paths"]), f"the pull_request paths lack {sorted(need - set(pr['paths']))}"
-    extra = [s for s in steps(wf, "shots") if "pytest tests/test_shoot.py" in s.get("run", "")]
-    assert len(extra) == 1 and " -k " in extra[0]["run"], "the per-leg pytest step (F010) is missing"
-    assert "tests/test_shoot_playwright.py" in extra[0]["run"] and 'K="$K or lays_the_page_out"' in extra[0]["run"], \
+            "templates/platform-shots.yml", "requirements-platform.txt", "tests/test_shoot.py", "tests/test_shoot_playwright.py",
+            ".github/workflows/platform-shots.yml", ".github/workflows/platform-shots-reusable.yml"}
+    paths = set(doc["on"]["pull_request"]["paths"])
+    assert need <= paths, f"the pull_request paths lack {sorted(need - paths)}"
+    assert list(doc["jobs"]) == ["neutral"], f"one job: {list(doc['jobs'])}"
+    job = doc["jobs"]["neutral"]
+    assert job["uses"] == "./.github/workflows/platform-shots-reusable.yml", f"the call must be local, at this commit: {job['uses']}"
+    w = job["with"]
+    assert "scripts/build.py --font examples/neutral/font.json" in w["build"] and "tests/fixtures/site-sample" in w["build"], \
+        "build must build the neutral font and stage the fixture site (F002)"
+    assert w["font_json"] == "examples/neutral/font.json" and w["family"] == "Sampler" and w["serve"] == "out/platform/site", w
+    assert w["run_tool_tests"] is True, "the skill's own call must run the tool tests on every leg (F010)"
+
+
+def test_the_template_caller_pins_a_full_commit_sha_and_overrides_only_through_dispatch_inputs():
+    """The caller template a site copies (plan section 4 and F005): manual only, the six dispatch inputs and no `build` among them; the
+    job's `uses:` names the skill's reusable workflow at a 40-hex SHA (the zeros placeholder), never a tag or branch; each overridable
+    value falls back to the committed one with `||`; browsers and oses pass straight through; the header states the pin rule, the cost
+    billed to this repository, the default-branch note, GHES as unsupported and the copy route that deletes the guard and verify steps,
+    and names no consumer site. A YAML structure assertion is unavoidable: the call is resolved by GitHub. Mutations watched red on
+    2026-11-18: `@main`; a 7-character SHA; `build` added to the dispatch inputs; `inputs.pages` wired to `family`."""
+    doc = load(TEMPLATE)
+    text = TEMPLATE.read_text(encoding="utf-8")
+    assert list(doc["on"]) == ["workflow_dispatch"], f"the template must run by hand only: {list(doc['on'])}"
+    assert list(doc["on"]["workflow_dispatch"]["inputs"]) == ["pages", "scales", "font_urls", "family", "browsers", "oses"], \
+        list(doc["on"]["workflow_dispatch"]["inputs"])
+    (job,) = doc["jobs"].values()
+    assert re.fullmatch(r"windaddict/font-design-skill/\.github/workflows/platform-shots-reusable\.yml@[0-9a-f]{40}", job["uses"]), \
+        f"the template must pin the reusable workflow by a full commit SHA: {job['uses']}"
+    w = job["with"]
+    assert isinstance(w.get("build"), str), "the build slot must be present (empty), so the operator sees it"
+    for name in ("family", "font_urls", "pages", "scales"):
+        assert re.fullmatch(rf"\$\{{\{{ inputs\.{name} \|\| '[^']+' \}}\}}", str(w[name])), f"{name} must be ${{{{ inputs.{name} || '…' }}}}: {w[name]!r}"
+    for name in ("browsers", "oses"):
+        assert w[name] == f"${{{{ inputs.{name} }}}}", f"{name} must pass the dispatch input through: {w[name]!r}"
+    header = " ".join(ln.lstrip("#").strip() for ln in text[:text.index("\non:")].splitlines())
+    for phrase in ("billed to this repository", "Never a tag or a branch", "default branch", "GITHUB ENTERPRISE SERVER is not supported",
+                   "delete its guard and verify steps", "uses: ./", "review-loop.md section 9"):
+        assert phrase in header, f"the template header lacks {phrase!r}"
+    for name in ("driftwood", "movingavg", "bract", "hopsafari", "hop-safari"):
+        assert name not in text.lower(), f"the template names a consumer site ({name})"
+
+
+def test_the_tool_tests_step_runs_only_when_asked_and_from_the_skill_checkout():
+    """The per-leg pytest step (0.3's F010) lives in the reusable workflow behind inputs.run_tool_tests, so a site's call never runs
+    the skill's tests, and it runs from the skill checkout so tests/conftest.py's REPO is the skill. A source assertion: the step runs
+    only on GitHub's runners. Mutations watched red on 2026-11-18: the `inputs.run_tool_tests` clause removed from its `if:`; the
+    `cd "$FD"` line dropped."""
+    doc = load(REUSABLE)
+    found = [s for s in steps(doc, "shots") if "tests/test_shoot.py" in s.get("run", "")]
+    assert len(found) == 1, f"expected one tool-tests step: {len(found)}"
+    s = found[0]
+    assert "inputs.run_tool_tests == true" in s.get("if", ""), f"the tool tests must run only when asked: {s.get('if')}"
+    lines = [ln.strip() for ln in s["run"].splitlines()]
+    cd = [i for i, ln in enumerate(lines) if ln in ('cd "$FD"', "cd fd")]
+    py = [i for i, ln in enumerate(lines) if "pytest tests/test_shoot.py" in ln]
+    assert cd and py and cd[0] < py[0], "pytest must run after cd into the skill checkout"
+    assert "tests/test_shoot_playwright.py" in lines[py[0]] and 'K="$K or lays_the_page_out"' in s["run"], \
         "the Chrome legs must run the Playwright Chrome test (Impasse review of bd24d55, F006)"
-    wf["jobs"]["shots"]["steps"].remove(extra[0])
-    for k in SLOTS:
-        tpl["env"][k] = env[k]
-    assert wf == tpl, "the skill's workflow differs from the template beyond the slots, the pull_request trigger and the pytest step"
 
 
 def test_the_chrome_job_runs_compare_shots_on_the_tall_specimen_leg():
@@ -307,3 +563,35 @@ def test_the_chrome_job_runs_compare_shots_on_the_tall_specimen_leg():
     assert ".rows.json" in after and 'r["captured"]' in after, "step 9 must check every row is captured"
     m = re.search(r"scripts/smoke\.sh --full --from (\d+)", job_text("chrome"))
     assert m and int(m.group(1)) <= 9, "the chrome job must run smoke.sh step 9"
+
+
+def test_the_leg_decision_matches_whole_words_and_refuses_an_unknown_one(tmp_path):
+    """Which legs run is decided by a shell step from the browsers and oses inputs (diff review F004, 2026-11-18): it used to be
+    `contains(inputs.browsers, matrix.browser)`, which on a string is a substring test, so "nochrome" ran the Chrome legs. EXECUTED:
+    the shipped step runs with bash for each case and its $GITHUB_ENV line is read. Mutations watched red on 2026-11-18: the
+    allowed-words check made a substring match (`*"$w"*`, so "ubuntu" passed); the unknown-word refusal removed; the empty-input
+    refusal removed. One survives and is equivalent: the exact comparison made a substring one, because once the allowed-words
+    check holds, both sides are words of the same list and none of chrome, firefox or the three runner names contains another."""
+    doc = load(REUSABLE)
+    work = tmp_path / "w"
+    work.mkdir()
+
+    def decide(browsers, oses, browser="chrome", os_="ubuntu-latest"):
+        envfile = tmp_path / "github_env"
+        envfile.write_text("", encoding="utf-8")
+        out = run_step(doc, "shots", "decide whether this leg runs",
+                       {"IN_BROWSERS": browsers, "IN_OSES": oses, "BROWSER": browser, "LEG_OS": os_, "GITHUB_ENV": str(envfile)}, work)
+        return out.returncode, envfile.read_text(encoding="utf-8").strip(), out.stderr
+
+    all_oses = "windows-latest macos-latest ubuntu-latest"
+    assert decide("chrome firefox", all_oses)[:2] == (0, "LEG_ON=true")
+    assert decide("firefox", all_oses)[:2] == (0, "LEG_ON=false"), "a browser left out must skip its legs"
+    assert decide("chrome", "macos-latest")[:2] == (0, "LEG_ON=false"), "an OS left out must skip its legs"
+    assert decide("chrome\nfirefox", "ubuntu-latest\nmacos-latest", browser="firefox")[:2] == (0, "LEG_ON=true"), \
+        "newline-separated words must work like spaces"
+    code, line, err = decide("nochrome", all_oses)
+    assert code == 1 and line == "" and "'nochrome'" in err, f"an unknown word must fail the leg, not match by substring: {code} {line!r} {err!r}"
+    code, line, err = decide("chrome", "ubuntu")
+    assert code == 1 and "'ubuntu'" in err, f"a partial OS name must fail the leg: {code} {err!r}"
+    code, line, err = decide("", all_oses)
+    assert code == 1 and "empty" in err, f"an empty browsers input must fail the leg: {code} {err!r}"
