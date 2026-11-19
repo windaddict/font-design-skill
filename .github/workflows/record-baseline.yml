@@ -1,7 +1,7 @@
 name: record-baseline
 
-# WHAT IT'S FOR: records the 0.1.0 compatibility digests on Linux, and the same digests for the branch this workflow is run on, so the two can
-# be compared. The fixture tests/fixtures/baseline-0.1.0.json is keyed by platform and node major version (`darwin/26`, `linux/22`) because the
+# WHAT IT'S FOR: records the compatibility baseline's digests on Linux and macOS, and the same digests for the branch this workflow is run on,
+# so the two can be compared. The fixture tests/fixtures/baseline.json is keyed by platform and node major version (`darwin/26`, `linux/22`) because the
 # generator's floating-point output depends on both; the first Linux CI run showed bract and driftwood digests that differ from the macOS ones
 # under the same node. Run this by hand (Actions -> record-baseline -> Run workflow) on the branch to be tested, download the artifact
 # `baseline-linux-node<N>` for each node, and merge the entries:
@@ -9,11 +9,11 @@ name: record-baseline
 #     python tests/baseline_digest.py --merge entry-baseline.json        (one file per node; they carry their own linux/<major> key)
 #
 # Two entries per node come out:
-#   entry-baseline.json  the 0.1.0 code (a worktree at 0fc4314, built by THIS branch's tool): the record to merge. The tool refuses unless
-#                        the worktree's gen.js, export.js and build.py are byte-identical to 0fc4314's.
+#   entry-baseline.json  the baseline commit's code (a worktree at it, built by THIS branch's tool): the record to merge. The tool refuses
+#                        unless the worktree's gen.js, export.js and build.py are byte-identical to that commit's.
 #   entry-head.json      the digests of THIS branch's code on the same machine. It has no baseline revision, so --merge refuses it. Compare it
-#                        with entry-baseline.json (the job's summary does): equal means 0.2 changed nothing on Linux and the difference from
-#                        macOS is the platform's; different means 0.2 changed output on Linux.
+#                        with entry-baseline.json (the job's summary does): equal means this branch changed nothing on that platform;
+#                        different means it changed output there.
 # Not a gate: its output is a file for a person to merge. It runs by hand, and on a pull request that changes the generator or this tool,
 # so every such change shows the Linux comparison in its job summary (and a first run is possible before the file reaches the default
 # branch, which workflow_dispatch needs). Never on push. --merge refuses the head entry, so a PR run cannot become the baseline.
@@ -31,11 +31,12 @@ on:
 
 jobs:
   record:
-    name: linux / node ${{ matrix.node }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         node: [20, 22]
     steps:
       - uses: actions/checkout@v4
@@ -49,25 +50,37 @@ jobs:
           python-version: "3.12"
       - name: install
         run: pip install -r requirements.txt
-      - name: a worktree at the 0.1.0 commit
-        run: git worktree add ../baseline-0.1.0 0fc4314
-      - name: record the 0.1.0 digests (the tool is this branch's, the code built is the worktree's)
-        run: python tests/baseline_digest.py --record --rev 0fc4314 --repo ../baseline-0.1.0 --out entry-baseline.json
+      - name: a worktree at the baseline commit
+        run: git worktree add ../baseline COMMIT_A
+      - name: record the baseline digests (the tool is this branch's, the code built is the worktree's)
+        run: python tests/baseline_digest.py --record --rev COMMIT_A --repo ../baseline --out entry-baseline.json
       - name: the digests of this branch's code
         run: python tests/baseline_digest.py --print --out entry-head.json
+      - name: the genre recipes' outline digests under this node (for docs/reviews/genres-<date>.md by_node_major)
+        # written to the file first and appended to the summary after, never piped: GitHub runs `run:` with `bash -e` and no pipefail,
+        # so a failing python at the head of a pipe would leave an empty file and a green step
+        run: |
+          python - > genre-digests.json <<'PY'
+          import json, sys
+          sys.path.insert(0, "tests")
+          import test_genres
+          print(json.dumps(test_genres.current_digests(), indent=1))
+          PY
+          cat genre-digests.json >> "$GITHUB_STEP_SUMMARY"
       - name: compare them (group by group, digest by digest)
         run: |
           python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import json
           b = json.load(open("entry-baseline.json")); h = json.load(open("entry-head.json"))
-          print(f"### {b['key']} ({b['node']}): 0.1.0 against this branch\n")
+          print(f"### {b['key']} ({b['node']}): the baseline against this branch\n")
           bad = [f"{g}: {k}" for g in sorted(b["record"]["digests"]) for k in sorted(b["record"]["digests"][g])
                  if b["record"]["digests"][g][k] != h["record"]["digests"][g][k]]
           print("identical on every group and digest" if not bad else "differs:\n\n" + "\n".join(f"- {x}" for x in bad))
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: baseline-linux-node${{ matrix.node }}
+          name: baseline-${{ matrix.os }}-node${{ matrix.node }}
           path: |
             entry-baseline.json
             entry-head.json
+            genre-digests.json

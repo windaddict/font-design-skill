@@ -1,11 +1,14 @@
-"""Backward compatibility: the three example fonts still build to the digests 0.1.0 recorded.
+"""Backward compatibility: the three example fonts still build to the digests the baseline commit recorded.
 
 WHAT IT'S FOR: every parameter added in 0.2 has a default under which the generator runs the original
 expression, so a site that copies the new scripts over its old ones and rebuilds without touching its
 concepts gets the same fonts. This is the first property to check after any edit of scripts/gen.js. It
 compares three digests per example group (export JSON without branch records, the woff2 decompressed to
 a TTF, the manifest without the source hashes, tool versions and brotli-dependent figures) with the ones
-tests/fixtures/baseline-0.1.0.json recorded from the unmodified 0.1.0 code (commit 0fc4314). How the
+tests/fixtures/baseline.json recorded from the unmodified code of the baseline commit (BASELINE_REV below: 0.1.0's
+0fc4314 from 0.2 to 0.4; since 0.5.0 the commit that redrew the R's leg root, the one deliberate departure, whose
+`supersedes` entry in the fixture names the 0.1.0 record and the test that proves every other glyph stayed:
+tests/test_r_leg_join.py::test_only_the_r_changed_since_0_4_0). How the
 digests are computed, and what each one proves, is in tests/baseline_digest.py.
 
 Exact guarantee: the OUTLINES and TABLES these three configurations build, on the platform AND node major version recorded in
@@ -16,8 +19,11 @@ manifest without its source hashes, tool versions, woff2 sha256 and sizes, and o
 three, so "the same woff2 bytes" is a separate claim, held by `test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli`
 below, and only when this machine's brotli is the one that compressed the baseline (it skips naming both versions otherwise).
 It does not prove a concept this repo does not ship still builds identically, and it cannot see
-a change that only the new parameters reach. A platform/node with no recorded digests FAILS (it never
-skips for that) and prints how to record it from the 0.1.0 code (baseline_digest.py --record, or the record-baseline workflow on Linux).
+a change that only the new parameters reach. Nor does it re-verify that the fixture's digests came from BASELINE_REV's scripts: the
+script-identity guard runs in baseline_digest.py at --record time only, so this file checks the revision's shape and the digests'
+agreement, and a fixture written by hand or from --print with a pasted revision would pass it; the recording path is what ties the
+record to the commit (review of the 0.5.0 diff, F008). A platform/node with no recorded digests FAILS (it never
+skips for that) and prints how to record it from the baseline commit's code (baseline_digest.py --record, or the record-baseline workflow on Linux).
 
 Watched red 2026-11-16 under the weakest mutation: in scripts/export.js, `adv: Math.round(g.adv)`
 became `adv: Math.round(g.adv) + 1`, which changes every digest (the export digest first, the TTF
@@ -29,6 +35,10 @@ import re
 
 import baseline_digest as bd
 import pytest
+
+# the commit whose unmodified scripts produced the fixture; a full or abbreviated git sha, never a placeholder, so a
+# fixture written before its commit existed cannot pass (docs/plan-r-leg.md section 6.1 records the two-commit order)
+BASELINE_REV = "COMMIT_A"
 
 
 @pytest.fixture(scope="module")
@@ -42,7 +52,9 @@ def test_the_baseline_fixture_exists_and_covers_every_example_group():
     on nothing. The five groups are the three examples' (neutral roman and italic, bract roman,
     driftwood roman and italic)."""
     data = bd.load_fixture()
-    assert data["baseline_rev"] == "0fc4314", f"the baseline must come from the 0.1.0 commit, not {data['baseline_rev']}"
+    assert re.fullmatch(r"[0-9a-f]{7,40}", BASELINE_REV), f"BASELINE_REV is {BASELINE_REV!r}, not a git sha: the baseline commit has not been recorded yet"
+    assert data["baseline_rev"] == BASELINE_REV, f"the baseline must come from {BASELINE_REV}, not {data['baseline_rev']}"
+    assert data.get("baseline_version") and data.get("supersedes"), "the fixture must say which version it records and what it superseded"
     want = {"neutral/roman", "neutral/italic", "bract/roman", "driftwood/roman", "driftwood/italic"}
     for key, rec in data["by_platform_node"].items():
         assert re.fullmatch(r"[a-z0-9]+/\d+", key), f"{key!r} is not a platform/node-major key"
@@ -53,7 +65,7 @@ def test_the_baseline_fixture_exists_and_covers_every_example_group():
 
 def test_the_0_1_examples_export_and_build_to_the_recorded_digests(built):
     """Builds every group of the three examples into a temporary directory and compares the three digests
-    with the 0.1.0 record for THIS platform and node major version. A mismatch names the example group and the digest, which says where to
+    with the baseline record for THIS platform and node major version. A mismatch names the example group and the digest, which says where to
     look: the export digest moves with any coordinate, advance, kern or title width (the generator or exporter); the
     TTF digest with anything fontTools writes (the builder or an interpolation change); the manifest digest
     with a per-master figure, a name or a budget (a key added to the manifest also moves it). A platform/node that is not recorded fails
@@ -61,14 +73,14 @@ def test_the_0_1_examples_export_and_build_to_the_recorded_digests(built):
     data = bd.load_fixture()
     key = bd.platform_key()
     status, message = bd.judge(data, key, built["digests"])
-    assert status == "ok", (message if status == "unrecorded" else f"the 0.1.0 examples no longer build to the recorded digests for {key}:\n  {message}")
+    assert status == "ok", (message if status == "unrecorded" else f"the examples no longer build to the baseline digests for {key}:\n  {message}")
 
 
 def crafted(**keys):
     """A fixture dict with a record for each key given as {group: digest letter}, for the keying tests below."""
     def rec(letter):
         return {"digests": {"neutral/roman": {"export_sha256": letter * 64, "ttf_sha256": letter * 64, "manifest_sha256": letter * 64}}}
-    return {"schema": bd.SCHEMA, "baseline_rev": "0fc4314", "by_platform_node": {k.replace("_", "/"): rec(v) for k, v in keys.items()}}
+    return {"schema": bd.SCHEMA, "baseline_rev": BASELINE_REV, "by_platform_node": {k.replace("_", "/"): rec(v) for k, v in keys.items()}}
 
 
 def digests(letter):
@@ -82,7 +94,7 @@ def test_an_unrecorded_platform_fails_with_the_recording_instructions():
     (it would answer `ok` from the darwin record)."""
     status, message = bd.judge(crafted(darwin_22="a"), "linux/22", digests("a"))
     assert status == "unrecorded", f"a darwin record answered for linux: {status}"
-    for needle in ("linux/22", "darwin/22", "record-baseline", "--record --rev 0fc4314", "--merge"):
+    for needle in ("linux/22", "darwin/22", "record-baseline", f"--record --rev {BASELINE_REV}", "--merge"):
         assert needle in message, f"the instructions do not mention {needle!r}: {message}"
 
 
@@ -98,7 +110,7 @@ def test_a_recorded_platform_whose_digest_differs_fails_naming_it():
 
 
 def test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli(built):
-    """The raw woff2 bytes of the five groups equal the sha256 the 0.1.0 code produced on this platform and node major version, when this machine's brotli
+    """The raw woff2 bytes of the five groups equal the sha256 the baseline commit's code produced on this platform and node major version, when this machine's brotli
     is the one that compressed the baseline. Brotli output is not specified across versions, so with another brotli (or none recorded)
     the test SKIPS and names both versions: that is the one place this file skips, and it says why. The decoded-font digests above hold
     in every case. Watched red under `Math.round(g.adv) + 1` in export.js, like the digest test."""
@@ -109,7 +121,7 @@ def test_the_0_1_woff2_bytes_are_unchanged_for_the_recorded_brotli(built):
     if rec.get("brotli") != bd.brotli_version():
         pytest.skip(f"the baseline woff2 bytes were compressed by brotli {rec.get('brotli')!r}; this machine has {bd.brotli_version()!r}")
     bad = [f"{g}: {built['woff2'][g][:12]}, recorded {rec['woff2'][g][:12]}" for g in sorted(rec["woff2"]) if built["woff2"].get(g) != rec["woff2"][g]]
-    assert not bad, "woff2 bytes differ from the 0.1.0 baseline:\n  " + "\n  ".join(bad)
+    assert not bad, "woff2 bytes differ from the baseline:\n  " + "\n  ".join(bad)
 
 
 def test_merging_adds_one_platform_entry_and_refuses_a_head_entry(tmp_path, monkeypatch):
@@ -121,7 +133,7 @@ def test_merging_adds_one_platform_entry_and_refuses_a_head_entry(tmp_path, monk
     base = crafted(darwin_22="a")
     fixture.write_text(json.dumps(base))
     record = crafted(x_y="b")["by_platform_node"]["x/y"]
-    good = {"schema": bd.ENTRY_SCHEMA, "key": "linux/22", "baseline_rev": "0fc4314", "node": "v22.0.0", "record": record}
+    good = {"schema": bd.ENTRY_SCHEMA, "key": "linux/22", "baseline_rev": BASELINE_REV, "node": "v22.0.0", "record": record}
     (tmp_path / "good.json").write_text(json.dumps(good))
     bd.merge_entries([tmp_path / "good.json"])
     merged = json.loads(fixture.read_text())["by_platform_node"]
@@ -130,7 +142,7 @@ def test_merging_adds_one_platform_entry_and_refuses_a_head_entry(tmp_path, monk
     (tmp_path / "head.json").write_text(json.dumps(head))
     with pytest.raises(SystemExit):
         bd.merge_entries([tmp_path / "head.json"])
-    assert "linux/20" not in json.loads(fixture.read_text())["by_platform_node"], "a head entry was merged into the 0.1.0 baseline"
+    assert "linux/20" not in json.loads(fixture.read_text())["by_platform_node"], "a head entry was merged into the baseline"
     # and with no fixture yet (so the revision check against an existing record cannot be what refuses it)
     monkeypatch.setattr(bd, "FIXTURE", tmp_path / "fresh.json")
     with pytest.raises(SystemExit):

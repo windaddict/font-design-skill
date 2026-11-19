@@ -1,0 +1,49 @@
+{
+  "baseline_rev": "COMMIT_A",
+  "baseline_version": "0.5.0",
+  "by_platform_node": {
+    "darwin/26": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "a79507ee3321912c9364ff3bea6fefe51a0ec1ba77deed85d5a7f50c7fe921b4",
+          "manifest_sha256": "53290bd5668005bf126f13dea03e9bd7d6c0df47d3427dc22624f3313029fae5",
+          "ttf_sha256": "391f455c85573c205f4c8f7ca19fc7d04587d1451afbb5f5c3e57c786ad11b28"
+        },
+        "driftwood/italic": {
+          "export_sha256": "9fd5cbf3ef3f70e060e2d5f3422ca4364e44ed9855339f94b0f469b901b3065d",
+          "manifest_sha256": "5df18d0c6bb4b213a1f2de2f28c87fddd7c9c1887528eddb00500bc16cf433cf",
+          "ttf_sha256": "7684a79c1e3aefd669803d7fe74c1ddbb3f38e9bc2b7e42aaf7c7039ffd006a1"
+        },
+        "driftwood/roman": {
+          "export_sha256": "d34596e0a4f0b2f9d7f4458222c262bc7fc388c22955854e729f4c790a16529c",
+          "manifest_sha256": "5df18d0c6bb4b213a1f2de2f28c87fddd7c9c1887528eddb00500bc16cf433cf",
+          "ttf_sha256": "4cc3e97111ff78ceb50db5ba10e14c6d206e0d1e12c597d2314a147b9e6b74b1"
+        },
+        "neutral/italic": {
+          "export_sha256": "2062820bc86dbec1646e0d31c8b97fd475536f8af34021b9dd737cd74f571cba",
+          "manifest_sha256": "50f479b1b31a710b2302c6cda0d1a4ccc02a2b082ead60450715b4c31fce59fc",
+          "ttf_sha256": "2c293d0fdbddf2ecb208a6b4dc9700837cd73ed8b053b0d0c985ddec289386b2"
+        },
+        "neutral/roman": {
+          "export_sha256": "2b8c5b50e77c7a63ccc6647a571f6792970ce1af180be0d9b9069efa089d01ab",
+          "manifest_sha256": "50f479b1b31a710b2302c6cda0d1a4ccc02a2b082ead60450715b4c31fce59fc",
+          "ttf_sha256": "cf14e257c40b676332b205128a801fe964a11120e93c7d6b1d99cecbf2163420"
+        }
+      },
+      "woff2": {
+        "bract/roman": "0bbdd81484782d8c1bf6feae47f0cc3804a6f755f3484f9eeed46b1de8c8a980",
+        "driftwood/italic": "3572fd8a5ad3817a0c663b35db3a8fa2be27281dc4ceb076f216c5a556ec5fa2",
+        "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
+        "neutral/italic": "86594a775eb9c966b2022ede8868a440807cbddb3e4e76f7e8e5b5012d94d81b",
+        "neutral/roman": "f1fb9d8162800c11e5f8b570165e2519dafaf075d0574b12e06f3d657b6b1d06"
+      }
+    }
+  },
+  "schema": "font-design/baseline-digests/v2",
+  "supersedes": {
+    "baseline_rev": "0fc4314",
+    "baseline_version": "0.1.0",
+    "why": "0.5.0 redrew the R's leg root (docs/plan-r-leg.md): the export and TTF digests of every group moved, the manifest digests did not; tests/test_r_leg_join.py::test_only_the_r_changed_since_0_4_0 holds every other glyph, advance, spacing profile and kern to the 0.4.0 generator"
+  }
+}

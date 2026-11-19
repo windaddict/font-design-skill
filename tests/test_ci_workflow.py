@@ -56,23 +56,41 @@ def test_the_test_job_installs_fribidi_on_macos_before_pip_and_asserts_raqm():
 RECORD = REPO / ".github" / "workflows" / "record-baseline.yml"
 
 
-def test_the_record_baseline_workflow_is_manual_and_records_both_trees_on_linux_nodes_20_and_22():
-    """The Linux digests the compat fixture needs are recorded by a workflow somebody runs by hand: `workflow_dispatch`, plus a pull request
-    that touches the generator (workflow_dispatch needs the file on the default branch; --merge refuses a head entry), never `push`, ubuntu, node 20 and 22, a
-    worktree at 0fc4314 built with `--repo` (the guard then holds in the worktree), the current head's digests with `--print`, and one artifact
-    per node. A check on the workflow's text, stated as such. Mutations watched red: a `push:` trigger added; `--repo` dropped; the `--print`
-    step removed; node 22 removed; the artifact upload removed."""
+def test_the_record_baseline_workflow_is_manual_and_records_both_trees_on_both_oses_nodes_20_and_22():
+    """The Linux and macOS digests the compat fixture needs are recorded by a workflow somebody runs by hand: `workflow_dispatch`, plus a pull
+    request that touches the generator (workflow_dispatch needs the file on the default branch; --merge refuses a head entry), never `push`,
+    ubuntu and macos, node 20 and 22, a worktree at the baseline commit (test_backward_compat.BASELINE_REV, a real sha) built with `--repo`
+    (the guard then holds in the worktree), the current head's digests with `--print`, and one artifact per leg. A check on the workflow's
+    text, stated as such. Mutations watched red: a `push:` trigger added; `--repo` dropped; the `--print` step removed; node 22 removed; the
+    artifact upload removed; (0.5.0) macos removed; the worktree at another commit than the test's; the genre-digest step removed; its
+    python piped into tee."""
+    from test_backward_compat import BASELINE_REV
     text = RECORD.read_text(encoding="utf-8")
     on = re.search(r"^on:\n(.*?)(?=^[a-z]+:)", text, re.S | re.M).group(1)
     lines = [ln.strip() for ln in on.splitlines() if ln.strip()]
     assert lines[0] == "workflow_dispatch:" and "push:" not in lines, f"the triggers must be workflow_dispatch and pull_request, never push: {on!r}"
     assert lines[1:3] == ["pull_request:", "paths:"] and "- scripts/gen.js" in lines and "- tests/baseline_digest.py" in lines, \
         f"a pull request run must be limited to the generator and the tool: {on!r}"
-    assert "runs-on: ubuntu-latest" in text and "node: [20, 22]" in text, "the workflow must run on ubuntu with node 20 and 22"
-    assert "git worktree add ../baseline-0.1.0 0fc4314" in text, "no worktree at 0fc4314"
-    assert re.search(r"--record --rev 0fc4314 --repo \.\./baseline-0\.1\.0 --out entry-baseline\.json", text), "the baseline is not recorded from the worktree"
+    assert "runs-on: ${{ matrix.os }}" in text and "os: [ubuntu-latest, macos-latest]" in text and "node: [20, 22]" in text, \
+        "the workflow must run on ubuntu and macos with node 20 and 22"
     assert "--print --out entry-head.json" in text, "the current head's digests are not computed"
-    assert "upload-artifact" in text and "entry-baseline.json" in text and "entry-head.json" in text, "no artifact carries both entries"
+    # 0.5.0: the genre record is keyed by node major too, and the machine that writes it may not run every major (npx was refused on the
+    # author's), so each leg prints test_genres.current_digests() into the summary and the artifact; a leg without it leaves the genre
+    # test red on that major with no way to record it but a runner. Mutation watched red (2026-11-19): the step removed. Checked before
+    # the revision below, so the mutation is observable while the revision is still the placeholder of a tree before its commit
+    assert "test_genres.current_digests()" in text and "genre-digests.json" in text, "the legs do not print the genre recipes' digests"
+    # that step must not pipe python's output: GitHub runs `run:` with `bash -e` and no pipefail unless `shell: bash` is set, so a
+    # failing python at the head of a pipe is masked (re-review of the diff, R4). Mutation watched red: the `| tee` form restored
+    step = re.search(r"the genre recipes' outline digests.*?(?=\n      - name:)", text, re.S).group(0)
+    assert not re.search(r"python[^\n]*\|", step) and "shell: bash" not in step or "set -o pipefail" in step, \
+        f"the genre-digest step pipes python's output without pipefail: {step!r}"
+    assert re.search(r"python - > genre-digests\.json <<'PY'", step) and "cat genre-digests.json >> \"$GITHUB_STEP_SUMMARY\"" in step, \
+        "the genre digests must be written to the file first, then appended to the summary"
+    assert "upload-artifact" in text and "entry-baseline.json" in text and "entry-head.json" in text and text.count("genre-digests.json") >= 2, \
+        "no artifact carries both entries and the genre digests"
+    assert re.fullmatch(r"[0-9a-f]{7,40}", BASELINE_REV), f"BASELINE_REV is {BASELINE_REV!r}, not a git sha"
+    assert f"git worktree add ../baseline {BASELINE_REV}" in text, f"no worktree at {BASELINE_REV}"
+    assert re.search(rf"--record --rev {BASELINE_REV} --repo \.\./baseline --out entry-baseline\.json", text), "the baseline is not recorded from the worktree"
 
 
 def test_every_workflow_parses_as_yaml():
