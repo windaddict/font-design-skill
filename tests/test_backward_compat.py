@@ -38,7 +38,7 @@ import pytest
 
 # the commit whose unmodified scripts produced the fixture; a full or abbreviated git sha, never a placeholder, so a
 # fixture written before its commit existed cannot pass (docs/plan-r-leg.md section 6.1 records the two-commit order)
-BASELINE_REV = "COMMIT_A"
+BASELINE_REV = "788760d"
 
 
 @pytest.fixture(scope="module")
