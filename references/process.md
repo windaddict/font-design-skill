@@ -306,7 +306,7 @@ title that fit, `smoke.sh` step 11 shows it on the fixture site) → a **fresh**
 sentence verbatim → ranked findings naming their crops, an overflow ranked first → changes → the host
 spot-checks two crops and runs one mutation of its own → suite green → next round. After the round
 that would end the loop (or round 6), and at any round the operator asks for, ask the operator to make
-the platform run once for the face (`references/review-loop.md` section 2: `gh workflow run platform-shots.yml`,
+the platform run once for the face (`references/review-loop.md` section 2, a caller of the skill's reusable workflow: `gh workflow run platform-shots.yml`,
 then `gh run download -n platform-shots-compare`) and read `compare.md` top-down, "Refused" and
 "Mismatched" first, then the smallest sizes. A stroke that breaks up at 1× on a real page in any leg is a
 1× finding; one that reads lighter but whole goes in the record. A round that changes `thin`, the floors

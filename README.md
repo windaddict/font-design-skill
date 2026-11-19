@@ -1,6 +1,6 @@
 # font-design — a Claude Code skill for making a website its own typeface
 
-![version](https://img.shields.io/badge/version-0.3.1-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
+![version](https://img.shields.io/badge/version-0.4.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
 
 A skill that designs, builds and ships a custom display typeface for a website as a self-hosted
 variable web font. The face is generated from centre-line skeletons by a parametric generator, chosen
@@ -58,10 +58,14 @@ strongest model your agent host offers for the design reviews. `references/fallb
 do without each.
 
 Optional, for the platform run (how the face renders on Windows, macOS and Linux): GitHub Actions on the
-site's repository. `templates/platform-shots.yml` shoots the pages with headless Chrome and Playwright's
-Firefox on GitHub-hosted Windows Server, macOS and Ubuntu runners, and `scripts/compare-shots.py` stacks
-each row from every leg in one image. The Chrome legs need nothing new on your machine. The Firefox legs
-install `requirements-platform.txt` (`playwright==1.64.1`) on the runner; install it locally only to run
+site's repository. The site keeps a short caller, `templates/platform-shots.yml`, pinned to a full skill
+commit SHA; it calls the skill's reusable workflow `.github/workflows/platform-shots-reusable.yml`, which
+checks out the skill's scripts at that commit and the site's own pages and fonts, so the site carries no
+copy of the scripts and its fonts never enter the skill's repository. It shoots the pages with headless
+Chrome and Playwright's Firefox on GitHub-hosted Windows Server, macOS and Ubuntu runners, and `scripts/compare-shots.py` stacks
+each row from every leg in one image. Nothing new is needed on your machine: every leg installs
+`playwright==1.64.1` on its runner (the pin in `requirements-platform.txt`), and the Firefox legs also
+download Playwright's Firefox. Install `requirements-platform.txt` locally only to run
 `shoot.py --browser firefox` yourself. A runner is not a reader's machine, and Safari and phones are not
 checked (`references/review-loop.md` section 9).
 
@@ -97,7 +101,7 @@ concepts in round 1 and sets its floors from its own measurements.
 | `SKILL.md` | The skill: phases, gates, blockers, tool table, reference index |
 | `scripts/` | Generator, exporter, builder, review tools, concept-page builder and templates, the test templates |
 | `references/` | The process in detail, the traps, the generator parameters, the build, the review loop, testing, fallbacks, the Bract worked example and the Driftwood precedent |
-| `templates/` | `font.json` and `requirements.json` examples and schemas, `concepts.js` skeleton, record and plan templates, reviewer briefs, Impasse instructions, `platform-shots.yml` (the cross-platform rendering workflow a site copies) |
+| `templates/` | `font.json` and `requirements.json` examples and schemas, `concepts.js` skeleton, record and plan templates, reviewer briefs, Impasse instructions, `platform-shots.yml` (the short caller of the cross-platform rendering workflow a site copies) |
 | `examples/` | `neutral/` (the smoke fixture), `bract/`, `driftwood/` (parameters and configuration only, under neutral name tables; MIT like the rest of the repo) |
 | `tests/` | The repo's own tests: hygiene, versions, schemas and concepts, the review tools on fixtures (`shoot.py`'s server and sentinel in real Chrome where one is found), the whole-`scripts/`-folder copy into a sample site, the site-wiring template filled against that site, every documented command's flags, a smoke build |
 | `docs/plan.md` | The plan this repo was built from and its independent review |

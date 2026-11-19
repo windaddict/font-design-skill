@@ -8,7 +8,7 @@ http.server, shoots each page at the requested widths and device scales, and ref
 unless it can prove what was rendered (the list below). It needs no process management: the server
 lives on a daemon thread and a threading.Timer shuts it down, so an interrupted run leaves nothing
 listening and nothing to kill. The same proofs run on a GitHub-hosted Windows, macOS or Linux runner
-(templates/platform-shots.yml), because they live in the server and the injected sentinel, not in
+(the platform-shots reusable workflow), because they live in the server and the injected sentinel, not in
 the browser; --rows and --meta write what scripts/compare-shots.py needs to set one row from every
 runner side by side.
 
@@ -71,13 +71,28 @@ What a counted shot proves (every item is checked; any failure is reported and t
      that drops cookies would carry no token and would not count.
   6. With --family, the element probe: every VISIBLE element with text of its own whose computed
      font-family names the family first (or, with --probe SELECTOR, every visible element matching
-     the selector) is checked: its first computed family is the family; document.fonts holds a
-     loaded FontFace of that family whose style matches the element's (an italic or oblique element
-     needs an italic/oblique face, an upright one an upright face) AND whose declared weight range
-     covers the element's computed font-weight (a 400-only face does not serve a 700 element: Chrome
-     would draw a synthesised bold, which document.fonts.check() alone does not see because it answers
-     true when no face matches the request; re-review, code-b F004), and document.fonts.check() of
-     the element's computed style/weight/size shorthand is true; an element marked
+     the selector) is checked: its first computed family is the family; no loaded FontFace of the
+     family declares a font-stretch other than normal (100%), since the probe does not model width
+     matching and says so (verdict unmodelled-stretch, a failure, never a pass); document.fonts holds a
+     loaded FontFace of that family whose style is the element's, with italic and oblique kept apart as
+     the @font-face font-style descriptor keeps them (an italic element needs an italic face, an oblique
+     element an oblique face, an upright one an upright face; this is a deliberate quality rule, not the
+     browser's matching: CSS Fonts 4 lets an italic request fall back to an oblique face, and an oblique
+     one to an italic face, when no face of the asked-for style exists, and the probe fails that stand-in
+     as no-italic-face because it is not the design's italic); for an oblique element, those faces
+     declare one oblique angle only, since CSS matches the angle before the weight and the probe does
+     not model that (verdict unmodelled-style, a failure, never a pass); among those faces, pickFace() selects
+     the one CSS Fonts Level 4 section 5.2 ("Matching font styles") selects for the element's computed
+     font-weight (a face whose range contains it; else, above 500, the nearest heavier face, then the
+     nearest lighter; below 400, the nearest lighter, then heavier; from 400 to 500, the nearest heavier
+     up to 500, then the nearest lighter, then heavier than 500), and when the element asks for 600 or
+     more and the selected face is used at less than 600 the element fails: synthetic-bold when its
+     computed font-synthesis-weight (or the font-synthesis shorthand) allows weight synthesis, because
+     Chrome would draw a synthesised bold, and lighter-face when it does not, because Chrome then draws
+     the lighter face as designed and the weight asked for is not on the page; document.fonts.check()
+     alone sees neither, because it answers true when no face matches the request (re-review, code-b F004; a 600 request with static faces at
+     400, 500 and 700 selects the 700 face and passes, as Chrome draws that file without synthesis);
+     and document.fonts.check() of the element's computed style/weight/size shorthand is true; an element marked
      data-fd-probe="italic" (the specimen's italic rows) has computed font-style italic; and every
      distinct non-space character of the element's own text measures a different advance in
      '"FAMILY", serif' than in 'serif' (canvas measureText at 100px). At least one such element must
@@ -91,16 +106,26 @@ What a counted shot proves (every item is checked; any failure is reported and t
      ancestor that crops the text, and text the same colour as its background (re-review, code-b
      F003).
      Verdicts are written per element as data-fd-probe-result (face / fallback / not-italic /
-     no-face / no-italic-face / no-weight-face / missing-chars), with data-fd-missing-chars on the
-     element, and on <html> as data-fd-probe-count, data-fd-probe-bad, data-fd-probe-italic (loaded /
-     missing / none: whether every italic element is served by a loaded italic face) and
+     unmodelled-stretch / unmodelled-style / no-face / no-italic-face (an italic or oblique element
+     with no loaded face of that same style) / synthetic-bold / lighter-face / missing-chars), with data-fd-missing-chars and
+     data-fd-probe-weight (the weight pickFace() selected, when it ran) on the element, and on
+     <html> as data-fd-probe-count, data-fd-probe-bad, data-fd-probe-italic (loaded / missing /
+     none: whether every italic or oblique element is served by a loaded face of its style) and
      data-fd-missing-chars. The shot fails when the count is 0, any element is bad, or any character
      is missing.
-     Exactly what 6 proves: the visible text in the family is drawn by a loaded face of the right
-     style and weight range and every character it shows has a glyph whose advance differs from the
+     Exactly what 6 proves: the visible text in the family is drawn by a loaded face of the right style
+     that the browser's weight matching selects without synthesising bold, and, when the element asks
+     for 600 or more, at a weight of at least 600; it does not check that the selected weight is the
+     one the design intended (a 500 request with 400 and 700 files draws Regular and passes). The
+     weight matching is reproduced for faces of normal width; a family with several font-stretch faces,
+     or an oblique element whose faces declare several angles, is not modelled and the probe says so
+     when it sees one. The probe reads FontFace load state and the element's computed style; it does
+     not observe the face that painted the element, so text under font-display: optional whose face
+     loaded after first paint and that stayed in the fallback is not detected (the screenshot is the
+     check there). Every character the text shows has a glyph whose advance differs from the
      fallback's. A character the face lacks falls back to serif in BOTH measurements, so it is always
-     reported; the false alarm is a glyph whose advance equals the fallback glyph's to the sub-pixel
-     at 100px. It does not read the pixels: a face that loads and draws badly still passes.
+     reported; the false alarm is a glyph whose advance equals the fallback glyph's to the sub-pixel at
+     100px. It does not read the pixels: a face that loads and draws badly still passes.
   7. The page's own self-test, when it has one (the concept pages): the sentinel reads data-fd-font,
      data-fd-rendered, data-fd-round and data-fd-error from <html> after the page's scripts ran and
      sends them in the beacon (the page's data-fd-font is preserved as data-fd-page-font before the
@@ -174,7 +199,7 @@ nothing on another OS), then google-chrome, google-chrome-stable, chromium and c
 The skill supports macOS and Linux, and Windows only through WSL; inside WSL install Chrome or Chromium in the Linux
 distribution: the Windows variables are normally unset there and /mnt/c paths are not candidates, so the Windows paths
 are not searched from WSL (they exist for a native Python, which runs this one script on a Windows runner of
-templates/platform-shots.yml; the rest of the skill is not supported on native Windows). Copyright 2026 John Knox. MIT licence.
+the platform-shots reusable workflow; the rest of the skill is not supported on native Windows). Copyright 2026 John Knox. MIT licence.
 Generalised from the Bract review tool (hopsafari.com, 2026-11-15).
 """
 import argparse
@@ -251,22 +276,87 @@ SENTINEL = """<script data-fd-sentinel>
     var x = r.left + window.scrollX, y = r.top + window.scrollY;
     return x + r.width > 0 && y + r.height > 0 && x < dw && y < dh;
   }
-  function weightCovers(f, w) {
-    // a FontFace.weight is "400", "400 700", "normal" or "bold"; the element's computed weight is a number string
-    var parts = String(f.weight || "normal").replace("normal", "400").replace("bold", "700").trim().split(/\\s+/).map(parseFloat);
-    if (parts.some(isNaN)) return true;  // an unreadable descriptor is not held against the face
-    var lo = parts[0], hi = parts.length > 1 ? parts[1] : parts[0], cw = parseFloat(w);
-    return isNaN(cw) || (cw >= Math.min(lo, hi) && cw <= Math.max(lo, hi));
+  // "normal", "italic" or "oblique". The @font-face font-style descriptor (FontFace.style, e.g. "oblique 10deg 20deg")
+  // and the computed font-style keep italic and oblique apart, and CSS Fonts 4 says faces defined by @font-face must
+  // be distinguished by that descriptor, so an oblique element is not served by an italic face, nor the reverse
+  function styleKind(s) { s = String(s || "normal"); return /oblique/.test(s) ? "oblique" : (/italic/.test(s) ? "italic" : "normal"); }
+  function weightRange(f) {
+    // a FontFace.weight is "400", "400 700", "normal" or "bold"; null when unreadable
+    var parts = String(f.weight || "normal").replace(/normal/g, "400").replace(/bold/g, "700").trim().split(/\\s+/).map(parseFloat);
+    if (!parts.length || parts.some(isNaN)) return null;
+    var lo = parts[0], hi = parts.length > 1 ? parts[1] : parts[0];
+    return [Math.min(lo, hi), Math.max(lo, hi)];
   }
-  function faces(italic, weight) {
+  function stretchIsNormal(f) {
+    // FontFace.stretch is "normal", "100%%" or a range such as "75%% 125%%"; only a face fixed at 100%% counts as normal
+    var s = String(f.stretch || "normal").trim();
+    return s === "normal" || /^100(\\.0+)?%%(\\s+100(\\.0+)?%%)?$/.test(s);
+  }
+  function familyFaces() {
     var out = [];
-    try {
-      document.fonts.forEach(function (f) {
-        if (f.status === "loaded" && first(f.family) === fam.toLowerCase() && (/italic|oblique/.test(f.style) === italic)
-            && (weight === undefined || weightCovers(f, weight))) out.push(f);
-      });
-    } catch (e) {}
+    try { document.fonts.forEach(function (f) { if (f.status === "loaded" && first(f.family) === fam.toLowerCase()) out.push(f); }); } catch (e) {}
     return out;
+  }
+  function faces(kind) { return familyFaces().filter(function (f) { return styleKind(f.style) === kind; }); }
+  function obliqueAngles(list) {
+    // the distinct oblique angles (or angle ranges) the faces declare; a bare "oblique" is CSS's default 14deg.
+    // CSS matches the angle before the weight, which pickFace() does not model, so more than one is unmodelled-style
+    var seen = {};
+    list.forEach(function (f) { var a = String(f.style || "").replace(/^\\s*oblique\\s*/, "").trim() || "14deg"; seen[a] = 1; });
+    return Object.keys(seen).length;
+  }
+  function weightSynthesis(cs) {
+    // whether the browser may synthesise bold for this element: font-synthesis-weight, else the font-synthesis
+    // shorthand ("none", "style", "weight style", ...); a browser that exposes neither is taken to allow it
+    var w = cs.fontSynthesisWeight;
+    if (typeof w === "string" && w) return w !== "none";
+    var all = cs.fontSynthesis;
+    if (typeof all === "string" && all) return /weight/.test(all);
+    return true;
+  }
+  function pickFace(list, w) {
+    // CSS Fonts Level 4, section 5.2 "Matching font styles", the font-weight step, over faces already narrowed to the
+    // element's style (font-width is not modelled: header item 6). A face whose range contains w is selected.
+    // Otherwise: for w > 500, weights >= w ascending, then weights < w descending; for w < 400, weights <= w
+    // descending, then weights above w ascending; for 400 <= w <= 500, weights >= w ascending until 500, then
+    // weights < w descending, then weights above 500 ascending. Returns {face, weight}, the weight being the one the
+    // face is used at, or null for an empty list. A face whose weight cannot be read counts as containing w, so an
+    // unreadable descriptor is not held against the face (as under the earlier containment rule).
+    var c = [], cw = parseFloat(w);
+    for (var i = 0; i < list.length; i++) {
+      var r = weightRange(list[i]);
+      if (!r || isNaN(cw) || (cw >= r[0] && cw <= r[1])) return {face: list[i], weight: isNaN(cw) ? (r ? r[1] : 400) : cw};
+      c.push({face: list[i], lo: r[0], hi: r[1]});
+    }
+    function above(limit) {  // the face nearest above w, no heavier than limit, used at its lower bound
+      var best = null;
+      c.forEach(function (x) { if (x.lo > cw && x.lo <= limit && (!best || x.lo < best.weight)) best = {face: x.face, weight: x.lo}; });
+      return best;
+    }
+    function below() {  // the face nearest below w, used at its upper bound
+      var best = null;
+      c.forEach(function (x) { if (x.hi < cw && (!best || x.hi > best.weight)) best = {face: x.face, weight: x.hi}; });
+      return best;
+    }
+    if (!c.length) return null;
+    if (cw > 500) return above(Infinity) || below();
+    if (cw < 400) return below() || above(Infinity);
+    return above(500) || below() || above(Infinity);
+  }
+  function probeTargets() {
+    // the elements item 6 checks: visible, with text of their own, set in the family first (or matching --probe)
+    var els = [], list = [], err = "";
+    try { els = sel ? document.querySelectorAll(sel) : document.getElementsByTagName("*"); } catch (e) { err = "bad selector: " + sel; }
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], tag = el.tagName.toLowerCase();
+      if (tag === "script" || tag === "style" || tag === "html" || tag === "head" || tag === "title") continue;
+      var cs, text = ownText(el);
+      try { cs = getComputedStyle(el); } catch (e) { continue; }
+      if (!/\\S/.test(text) || !visible(el)) continue;
+      if (!sel && first(cs.fontFamily) !== fam.toLowerCase()) continue;
+      list.push({el: el, tag: tag, cs: cs, text: text});
+    }
+    return {list: list, err: err};
   }
   var canvas = null;
   function missingChars(text, cs) {
@@ -302,22 +392,21 @@ SENTINEL = """<script data-fd-sentinel>
     }
     var count = 0, bad = 0, italics = 0, italicsOk = 0, firstBad = "", missing = {}, perr = "", counted = [];
     if (fam) {
-      var els = [];
-      try { els = sel ? document.querySelectorAll(sel) : document.getElementsByTagName("*"); } catch (e) { perr = "bad selector: " + sel; }
-      for (var i = 0; i < els.length; i++) {
-        var el = els[i], tag = el.tagName.toLowerCase();
-        if (tag === "script" || tag === "style" || tag === "html" || tag === "head" || tag === "title") continue;
-        var cs, text = ownText(el);
-        try { cs = getComputedStyle(el); } catch (e) { continue; }
-        if (!/\\S/.test(text) || !visible(el)) continue;
-        if (!sel && first(cs.fontFamily) !== fam.toLowerCase()) continue;
+      var targets = probeTargets();
+      perr = targets.err;
+      for (var i = 0; i < targets.list.length; i++) {
+        var el = targets.list[i].el, tag = targets.list[i].tag, cs = targets.list[i].cs, text = targets.list[i].text;
         count++; counted.push(el);
-        var italic = /italic|oblique/.test(cs.fontStyle), verdict = "face", ok = false;
+        var kind = styleKind(cs.fontStyle), italic = kind !== "normal", verdict = "face", ok = false, picked = null;
         try { ok = document.fonts.check(cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + q(fam)); } catch (e) { ok = false; }
         if (first(cs.fontFamily) !== fam.toLowerCase()) verdict = "fallback";
         else if (el.getAttribute("data-fd-probe") === "italic" && !italic) verdict = "not-italic";
-        else if (!faces(italic).length || !ok) verdict = italic ? "no-italic-face" : "no-face";
-        else if (!faces(italic, cs.fontWeight).length) verdict = "no-weight-face";
+        else if (!familyFaces().every(stretchIsNormal)) verdict = "unmodelled-stretch";
+        else if (kind === "oblique" && obliqueAngles(faces(kind)) > 1) verdict = "unmodelled-style";
+        else if (!(picked = pickFace(faces(kind), cs.fontWeight)) || !ok) verdict = italic ? "no-italic-face" : "no-face";
+        // a request of 600 or more served by a face lighter than 600: the browser synthesises bold when
+        // font-synthesis allows it, and otherwise draws the lighter face as designed; both fail
+        else if (parseFloat(cs.fontWeight) >= 600 && picked.weight < 600) verdict = weightSynthesis(cs) ? "synthetic-bold" : "lighter-face";
         else {
           var miss = [];
           try { miss = missingChars(text, cs); } catch (e) { perr = "measureText failed: " + e; }
@@ -327,6 +416,7 @@ SENTINEL = """<script data-fd-sentinel>
           }
         }
         el.setAttribute("data-fd-probe-result", verdict);
+        if (picked) el.setAttribute("data-fd-probe-weight", String(picked.weight));  // the weight pickFace() selected
         if (italic) { italics++; if (verdict === "face") italicsOk++; }
         if (verdict !== "face") { bad++; if (!firstBad) firstBad = tag + (el.className ? "." + String(el.className).split(/\\s+/)[0] : "") + ":" + verdict; }
       }
@@ -610,6 +700,14 @@ def inject_head(html, snippet):
     return snippet + html
 
 
+class _Server(http.server.ThreadingHTTPServer):
+    """The shot server. Its listen backlog is 128, not socketserver's 5: several browsers at once (--jobs) each open
+    a burst of connections, and on macOS a full backlog refuses the extra ones, so a font request never reaches the
+    server, the browser draws the fallback and the shot fails as font=missing or no-italic-face with nothing in the
+    response log (measured 2026-11-18: every one of three --jobs 6 runs on a 12-shot site failed so, at 5)."""
+    request_queue_size = 128
+
+
 def serve(directory, seconds=600, family=None, sentinel=True, probe=None):
     """Starts the server for `directory` on a free loopback port; returns (server, port). It shuts
     itself down after `seconds` or on server.shutdown(). `family` is what the sentinel checks;
@@ -622,7 +720,7 @@ def serve(directory, seconds=600, family=None, sentinel=True, probe=None):
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     handler = functools.partial(Handler, directory=str(directory))
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+    server = _Server(("127.0.0.1", port), handler)
     server.responses = []  # (shot cookie, path, query, status) of every response, in order; list.append is atomic in CPython
     server.beacons = {}  # shot token -> the beacon's query fields
     server.rows = {}  # shot token -> the --rows body the sentinel POSTed (scroll, viewport, rows)

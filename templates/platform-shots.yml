@@ -1,263 +1,89 @@
 name: platform-shots
 
-# WHAT IT'S FOR: shows how a site's custom font is drawn by Chrome and Firefox on Windows, macOS and Linux,
-# so the review can look at the smallest rows on the renderers the author's Mac does not have (DirectWrite
-# on Windows above all). Each leg runs the site's own copy of the skill's shoot.py on one GitHub-hosted runner
-# with the same proofs as every other shoot.py shot; a last job crops every row from every leg into one image
-# per row with compare-shots.py and writes compare.md. Copy this file to <site>/.github/workflows/, fill the
-# slots in `env:` below, and start it by hand (Actions tab, or `gh workflow run platform-shots.yml`; then
-# `gh run download <run id> -n platform-shots-compare`).
+# WHAT IT'S FOR: shows how a site's custom font is drawn by Chrome and Firefox on Windows, macOS and Linux, so
+# the review can look at the smallest rows on the renderers the author's Mac does not have (DirectWrite on
+# Windows above all). This file is a short caller: the legs and the comparison live in the skill's reusable
+# workflow (.github/workflows/platform-shots-reusable.yml in windaddict/font-design-skill), and the site keeps
+# no copy of the skill's scripts. Copy this file to <site>/.github/workflows/platform-shots.yml, replace FACE
+# and the paths in `with:` below, pin the SHA, and start it by hand (Actions tab, or
+# `gh workflow run platform-shots.yml`; then `gh run download <run id> -n platform-shots-compare`).
 #
-# WHAT IT PROVES, exactly: what the recorded browser (Chrome of the recorded version, headless with
-# --disable-gpu; or Playwright's Firefox of the recorded version) drew on a GitHub-hosted virtual machine of
-# the recorded OS with the recorded font-smoothing settings and no physical display, at the recorded device
-# scale, with the same served-200, sentinel, element and italic proofs as every other shoot.py shot.
-# WHAT IT DOES NOT PROVE: anything about a reader's machine (display, scaling, ClearType tuning, browser version
-# and GPU raster path differ); Playwright's Firefox is not Mozilla's release build; nothing about Edge, Safari
-# or phones. A run that was never made proves nothing: the font record says "not checked on Windows" then.
-# Not a merge gate: it runs only when started by hand.
+# WHAT IT PROVES, exactly: the skill's references/review-loop.md section 9 states it; in short, what the
+# recorded browser drew on a GitHub-hosted virtual machine of the recorded OS, at the recorded scale and
+# font-smoothing settings, with the served-200, sentinel, element and italic proofs of every shoot.py shot,
+# using the skill's scripts at the commit pinned below (each leg's log names it). Nothing about a reader's
+# machine, Edge, Safari or phones. Not a merge gate: it runs only when started by hand.
 #
-# COST (GitHub's billing pages, read 2026-11-17; re-check GitHub's billing page before relying on it): free
-# for standard runners in a public repository. In a private one each job is billed per started minute, rounded
-# up, at Linux $0.006, Windows $0.010 and macOS $0.062 a minute ($0.078 for one minute on all three), against
-# $12 of included usage a month on GitHub Free ($18 on Pro and Team). Estimated, not measured: a Chrome leg
-# bills about 2 minutes and a Firefox leg about 3 (its browser download), so a full run of six legs plus the
-# compare job is about 2 x $0.078 + 3 x $0.078 + $0.006 = about $0.40, and a dispatch with browsers "chrome"
-# about $0.24 (the three Firefox legs still start a runner and skip their steps, about a minute each). macOS is
-# about 80 % of either figure: for Windows alone, delete macos-latest and ubuntu-latest from `matrix.os`.
-# Artifacts: one per leg plus the comparison, kept 14 days, counted against the plan's artifact storage
-# (500 MB on Free, 1 GB on Pro, 2 GB on Team, shared with GitHub Packages).
+# COST (GitHub's billing pages, read 2026-11-17; re-check before relying on it): billed to this repository,
+# not to the skill's. Free for standard runners in a public repository. In a private one each job is billed
+# per started minute, rounded up, at Linux $0.006, Windows $0.010 and macOS $0.062 a minute, against $12 of
+# included usage a month on GitHub Free ($18 on Pro and Team). Estimated, not measured: six legs plus the
+# compare job about $0.40; a dispatch with browsers "chrome" about $0.24, because a leg left out by browsers or
+# oses still starts its runner for about a minute. Artifacts: one per leg plus the comparison, kept 14 days,
+# counted against the plan's artifact storage.
+#
+# PIN: replace the forty zeros with the full SHA of the skill commit you read (git -C <skill dir> rev-parse
+# HEAD). Never a tag or a branch: the skill's workflow and scripts run with this repository's token. Bump it on
+# purpose, after reading the skill's CHANGELOG. The zeros fail a dispatch at GitHub before any job starts.
 #
 # THE FIRST RUN: `workflow_dispatch` lists a workflow only once this file is on the repository's default
-# branch; push it there (or add a `pull_request` trigger, as the skill's own copy does) before the first run.
+# branch; push it there before the first run. Your Actions settings must allow actions and reusable workflows
+# (a "selected actions" policy must list windaddict/font-design-skill/.github/workflows/*).
 #
-# THE SLOTS (env:, below). Lists are separated by spaces or newlines, so no page path or font URL may contain
-# whitespace; the family is one value and may.
-#   FD_SCRIPTS    the site's copy of the skill's scripts/ folder (SKILL.md phase 7 copies it to tools/<face>/scripts)
-#   FD_SERVE      the built static root that is served at /, the directory the pages and the woff2 files are in
-#   FD_BUILD      shell commands that build or stage FD_SERVE on the runner; empty when the built root is committed
-#                 (the step is then skipped). Run with `eval`: the same trust as any `run:` line in this file.
-#   FD_FAMILY     the font-family name every shot must prove it drew with
-#   FD_FONT_URLS  the root-relative woff2 paths the site's stylesheet uses; each shot must have requested at least
-#                 one and been served 200 for every one it requested. With FD_FONT_JSON, the first is the roman
-#                 the specimen loads and the second, when given, the italic.
-#   FD_PAGES      the pages to shoot, paths under FD_SERVE
-#   FD_FONT_JSON  the skill's font.json for the face (tools/<face>/font.json), or empty for a font the skill did
-#                 not build: no specimen is rendered or shot, and the pages are the whole leg
-#   FD_SCALES     device scales; 1 is where hairlines break, 1.25 is Windows' most common display scaling
-# Each dispatch input below, when given, overrides its slot for that run (a test of a broken font URL, one browser).
+# GITHUB ENTERPRISE SERVER is not supported: it has no job.workflow_* context, and the reusable workflow
+# refuses to run without job.workflow_sha.
+#
+# A POLICY THAT FORBIDS PUBLIC REUSABLE WORKFLOWS (github.com only): copy platform-shots-reusable.yml into this
+# repository, replace its `fd` checkout with a copy of the skill's scripts/ and requirements-platform.txt and
+# delete its guard and verify steps (they check the checkout you removed), and call it with `uses: ./`. You
+# then maintain that copy; the skill does not.
+#
+# THE INPUTS (`with:`, below; the reusable workflow's header defines each). Lists are separated by spaces or
+# newlines; the family is one value and may contain spaces. `build` is committed here and not a dispatch input:
+# it is run with `eval` in this repository's checkout, empty when the served root is committed. Each dispatch
+# input below, when given, overrides the committed value for that run (a test of a broken font URL, one browser).
 
 on:
   workflow_dispatch:
     inputs:
       pages:
-        description: "pages to shoot, space-separated (default: FD_PAGES)"
+        description: "pages to shoot, space-separated (default: the committed list)"
         required: false
         default: ""
       scales:
-        description: "device scales, space-separated (default: FD_SCALES)"
+        description: "device scales, space-separated (default: the committed list)"
         required: false
         default: ""
       font_urls:
-        description: "root-relative woff2 paths, space-separated (default: FD_FONT_URLS)"
+        description: "root-relative woff2 paths, space-separated (default: the committed list)"
         required: false
         default: ""
       family:
-        description: "the font family each shot must prove (default: FD_FAMILY)"
+        description: "the font family each shot must prove (default: the committed one)"
         required: false
         default: ""
       browsers:
         description: "browsers to run: chrome, firefox or both"
         required: false
         default: "chrome firefox"
+      oses:
+        description: "runner labels to run, space-separated"
+        required: false
+        default: "windows-latest macos-latest ubuntu-latest"
 
 permissions:
   contents: read
 
-defaults:
-  run:
-    shell: bash # Git Bash on Windows: one set of lines for the three systems
-
-env:
-  # Python on a Windows runner reads and writes text as cp1252 unless told otherwise; the skill's files are UTF-8.
-  PYTHONUTF8: "1"
-  # Git Bash on Windows rewrites an argument that starts with / into a Windows path before Python sees it
-  # (/fonts/X.woff2 became C:/Program Files/Git/fonts/X.woff2); these two turn that off.
-  MSYS_NO_PATHCONV: "1"
-  MSYS2_ARG_CONV_EXCL: "*"
-  FD_SCRIPTS: tools/FACE/scripts
-  FD_SERVE: static-pages
-  FD_BUILD: ""
-  FD_FAMILY: FACE
-  FD_FONT_URLS: |
-    /fonts/FACE-VF.woff2
-  FD_PAGES: |
-    index.html
-  FD_FONT_JSON: tools/FACE/font.json
-  FD_SCALES: "1 1.25"
-  IN_PAGES: ${{ inputs.pages }}
-  IN_SCALES: ${{ inputs.scales }}
-  IN_FONT_URLS: ${{ inputs.font_urls }}
-  IN_FAMILY: ${{ inputs.family }}
-
 jobs:
   shots:
-    name: ${{ matrix.os }} / ${{ matrix.browser }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false # one leg's failure must not cancel the others
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-        browser: [chrome, firefox]
-    env:
-      BROWSER: ${{ matrix.browser }}
-      # a dispatch with browsers "chrome" skips every step of the Firefox legs (a runner still starts)
-      LEG_ON: ${{ contains(inputs.browsers || 'chrome firefox', matrix.browser) }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        if: env.LEG_ON == 'true'
-        with:
-          python-version: "3.12" # the macOS image's own Python is 3.15
-      - name: build or stage the served root (FD_BUILD)
-        if: env.LEG_ON == 'true' && env.FD_BUILD != ''
-        run: eval "$FD_BUILD"
-      - name: resolve the slots and the dispatch inputs into .fd-slots.sh (sourced by the shooting steps)
-        if: env.LEG_ON == 'true'
-        run: |
-          cat > .fd-slots.sh <<'SLOTS'
-          # shellcheck disable=SC2034 # the arrays are read by the steps that source this file
-          # bash 3.2 has no mapfile, so each list is read one word a line
-          FAMILY="${IN_FAMILY:-$FD_FAMILY}"
-          PAGES=()
-          while read -r w; do if [ -n "$w" ]; then PAGES+=("$w"); fi; done < <(printf '%s\n' "${IN_PAGES:-$FD_PAGES}" | tr -s ' \t' '\n')
-          SCALES=()
-          while read -r w; do if [ -n "$w" ]; then SCALES+=("$w"); fi; done < <(printf '%s\n' "${IN_SCALES:-$FD_SCALES}" | tr -s ' \t' '\n')
-          FONT_URLS=()
-          FONT_URL_ARGS=()
-          while read -r w; do if [ -n "$w" ]; then FONT_URLS+=("$w"); FONT_URL_ARGS+=(--font-url "$w"); fi; done < <(printf '%s\n' "${IN_FONT_URLS:-$FD_FONT_URLS}" | tr -s ' \t' '\n')
-          SLOTS
-          # shellcheck disable=SC1091
-          source .fd-slots.sh
-          echo "family: $FAMILY"
-          echo "pages: ${PAGES[*]}"
-          echo "scales: ${SCALES[*]}"
-          echo "font urls: ${FONT_URLS[*]}"
-          if [ "${#PAGES[@]}" -eq 0 ] || [ "${#SCALES[@]}" -eq 0 ] || [ "${#FONT_URLS[@]}" -eq 0 ] || [ -z "$FAMILY" ]; then
-            echo "a slot is empty: FD_PAGES, FD_SCALES, FD_FONT_URLS and FD_FAMILY must each name at least one value" >&2
-            exit 1
-          fi
-      - name: fontTools and brotli for the specimen's charset check
-        if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
-        run: python -m pip install "fonttools==4.68.*" brotli
-      # Every leg shoots through Playwright: Firefox has no other launcher, and Chrome's command line on a Windows runner
-      # lays the page out 16 px narrower than it captures (shoot_playwright.py's header). Chrome legs launch the installed
-      # Chrome, so only the Firefox legs download a browser.
-      - name: Playwright (every leg), and its Firefox (Firefox legs only)
-        if: env.LEG_ON == 'true'
-        run: |
-          REQ="$FD_SCRIPTS/../requirements-platform.txt"
-          if [ -f "$REQ" ]; then
-            python -m pip install -r "$REQ"
-          else
-            echo "NOTE: $REQ is not in this repository; installing the pin it carries in the skill: playwright==1.64.1"
-            python -m pip install "playwright==1.64.1"
-          fi
-          if [ "$BROWSER" = "firefox" ]; then
-            if [ "$RUNNER_OS" = "Linux" ]; then
-              python -m playwright install --with-deps firefox
-            else
-              python -m playwright install firefox
-            fi
-          fi
-      - uses: browser-actions/setup-chrome@v1
-        id: chrome
-        if: env.LEG_ON == 'true' && matrix.os == 'ubuntu-latest' && matrix.browser == 'chrome'
-        with:
-          chrome-version: stable
-          install-dependencies: true
-      - name: point shoot.py at that Chrome, and let it use its sandbox (Ubuntu 24.04 restricts unprivileged user namespaces)
-        if: env.LEG_ON == 'true' && matrix.os == 'ubuntu-latest' && matrix.browser == 'chrome'
-        env:
-          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
-        run: |
-          echo "CHROME=$CHROME_PATH" >> "$GITHUB_ENV"
-          if sysctl kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
-      - name: render the review specimen into the served root (FD_FONT_JSON)
-        if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
-        run: |
-          source .fd-slots.sh
-          REQS="$(dirname "$FD_FONT_JSON")/requirements.json"
-          ARGS=(--font "$FD_FONT_JSON" --font-url "${FONT_URLS[0]}")
-          if [ -f "$REQS" ]; then ARGS+=(--requirements "$REQS"); fi
-          if [ "${#FONT_URLS[@]}" -ge 2 ]; then ARGS+=(--italic-url "${FONT_URLS[1]}"); fi
-          mkdir -p "$FD_SERVE/review"
-          python "$FD_SCRIPTS/specimen.py" "${ARGS[@]}" "$FD_SERVE/review/specimen.html"
-      - name: shoot the specimen (6000 px tall, so every row is inside the capture)
-        if: env.LEG_ON == 'true' && env.FD_FONT_JSON != ''
-        run: |
-          source .fd-slots.sh
-          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages review/specimen.html --widths 1280 --scales "${SCALES[@]}" --height 6000 --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --require-captured --meta leg/meta-specimen.json --bands none --jobs 2
-      - name: shoot the pages
-        # runs after a failed specimen shot too, so one failure does not lose the other invocation's evidence
-        if: ${{ !cancelled() && env.LEG_ON == 'true' }}
-        run: |
-          source .fd-slots.sh
-          python "$FD_SCRIPTS/shoot.py" leg --serve "$FD_SERVE" --pages "${PAGES[@]}" --widths 1280 --scales "${SCALES[@]}" --family "$FAMILY" "${FONT_URL_ARGS[@]}" --browser "$BROWSER" --launcher playwright --rows --meta leg/meta-pages.json --bands none --jobs 2
-      # the artifact's root is leg/ itself, so download-artifact puts meta*.json at legs/<artifact name>/ (F001)
-      - uses: actions/upload-artifact@v4
-        if: always() && env.LEG_ON == 'true'
-        with:
-          name: platform-shots-${{ matrix.os }}-${{ matrix.browser }}
-          path: leg/
-          retention-days: 14
-          if-no-files-found: error
-
-  compare:
-    name: compare the legs
-    needs: shots
-    if: always() # one leg's failure must not lose the others' comparison
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Pillow for the crops
-        run: python -m pip install pillow
-      # with merge-multiple false each artifact is extracted into its own directory, legs/<artifact name>/
-      # (actions/download-artifact v4 README, read 2026-11-17)
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: platform-shots-*
-          path: legs
-          merge-multiple: false
-      - name: compare every row across the legs (a bad leg is refused and listed; the others are still compared)
-        run: |
-          ls -R legs || echo "NOTE: no leg uploaded an artifact"
-          python "$FD_SCRIPTS/compare-shots.py" compare legs/*/
-      - name: compare.md into the job summary
-        if: always()
-        run: |
-          if [ -f compare/compare.md ]; then
-            cat compare/compare.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "compare-shots.py wrote no compare.md; read the compare step's log" >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: platform-shots-compare
-          path: compare/
-          retention-days: 14
-      - name: fail the run when a leg failed (after the upload, so the evidence that exists is kept)
-        if: always() && needs.shots.result != 'success'
-        env:
-          SHOTS_RESULT: ${{ needs.shots.result }}
-        run: |
-          echo "the shots job ended '$SHOTS_RESULT': at least one leg failed; its meta*.json names the failure" >&2
-          exit 1
+    uses: windaddict/font-design-skill/.github/workflows/platform-shots-reusable.yml@0000000000000000000000000000000000000000
+    with:
+      serve: static-pages
+      build: "" # commands that build or stage `serve` on the runner; empty when it is committed
+      family: ${{ inputs.family || 'FACE' }}
+      font_urls: ${{ inputs.font_urls || '/fonts/FACE-VF.woff2' }}
+      pages: ${{ inputs.pages || 'index.html' }}
+      font_json: tools/FACE/font.json # empty for a font the skill did not build
+      scales: ${{ inputs.scales || '1 1.25' }}
+      browsers: ${{ inputs.browsers }}
+      oses: ${{ inputs.oses }}

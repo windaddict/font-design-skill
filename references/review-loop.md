@@ -83,16 +83,20 @@ protocol was written down.
   An overflow outranks every other finding (every phone shows it) and is fixed in the CSS or the
   content in the same round; a page still overflowing at the last round is a publication blocker
   (`SKILL.md` section 4). `narrow_verdict()` in `shoot.py` reads the two attributes.
-- **The platform run: `templates/platform-shots.yml` and `scripts/compare-shots.py`.** It answers one
+- **The platform run: `.github/workflows/platform-shots-reusable.yml`, its caller `templates/platform-shots.yml`, and `scripts/compare-shots.py`.** It answers one
   question the local shots cannot: does the face hold up in other browsers on other operating systems,
   above all the hairlines at the smallest sizes under Windows' DirectWrite. It is made once per face, not
-  every round (section 7 says when). The operator copies the template to
-  `<site>/.github/workflows/platform-shots.yml`, fills its `env:` slots (the template's header says what
-  each one holds: the site's copy of `scripts/`, the built root, the command that builds it, the family, the
-  font paths, the pages, the `font.json`, the scales), commits it to the default branch (a first
-  `workflow_dispatch` needs it there), and runs `gh workflow run platform-shots.yml`. Each **leg** is one
+  every round (section 7 says when). The operator copies the caller template to
+  `<site>/.github/workflows/platform-shots.yml`, replaces its placeholder with the full SHA of the skill
+  commit to use (never a tag or branch: the skill's code runs with the site's token), fills its `with:`
+  inputs (the template's header says what each one holds: the built root, the command that builds it, the
+  family, the font paths, the pages, the `font.json`, the scales), commits it to the default branch (a first
+  `workflow_dispatch` needs it there), and runs `gh workflow run platform-shots.yml`. The run happens in
+  the site's repository and is billed there; each leg checks out the site and the skill's scripts at the
+  pinned commit, and refuses to run when it cannot learn that commit (`job.workflow_sha`), never falling
+  back to a branch. The site keeps no copy of `scripts/`. Each **leg** is one
   runner OS and one browser: Windows Server, macOS and Ubuntu runners, each in Chrome and in Playwright's
-  Firefox. A leg runs the site's copy of `shoot.py` at 1280 px and device scales 1 and 1.25 on the
+  Firefox. A leg runs the skill's `shoot.py` at the pinned commit at 1280 px and device scales 1 and 1.25 on the
   specimen (only when the site has a `font.json`; shot with `--height 6000` and `--require-captured`, so a row
   below the capture fails the leg instead of dropping out of the comparison) and on the named pages, always
   with `--family`, `--font-url`, `--rows`, `--meta` and `--launcher playwright`. Then a compare job runs `compare-shots.py` over every leg that finished. Read the result with
@@ -242,7 +246,8 @@ A leg's PNG is what the recorded browser drew: Chrome of the recorded version, h
 `--disable-gpu` and driven by Playwright, or Playwright's Firefox of the recorded version. It drew on a GitHub-hosted virtual
 machine of the recorded OS (Windows Server, macOS and Ubuntu runners, as the leg's `meta*.json` records
 them), with the recorded font-smoothing settings, no physical display, at the recorded device scale. The
-shot passed the same served-200, sentinel, element and italic proofs as every other `shoot.py` shot.
+shot was taken by the skill's scripts at the commit the caller pinned, which the leg's log names, and it
+passed the same served-200, sentinel, element and italic proofs as every other `shoot.py` shot.
 A GitHub-hosted runner is not a reader's laptop: the display, the scaling, the ClearType tuning, the
 browser version and the GPU raster path all differ. Playwright's Firefox is not the Firefox build a
 reader installs. The run does not check Safari, Edge, phones or a real display. A run that was never

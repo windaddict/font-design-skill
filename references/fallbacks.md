@@ -102,10 +102,19 @@ GitHub Actions on the site's repository, not a Windows machine. With a run, the 
 Windows: run <id>, <what the smallest rows showed>". Without one, record "not checked on Windows" with the
 claim it limits (trap 21).
 
-The template's steps run in Git Bash on the Windows runner, and its `env` block carries three settings
-for that: `PYTHONUTF8: "1"` (Python there otherwise reads text as cp1252), and `MSYS_NO_PATHCONV` with
-`MSYS2_ARG_CONV_EXCL` (Git Bash otherwise rewrites a `/fonts/X.woff2` argument into a Windows path). Keep
-them when you edit the copy.
+The reusable workflow's steps run in Git Bash on the Windows runner, and its `env` block carries three
+settings for that: `PYTHONUTF8: "1"` (Python there otherwise reads text as cp1252), and `MSYS_NO_PATHCONV`
+with `MSYS2_ARG_CONV_EXCL` (Git Bash otherwise rewrites a `/fonts/X.woff2` argument into a Windows path). A
+site's caller sets nothing for this.
+
+## No access to public reusable workflows
+
+A github.com organization whose Actions policy forbids reusable workflows from public repositories cannot
+call `platform-shots-reusable.yml`. Copy that file into the site's `.github/workflows/`, replace its
+skill checkout with a copy of the skill's `scripts/` and `requirements-platform.txt`, delete its commit
+guard and verify steps (they read `job.workflow_sha`, which then names the site's own commit), and call it
+with `uses: ./.github/workflows/platform-shots-reusable.yml`. That copy is the site's to keep up to date.
+GitHub Enterprise Server is not supported: it has no `job.workflow_*` context, so the guard refuses every leg.
 
 ## No Playwright
 
