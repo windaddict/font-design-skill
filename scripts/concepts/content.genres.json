@@ -118,61 +118,61 @@
     "didone": {
       "desc": "Vertical stress, hairline unbracketed serifs and horizontals, ball terminals",
       "cost": "Not costed",
-      "risk": "partly (2026-11-16): Moderate contrast because of the hairline floor, and equal-weight diagonals on A V W M N v w x y, so it reads as a light modern, not a Didone. The diagonals need an expansion model, which is out of scope",
+      "risk": "partly (2026-11-19): Moderate contrast because of the hairline floor, and equal-weight diagonals on A V W M N v w x y, so it reads as a light modern, not a Didone. The diagonals need an expansion model, which is out of scope",
       "pick": false
     },
     "fatface": {
       "desc": "A Didone at poster weight, the counters reduced to slits",
       "cost": "Not costed",
-      "risk": "no (2026-11-16): Stems are about 1/6 of the cap height even at the Bold; W past its range cannot reach 1/3-cap stems without collapsing the counters. It needs new shapes",
+      "risk": "no (2026-11-19): Stems are about 1/6 of the cap height even at the Bold; W past its range cannot reach 1/3-cap stems without collapsing the counters. It needs new shapes",
       "pick": false
     },
     "scotch": {
       "desc": "Vertical stress, bracketed serifs, high contrast, brass-foil sharp",
       "cost": "Not costed",
-      "risk": "reaches (2026-11-16): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15). The italic is refused (section 4)",
+      "risk": "reaches (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15). The italic is refused (section 4)",
       "pick": false
     },
     "clarendon": {
       "desc": "Bracketed slab serifs, moderate contrast, a bold companion",
       "cost": "Not costed",
-      "risk": "no (2026-11-16): The serifs are short pointed wedges, not square bracketed slabs, so it reads as a wedge serif. A longer serifLen with serifGrow 0 might fix it; untested. Rendering defects: section 7",
+      "risk": "no (2026-11-19): The serifs are short pointed wedges, not square bracketed slabs, so it reads as a wedge serif. A longer serifLen with serifGrow 0 might fix it; untested. Rendering defects: section 7",
       "pick": false
     },
     "slab": {
       "desc": "Unbracketed slab serifs, low to moderate contrast",
       "cost": "Not costed",
-      "risk": "reaches (2026-11-16): Square unbracketed slabs at stem weight, low contrast, in Rockwell or Memphis proportion. Rendering defects: section 7",
+      "risk": "reaches (2026-11-19): Square unbracketed slabs at stem weight, low contrast, in Rockwell or Memphis proportion. Rendering defects: section 7",
       "pick": false
     },
     "grot": {
       "desc": "A near-uniform stroke, flat apexes, terminals cut across the stroke",
       "cost": "Not costed",
-      "risk": "partly (2026-11-16): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7)",
+      "risk": "partly (2026-11-19): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7)",
       "pick": false
     },
     "geometric": {
       "desc": "Circles and squares, a monoline stroke, an even colour",
       "cost": "Not costed",
-      "risk": "no (2026-11-16): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt",
+      "risk": "no (2026-11-19): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt",
       "pick": false
     },
     "reverse": {
       "desc": "Thin verticals, thick horizontals, heavy slabs",
       "cost": "Not costed",
-      "risk": "partly (2026-11-16): Reverse contrast, but light, at typewriter weight; a larger W and a lower thin might reach a French Clarendon (untested). Rendering defects, including the R: section 7",
+      "risk": "partly (2026-11-19): Reverse contrast, but light, at typewriter weight; a larger W and a lower thin might reach a French Clarendon (untested). Rendering defects, and a lump where the bowls of P, B and R meet the thin stem: section 7",
       "pick": false
     },
     "opsz-text": {
       "desc": "The small-size cut: wider, taller x-height, less contrast, looser",
       "cost": "Not costed",
-      "risk": "reaches (2026-11-16): As a pair: a wider, looser text cut with a taller x-height beside a narrower, higher-contrast display cut. The display cut is close to the Didone",
+      "risk": "reaches (2026-11-19): As a pair: a wider, looser text cut with a taller x-height beside a narrower, higher-contrast display cut. The display cut is close to the Didone",
       "pick": false
     },
     "opsz-display": {
       "desc": "The large-size cut: narrower, lower x-height, more contrast, tighter",
       "cost": "Not costed",
-      "risk": "reaches (2026-11-16): As a pair: a wider, looser text cut with a taller x-height beside a narrower, higher-contrast display cut. The display cut is close to the Didone",
+      "risk": "reaches (2026-11-19): As a pair: a wider, looser text cut with a taller x-height beside a narrower, higher-contrast display cut. The display cut is close to the Didone",
       "pick": false
     }
   },

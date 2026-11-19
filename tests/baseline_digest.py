@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Computes the compatibility digests of the three example fonts, and records the 0.1.0 baseline.
+"""Computes the compatibility digests of the three example fonts, and records the compatibility baseline.
 
 WHAT IT'S FOR: 0.2 adds generator parameters whose defaults must leave every shipped font byte for byte
 as it was. A rebuild that only has to "look the same" cannot prove that, and the woff2 files are not
 tracked (fonts are never published from this repo), so there is nothing to diff against. This module
 turns an example's build into three short digests that a tracked JSON file can hold, so
-tests/test_backward_compat.py can compare a fresh build with what 0.1.0 produced.
+tests/test_backward_compat.py can compare a fresh build with what the baseline commit produced (0.1.0's `0fc4314` from 0.2 to 0.4; since
+0.5.0 the commit that redrew the R's leg root, which moved every group's export and TTF digest: the fixture's `supersedes` entry records it).
 
 The three digests, per example group:
 
@@ -27,19 +28,24 @@ The woff2 sha256 of each file is recorded too, together with the brotli version 
 tests/test_backward_compat.py compares them ONLY when the running brotli is the recorded one, and skips naming both versions otherwise.
 None of the three digests above is a claim about woff2 bytes: they prove the outlines, the tables fontTools writes and the manifest figures.
 
+Exact guarantee of tests/test_backward_compat.py against this fixture: the three examples' fresh digests EQUAL the recorded ones for the running
+platform and node major, and the fixture names a baseline commit of git-sha shape and the version and record it superseded. The test does NOT
+re-verify that the recorded digests came from that commit's scripts: that guard (`guard()` below) runs at --record time only, so a fixture
+written by hand, or from --print with a pasted revision, passes the test. What ties the record to the commit is the recording path, not the test.
+
 The record is keyed by PLATFORM AND NODE MAJOR VERSION (`darwin/26`, `linux/22`): the export digest is floating-point arithmetic, which
 depends on V8 and, as the first Linux CI run showed, on the operating system too (the same node major version gave other digests for the
 bract and driftwood fonts on Linux than on macOS). A platform and node that produces a different digest on the UNCHANGED 0.1.0 tree is not a
-regression: record it, from the 0.1.0 code, with the commands below (on Linux, the `record-baseline` workflow does it). The promise
+regression: record it, from the baseline commit's code, with the commands below (on Linux, the `record-baseline` workflow does it). The promise
 "a 0.1 project rebuilds to the same fonts" is therefore per platform and node major version.
 
     .venv/bin/python3 tests/baseline_digest.py --print [--out F]        # the working tree's digests, as one entry (no guard)
-    .venv/bin/python3 tests/baseline_digest.py --record --rev 0fc4314   # add this platform/node entry to the fixture
-    .venv/bin/python3 tests/baseline_digest.py --record --rev 0fc4314 --repo PATH --out F   # build a 0.1.0 checkout at PATH, write the entry only
+    .venv/bin/python3 tests/baseline_digest.py --record --rev <baseline sha>   # add this platform/node entry to the fixture
+    .venv/bin/python3 tests/baseline_digest.py --record --rev <baseline sha> --repo PATH --out F   # build a checkout of the baseline commit at PATH, write the entry only
     .venv/bin/python3 tests/baseline_digest.py --merge F [F ...]        # merge entry files into the fixture
 
 --record refuses unless scripts/gen.js, export.js and build.py of the tree it builds (this one, or --repo) are byte-identical to REV's copies,
-so a baseline cannot be recorded from modified code (the whole point is that it comes from 0.1.0). --merge refuses an entry recorded at another
+so a baseline cannot be recorded from modified code (the whole point is that it comes from the baseline commit). --merge refuses an entry recorded at another
 revision.
 
 Copyright 2026 John Knox. MIT licence.
@@ -54,10 +60,10 @@ import sys
 import tempfile
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-TREE = REPO  # the tree whose scripts and examples are built: this repo, or a 0.1.0 checkout named by --repo
+TREE = REPO  # the tree whose scripts and examples are built: this repo, or a checkout of the baseline commit named by --repo
 SCHEMA = "font-design/baseline-digests/v2"
 ENTRY_SCHEMA = "font-design/baseline-entry/v1"
-FIXTURE = REPO / "tests" / "fixtures" / "baseline-0.1.0.json"
+FIXTURE = REPO / "tests" / "fixtures" / "baseline.json"
 # example -> extra build arguments: the neutral example has a requirements.json, the two precedents do
 # not (smoke.sh step 2 declines the required-character check for them the same way)
 EXAMPLES = {"neutral": [], "bract": ["--no-requirements"], "driftwood": ["--no-requirements"]}
@@ -167,7 +173,7 @@ def load_fixture():
 
 def record_instructions(data, key):
     return (f"no digests recorded for {key} (recorded: {sorted(data['by_platform_node'])}). If this platform or node differs from the recorded ones only in "
-            f"floating-point arithmetic, it is not a regression: record it from the 0.1.0 code. On Linux run the `record-baseline` workflow "
+            f"floating-point arithmetic, it is not a regression: record it from the baseline commit's code. On Linux run the `record-baseline` workflow "
             f"(.github/workflows/record-baseline.yml) and merge its artifact with `python tests/baseline_digest.py --merge ENTRY.json`; elsewhere, in a "
             f"checkout of {data['baseline_rev']}, `python tests/baseline_digest.py --record --rev {data['baseline_rev']} --out ENTRY.json --repo .` "
             f"then `--merge ENTRY.json` here")
@@ -238,9 +244,9 @@ def main(argv=None):
     global TREE
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--print", action="store_true", dest="show", help="print the working tree's digests as one entry (no guard, no baseline revision)")
-    ap.add_argument("--record", action="store_true", help="record this platform/node's digests from the 0.1.0 code (needs --rev)")
+    ap.add_argument("--record", action="store_true", help="record this platform/node's digests from the baseline commit's code (needs --rev)")
     ap.add_argument("--merge", nargs="+", metavar="ENTRY", help="merge entry files written by --record --out into the fixture")
-    ap.add_argument("--rev", help="the 0.1.0 commit the scripts must equal, for --record")
+    ap.add_argument("--rev", help="the baseline commit the scripts must equal, for --record")
     ap.add_argument("--repo", help="the tree to build (default: this repo); for --record, a checkout of the baseline revision")
     ap.add_argument("--out", help="write the entry to this file instead of the fixture (--record) or stdout (--print)")
     args = ap.parse_args(argv)

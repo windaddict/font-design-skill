@@ -424,7 +424,7 @@ def test_smoke_step_8b_asserts_that_every_recipe_drew(tmp_path, fault):
 
 # --- the review record (review finding T8) ---------------------------------------------------------------------------
 
-RECORD = REPO / "docs" / "reviews" / "genres-2026-11-16.md"
+RECORD = REPO / "docs" / "reviews" / "genres-2026-11-19.md"
 DIGEST = r"""
 const crypto = require("crypto"); const m = require(process.argv[1]); const list = m.loadConcepts(process.argv[2]);
 const r2 = v => Math.round(v * 100) / 100, out = {};

@@ -32,7 +32,7 @@
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
-   s = stem end (serif or cut), t = free terminal, '' = join. */
+   s = stem end (serif or cut), t = free terminal, '' = join, j = square, i = a T-join into another stroke's interior. */
 var K = 0.5523;
 function ring(cx, cy, rx, ry) {
   return { d: "M " + cx + " " + (cy + ry) +
@@ -113,7 +113,9 @@ var G = {
   Q: [ring(380, 350, 300, 360), S("M 360 40 C 430 -50 530 -110 670 -130", "", "t")],
   R: [S("M 100 700 L 100 0", "s", "s"),
       S("M 100 700 L 330 700 C 470 700 540 630 540 520 C 540 410 470 340 330 340 L 100 340"),
-      S("M 320 340 L 570 0", "", "s")],
+      // the leg starts ON the bowl's closing bar ("i", a T-join): cut level on the bar's centre line, no cap. A hidden join ("")
+      // drew a disk wider than the thin bar and it showed in the counter (0.4.0 and before; docs/plan-r-leg.md)
+      S("M 320 340 L 570 0", "i", "s")],
   S: [S("M 520 600 C 480 670 410 710 320 710 C 200 710 120 640 120 530 C 120 330 540 400 540 180 C 540 60 450 -10 320 -10 C 210 -10 120 40 80 120", "t", "t")],
   T: [S("M 300 700 L 300 0", "j", "s"), S("M 40 700 L 560 700", "t", "t")],
   U: [S("M 100 700 L 100 240 C 100 80 200 -10 340 -10 C 480 -10 580 80 580 240 L 580 700", "s", "s")],
@@ -218,7 +220,7 @@ var GI_CAPS = {
       S("M 650 700 L 650 100 C 650 35 672 -10 735 -10", "", "x")],
   R: [S("M 100 700 L 100 0", "s", "s"),
       S("M 100 700 L 330 700 C 470 700 540 630 540 520 C 540 410 470 340 330 340 L 100 340"),
-      S("M 310 340 C 390 260 450 130 490 50 C 510 10 535 -10 590 -10", "", "x")],
+      S("M 310 340 C 390 260 450 130 490 50 C 510 10 535 -10 590 -10", "i", "x")],
   K: [S("M 100 700 L 100 0", "s", "s"), S("M 560 700 L 100 250", "s", ""),
       S("M 270 420 C 350 290 420 130 460 55 C 480 15 505 -10 560 -10", "j", "x")],
   V: [S("M 20 700 L 300 0", "s", ""), S("M 300 0 C 420 180 560 440 560 590 C 560 640 545 680 520 700", "", "t")],
@@ -508,11 +510,12 @@ function diagSerifPoly(E, T, Lk, Rk, P) {
 }
 
 function clipPast(arr, k, sg, T, Dv) {
-  var C = arr[k], ref = Dv[0] * T[1] - Dv[1] * T[0];
+  var C = arr[k], ref = Dv[0] * T[1] - Dv[1] * T[0], pinned = 0;
   for (var j = k - sg, steps = 0; j >= 0 && j < arr.length && steps < 80; j -= sg, steps++) {
     var q = arr[j], side = Dv[0] * (q[1] - C[1]) - Dv[1] * (q[0] - C[0]);
-    if (side * ref > 1e-6) arr[j] = [C[0], C[1]]; else if (steps > 6) break;
+    if (side * ref > 1e-6) { arr[j] = [C[0], C[1]]; pinned++; } else if (steps > 6) break;
   }
+  return pinned;
 }
 function beakPoly(p, T, w, P, yU) {
   // yU: the end's y on the unmapped skeleton, which decides the beak's side (the thresholds are skeleton coordinates)
@@ -546,7 +549,46 @@ function penWidth(th, P, cw) {
 }
 
 /* Turn one centre line into outline polygons for concept P. */
-function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U) {
+/* A T-join ("i"): the end lies on another stroke's centre line, at an interior point. The end is cut PARALLEL to that stroke
+   through the end point, so the whole cut is a segment of the partner's centre line and is buried by the partner's half-thickness
+   on both sides whatever the pen; no terminal is drawn. glyph() found the partner on the unmapped skeleton and passes its drawn
+   direction and a containment test for its drawn polygons (tee.dir, tee.buried). The cut is a decision on DRAWN geometry (cutSide
+   reads drawn tangents and clamps its move), so a master whose drawn angle to the partner is under 14.5 degrees (|T x D| < 0.25,
+   cutSide's own parallel threshold), whose cut would be clamped, or whose cut corners are not inside the partner throws here: an
+   unburied end is never drawn quietly. */
+function teeCut(Lp, Rp, k, sg, T, pts, Ws, tee, ch) {
+  var teeD = tee.dir, cr = T[0] * teeD[1] - T[1] * teeD[0], clamp = Ws[k] * 3;
+  if (Math.abs(cr) < 0.25) throw new Error("strokePolys: " + ch + " T-join end runs within 14.5 degrees of the stroke it meets (|T x D| " + Math.abs(cr).toFixed(3) + " < 0.25)");
+  var need = Math.max(Math.abs(((pts[k][0] - Lp[k][0]) * teeD[1] - (pts[k][1] - Lp[k][1]) * teeD[0]) / cr),
+                      Math.abs(((pts[k][0] - Rp[k][0]) * teeD[1] - (pts[k][1] - Rp[k][1]) * teeD[0]) / cr));
+  if (need > clamp) throw new Error("strokePolys: " + ch + " T-join cut needs a reach of " + need.toFixed(1) + " units, over the clamp of " + clamp.toFixed(1));
+  Lp[k] = cutSide(Lp[k], T, pts[k], teeD, clamp); Rp[k] = cutSide(Rp[k], T, pts[k], teeD, clamp);
+  // the guarantee itself, checked exactly on what was drawn: the cut (the segment from corner to corner) crosses no edge of the
+  // stroke it runs into (its body polygon, or a ring's two contours) and its midpoint lies inside that stroke, so the whole cut does
+  // (a segment that crosses no boundary stays on one side of it). A probe at a few points along the cut missed a dip of the partner's
+  // edge narrower than the probe spacing (re-review of the diff, R2). The corners alone were not enough on a curved partner either:
+  // the cut is a chord of the partner's centre line and can leave a tightly bent stroke between two corners that are inside it. The
+  // check also refuses an end so near the partner's end that the cut cannot fit inside it.
+  var x = tee.crossing(Lp[k], Rp[k]);
+  if (x) {
+    throw new Error("strokePolys: " + ch + " T-join cut is not buried in the stroke it runs into (it crosses that stroke's edge at " +
+      x.map(function (v) { return v.toFixed(1); }) + "; corners " + Lp[k].map(function (v) { return v.toFixed(1); }) + " / " + Rp[k].map(function (v) { return v.toFixed(1); }) + ")");
+  }
+  var mid = [(Lp[k][0] + Rp[k][0]) / 2, (Lp[k][1] + Rp[k][1]) / 2];
+  if (!tee.inside(mid)) {
+    throw new Error("strokePolys: " + ch + " T-join cut is not buried in the stroke it runs into (its midpoint " +
+      mid.map(function (v) { return v.toFixed(1); }) + " lies outside it)");
+  }
+  // which of the stroke's two edges clipPast pins past the cut is a decision; it is recorded as clipPast MADE it (the edges on which
+  // any point was pinned: L, R, LR, or = for neither), not as the angle that predicts it, because two masters within a bucketed
+  // angle's dead band can pin opposite edges (re-review of the diff, R1). Two masters whose stroke crosses perpendicular to the
+  // partner between them are therefore refused by the exporter. How MANY samples the pin reaches is not a decision but a width
+  // (the acute corner sits w / (2 tan phi) along the edge), so it differs between weights by construction and is not recorded,
+  // like the fold pin's reach (generator.md section 3)
+  var nL = clipPast(Lp, k, sg, T, teeD), nR = clipPast(Rp, k, sg, T, teeD);
+  tee.side = (nL ? "L" : "") + (nR ? "R" : "") || "=";
+}
+function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, tees, teeIds) {
   // U carries the same stroke on the UNMAPPED skeleton (the x-height map undone): every geometry-dependent decision below reads pu
   // and ju and every drawn coordinate reads pts and joins, so xh cannot flip a branch. With the map off U is absent and
   // pu IS pts, ju IS joins: the 0.1 code path.
@@ -555,6 +597,9 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U) {
   var jointsOn = P.ends.s === "serif" || P.joints === true;
   var modeA = P.ends[flags[0]], modeB = P.ends[flags[1]], curlA = 0, curlB = 0, curlInfoA = {}, curlInfoB = {}, dropK = 1, first = out.length;
   // "flareS" is a free end with a half-size teardrop, for strokes where a full drop reads as a dot
+  // a T-join end has no mode of its own: it is "tee" before the taper and teardrop decisions below read the modes
+  if (tees && tees[0]) modeA = "tee";
+  if (tees && tees[1]) modeB = "tee";
   if (modeA === "flareS") { modeA = "flare"; dropK = 0.5; }
   if (modeB === "flareS") { modeB = "flare"; dropK = 0.5; }
   if (P.beak && !closed && pu.every(function (q) { return Math.abs(q[1] - pu[0][1]) < 0.5; })) {
@@ -571,7 +616,7 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U) {
   var curved = !closed && pu.some(function (q) {
     return Math.abs((q[0] - pu[0][0]) * chord[1] - (q[1] - pu[0][1]) * chord[0]) / cl > 3;
   });
-  var tapA = curved && modeA === "disk" && !(joins && joins[0]), tapB = curved && modeB === "disk" && !(joins && joins[1]);
+  var tapA = curved && (modeA === "tee" || modeA === "disk" && !(joins && joins[0])), tapB = curved && (modeB === "tee" || modeB === "disk" && !(joins && joins[1]));
   var tapL = 0.9 * (P.W0 || P.W);
   function tap(d) { return d < tapL ? 1 - 0.3 * Math.pow(1 - d / tapL, 1.5) : 1; }
   for (i = 1; i < n; i++) s.push(s[i - 1] + dist(pts[i - 1], pts[i]));
@@ -671,6 +716,7 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U) {
   var ends = [[0, modeA, -1], [n - 1, modeB, 1]];
   ends.forEach(function (e) {
     var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg], TU = pu === pts ? T : [tang(k)[0] * sg, tang(k)[1] * sg];
+    if (mode === "tee") { teeCut(Lp, Rp, k, sg, T, pts, Ws, tees[sg < 0 ? 0 : 1], ch); return; }
     if (mode === "cut") {
       var Dv = [Math.cos(P.cut), Math.sin(P.cut)];
       Lp[k] = cutSide(Lp[k], T, pts[k], Dv, Ws[k]); Rp[k] = cutSide(Rp[k], T, pts[k], Dv, Ws[k]);
@@ -704,6 +750,9 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U) {
   if (P.crotch > 0) sig += " crotch=" + (cr && cr[0].acute ? 1 : 0) + "/" + (cr && cr[1].acute ? 1 : 0);
   // the handedness of a curl's spiral (1 or -1 per end, 0 for none) is a decision the map must not flip
   if (curlA || curlB) sig += " curlsg=" + (curlA ? curlInfoA.sg : 0) + "/" + (curlB ? curlInfoB.sg : 0);
+  // a T-join records the partner stroke and the sample on it nearest the end, so masters that pick neighbours are refused;
+  // written only for a stroke with a T-join end, so no other record changes
+  if (teeIds && (teeIds[0] !== "-" || teeIds[1] !== "-")) sig += " tee=" + teeIds[0] + (tees[0] ? tees[0].side : "") + "/" + teeIds[1] + (tees[1] ? tees[1].side : "");
   ends.forEach(function (e) {
     var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg], p = pts[k], w = Ws[k];
     var TU = pu === pts ? T : [tang(k)[0] * sg, tang(k)[1] * sg];
@@ -912,15 +961,17 @@ function glyph(key, P) {
   var items = [], trace = [];
   // stroke ends that meet another stroke's end (the points of V, W, A) are joints, not terminals
   // each end records the direction its partner stroke leaves the shared point in
-  var ends = [];
+  var ends = [], sampled = [];
   // the sampled, transformed points of stroke si on the unmapped skeleton; with the map off they are the drawn points, so the default
   // path is the 0.1 one
   function unmapped(si) { return samplePath(src500[si].d, counts[si]).map(function (p) { return xf(key, P, p); }); }
   src.forEach(function (st, si) {
-    if (st.dot || st.closed) return;
+    if (st.dot) { sampled.push(null); return; }
     var q = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); }), m = q.length - 1;
     // directions are taken on the unmapped skeleton (qU), positions on the drawn one: mapped coordinates draw, unmapped decide
     var qU = mapOn ? unmapped(si) : q;
+    sampled.push({ q: q, qU: qU, closed: !!st.closed });
+    if (st.closed) return;
     ends.push({ p: qU[0], si: si, end: "a", dir: unit(qU[0], qU[Math.min(3, m)]), dirM: unit(q[0], q[Math.min(3, m)]) });
     ends.push({ p: qU[m], si: si, end: "b", dir: unit(qU[m], qU[Math.max(m - 3, 0)]), dirM: unit(q[m], q[Math.max(m - 3, 0)]) });
   });
@@ -931,7 +982,73 @@ function glyph(key, P) {
     var o = ends.filter(function (x) { return x.si !== si && dist(x.p, e) < 2; });
     return o.length ? { dir: o[0].dir, dirM: o[0].dirM, id: o[0].si + o[0].end } : null;
   }
+  // a T-join partner for an "i" end: another stroke (open or a ring) whose unmapped centre line, as the polyline of its samples,
+  // passes within 2 units of the end on one of its SEGMENTS, the nearest point of that segment more than 2 units from either of
+  // the stroke's ends (anywhere on a ring), the nearest stroke first. Measuring to segments and not to sample points keeps the
+  // choice stable: an end midway between two samples is on the segment between them in every master, where the nearest SAMPLE
+  // flipped with floating-point rounding between weights. The partner's index and the segment's index go into the record; the
+  // segment's drawn direction is what the end is cut parallel to.
+  function tee(e, si) {
+    var best = null;
+    sampled.forEach(function (sm, sj) {
+      if (!sm || sj === si) return;
+      var qU = sm.qU, m = qU.length - 1, bk = -1, bd = 2, bt = 0;
+      for (var k = 0; k < m; k++) {
+        var ax = qU[k][0], ay = qU[k][1], dx = qU[k + 1][0] - ax, dy = qU[k + 1][1] - ay, L2 = dx * dx + dy * dy || 1;
+        var t = Math.max(0, Math.min(1, ((e[0] - ax) * dx + (e[1] - ay) * dy) / L2));
+        var d = Math.hypot(e[0] - ax - t * dx, e[1] - ay - t * dy);
+        if (d < bd) { bd = d; bk = k; bt = t; }
+      }
+      if (bk < 0) return;
+      var foot = [qU[bk][0] + (qU[bk + 1][0] - qU[bk][0]) * bt, qU[bk][1] + (qU[bk + 1][1] - qU[bk][1]) * bt];
+      if (!sm.closed && (dist(foot, qU[0]) <= 2 || dist(foot, qU[m]) <= 2)) return;
+      if (best && bd >= best.d) return;
+      best = { d: bd, sj: sj, id: sj + "@" + bk, dir: unit(qU[bk], qU[bk + 1]), dirM: unit(sm.q[bk], sm.q[bk + 1]) };
+    });
+    return best;
+  }
+  function inside(p, poly) {
+    var c = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      var a = poly[i], b = poly[j];
+      if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+    }
+    return c;
+  }
+  // the stroke an "i" end runs into must be drawn before it (its polygons are then in `items`), so the cut can be checked buried
+  var start = [];
+  // a proper crossing of segments ab and cd (the crossing point), or null: shared endpoints and touches do not count
+  function segCross(a, b, c, d) {
+    var rx = b[0] - a[0], ry = b[1] - a[1], sx = d[0] - c[0], sy = d[1] - c[1], den = rx * sy - ry * sx;
+    if (Math.abs(den) < 1e-12) return null;
+    var qx = c[0] - a[0], qy = c[1] - a[1], t = (qx * sy - qy * sx) / den, u = (qx * ry - qy * rx) / den;
+    return t > 1e-9 && t < 1 - 1e-9 && u > 1e-9 && u < 1 - 1e-9 ? [a[0] + t * rx, a[1] + t * ry] : null;
+  }
+  // the partner's drawn outline for the burial check: an open stroke's body polygon (its first polygon; its terminals overlap the body
+  // and are not boundaries of the stroke), or a ring's two contours, the outer one told from the inner by area (which of the two
+  // strokePolys pushes first depends on the ring's direction; the orientation pass runs later)
+  function buriedIn(sj, si) {
+    if (sj >= si) throw new Error("glyph " + key + " stroke " + si + ": the stroke a T-join end runs into (" + sj + ") must come before it in the skeleton");
+    var polys = items.slice(start[sj], start[sj + 1]).map(function (x) { return x.pts; }), contours, isInside;
+    if (sampled[sj].closed) {
+      var outer = Math.abs(area(polys[0])) >= Math.abs(area(polys[1])) ? polys[0] : polys[1], inner = outer === polys[0] ? polys[1] : polys[0];
+      contours = [outer, inner]; isInside = function (p) { return inside(p, outer) && !inside(p, inner); };
+    } else {
+      contours = [polys[0]]; isInside = function (p) { return inside(p, polys[0]); };
+    }
+    return {
+      inside: isInside,
+      crossing: function (a, b) {
+        for (var ci = 0; ci < contours.length; ci++) {
+          var poly = contours[ci];
+          for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) { var x = segCross(a, b, poly[j], poly[i]); if (x) return x; }
+        }
+        return null;
+      },
+    };
+  }
   src.forEach(function (st, si) {
+    start[si] = items.length;
     if (st.dot) {
       var r = P.W * P.dot, dy = st.dot[1];
       // the dot rule reads the UNMAPPED dy: a baseline dot, an x-height dot (the colon's upper dot at 420; the i's at 680 is not one),
@@ -950,7 +1067,16 @@ function glyph(key, P) {
     if (st.closed && pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]) { pts.pop(); if (ptsU !== pts) ptsU.pop(); }
     var pA = st.closed ? null : partner(ptsU[0], si), pB = st.closed ? null : partner(ptsU[ptsU.length - 1], si);
     var joins = [pA ? pA.dirM : null, pB ? pB.dirM : null], joinsU = [pA ? pA.dir : null, pB ? pB.dir : null];
-    strokePolys(pts, !!st.closed, [st.a || "", st.b || ""], P, key, items, joins, trace, [pA ? pA.id : "-", pB ? pB.id : "-"], { pts: ptsU, joins: joinsU });
+    // an "i" end must lie on another stroke's interior and on no stroke's end, or the skeleton is wrong and the draw fails loudly
+    var tA = !st.closed && st.a === "i" ? tee(ptsU[0], si) : null, tB = !st.closed && st.b === "i" ? tee(ptsU[ptsU.length - 1], si) : null;
+    [["a", st.a, pA, tA], ["b", st.b, pB, tB]].forEach(function (x) {
+      if (x[1] !== "i" || st.closed) return;
+      if (x[2]) throw new Error("glyph " + key + " stroke " + si + " end " + x[0] + " is typed i (a T-join) but meets another stroke's end (" + x[2].id + "): that is a joint, type it \"\"");
+      if (!x[3]) throw new Error("glyph " + key + " stroke " + si + " end " + x[0] + " is typed i (a T-join) but lies on no other stroke's interior within 2 units");
+    });
+    start[si + 1] = items.length;
+    strokePolys(pts, !!st.closed, [st.a || "", st.b || ""], P, key, items, joins, trace, [pA ? pA.id : "-", pB ? pB.id : "-"], { pts: ptsU, joins: joinsU },
+      [tA ? Object.assign({ dir: tA.dirM }, buriedIn(tA.sj, si)) : null, tB ? Object.assign({ dir: tB.dirM }, buriedIn(tB.sj, si)) : null], [tA ? tA.id : "-", tB ? tB.id : "-"]);
   });
   // orient: ring loops pair up; the larger loop of each pair fills, the smaller cuts the hole
   var polys = [], runs = [];

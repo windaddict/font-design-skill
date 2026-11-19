@@ -1864,7 +1864,8 @@ def test_an_unset_crotch_leaves_the_0_1_branch_record(cfg):
     opposite sides of the new acute test, although nothing is thinned. The token is written only when `crotch` is set. With it unset,
     every stroke of every master of the project's own groups matches the 0.1 grammar (open or ring, sample count, both ends, curved, taper,
     teardrop sides, partners, end outcomes, then beak, teardrop cap and serif tokens), plus the one documented 0.2 token, the handedness of
-    a curl (`curlsg`, which only a curl end writes); with `crotch` 0.3 the token is there. The baseline digests exclude the record, so this
+    a curl (`curlsg`, which only a curl end writes), and the 0.5.0 token of a T-join end (`tee=<stroke>@<segment><pinned edges>`, which only an `i` end
+    writes: the capital R's leg); with `crotch` 0.3 the token is there. The baseline digests exclude the record, so this
     is the direct assertion.
 
     Mutation `crotch-token-always`: the token is written whether or not crotch is set."""
@@ -1876,7 +1877,7 @@ def test_an_unset_crotch_leaves_the_0_1_branch_record(cfg):
     out = json.loads(r.stdout)
     old = re.compile(r"(dot|ring n=\d+ A=\S* B=\S* curved=false tap=00 tear=null/null joins=-/-"
                      r"|open n=\d+ A=\S* B=\S* curved=(true|false) tap=[01]{2} tear=\S+/\S+ joins=\S+/\S+ ends=\S+/\S+"
-                     r"( beak[AB]=\d+| tearcap[AB]| serif[AB]=\w+)*( curlsg=-?\d/-?\d)?)")
+                     r"( curlsg=-?\d/-?\d)?( tee=(\d+@\d+(?:L|R|LR|=)|-)/(\d+@\d+(?:L|R|LR|=)|-))?( beak[AB]=\d+| tearcap[AB]| serif[AB]=\w+)*)")
     assert len(out["unset"]) > 1000, f"only {len(out['unset'])} records were read; the fixture is not drawing the project's masters"
     bad = [s for s in out["unset"] if not old.fullmatch(s)]
     assert not bad, f"{len(bad)} records are not in the 0.1 form with crotch unset; first: {bad[0]!r}"

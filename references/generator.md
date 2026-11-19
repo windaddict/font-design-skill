@@ -67,10 +67,21 @@ End types are single letters chosen by the skeleton author:
 | `x` | an italic exit stroke, or a stem too short for a serif (the top of the roman `t`) | `exit` |
 | `j` | a plain square end, usually hidden inside another stroke | left unmapped |
 | `""` | a hidden join: the stroke continues into another stroke | `disk` |
+| `i` | a T-join: the stroke ends **on another stroke's centre line**, at an interior point of it, and is cut parallel to that stroke there, so the whole end is buried inside it; no terminal, whatever the `ends` table says. The `R`'s leg (since 0.5.0). `glyph()` throws if the end meets another stroke's END (that is a joint, type it `""`), lies on no stroke's interior within 2 units, runs within 14.5° of the stroke it meets, would need a cut longer than `cutSide`'s clamp (unreachable: the angle refusal bounds the reach at 1.87 widths), or whose cut crosses an edge of the stroke it meets as drawn or has its midpoint outside it (the burial check, exact: it refuses an end so near that stroke's end that the cut cannot fit, a partner so tightly bent between the corners that the cut's middle leaves it, and a dip of the partner's edge however narrow); the stroke met must come earlier in the skeleton, so its polygons exist to check against. A mistyped end fails every master instead of drawing a square end quietly | never mapped |
 
 A concept's `ends` table maps each letter to a **mode** (section 5). An unmapped letter draws a
 plain square end: the stroke body stops at its last sample with no terminal polygon and no width
-change. No shipped table maps `j`, which is how `j` means "square".
+change. No shipped table maps `j`, which is how `j` means "square". `i` is handled before the table
+is read.
+
+Three ways a stroke end can meet another stroke, and the construction each gets: two ENDS within 2
+units make a **joint or corner** (next paragraph: a level or plumb cut, or a run-out to the partner's
+far edge); an end on another stroke's INTERIOR typed `i` is a **T-join** (cut parallel to that stroke
+on its centre line, buried); an end typed `""` inside a thicker stroke is a **hidden join** (its
+`disk` cap hides inside the stroke it meets). The hidden join is wrong where the stroke met is
+thinner than the cap: the `R`'s leg on the bowl's thin bar drew its disk into the counter, 15 to 36
+units on Bract's masters, until 0.5.0 (`references/traps.md` row 36; the plan and its measurements are
+`docs/plan-r-leg.md`).
 
 Roman skeletons live in `G` (131 keys as of this writing, counted with `Object.keys(m.G).length`):
 A–Z, a–z, 0–9, the punctuation real titles use (`. , ' : ; ! ? - – — … [ ] / ( ) % $ # + * &`),
@@ -149,8 +160,9 @@ The modifiers `m` (open strokes only unless stated):
 - **End modifiers** (`endMod`) for the two ends' modes: `exit` thins to 50 % at the tip over
   0.9·W0; `flare` (only with `tear: false`) swells by `flareAmt · u²` over `flareLen`; `taper` thins
   by 62 % over `taperLen` with exponent 1.3; `curl` thins by 45 % over the curl's own length.
-- **Join taper** (`tap`): a curved stroke whose end is a `disk` with no partner thins by 30 % over
-  0.9·W0, so a join runs into its stem without a nub.
+- **Join taper** (`tap`): a curved stroke whose end is a `disk` with no partner, or a T-join (`i`),
+  thins by 30 % over 0.9·W0, so a join runs into its stem without a nub (the italic `R`'s curved leg
+  keeps the taper it had as a hidden join; the roman leg is straight and never had one).
 - **Swell**: `1 + swell · (0.5 − sin(π·s/total))`: the middle of each open stroke is thinner by
   `swell/2`, the ends thicker by `swell/2`. With `swell 0.03` the measured minima sit 1.5 % under
   `W × thin`, which is why the shipped floors are a unit under the nominal hairline.
@@ -242,6 +254,7 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 | `curl` | `1 − 0.45·(1 − d/curlLen)` over the curl | 30 extra centre-line points continuing the stroke's turn as a spiral (radius `0.55·W + 22`, sweep 1.3π, shrinking 42 %), then a disc of `0.36·W`; needs ≥ 12 samples and curvature `|cross| ≥ 0.06`, else falls back to `disk` | the fallback is recorded (`A=disk`), so masters that disagree are refused |
 | `joint` (an outcome, not a mapping) | none | none | what an end becomes when its partner's end meets it and both strokes are steep (`|T[1]| > 0.5`): cut level or plumb, no terminal. Every serif concept and every concept with `joints: true` has it; the record shows `ends=…/joint` |
 | `corner` (an outcome) | none | none | the same pass where a steep stroke meets a shallow one (E, F, L, Z, the spur of G): the steep stroke runs out to the partner's far edge, cut plumb or level |
+| `tee` (the outcome of `i`) | the join taper when the stroke is curved | none | the end is cut parallel to the stroke it runs into, through the end point on that stroke's centre line, so the cut is buried by the partner's half-thickness on both sides whatever the pen or the swell; the leg of `R`. Decided on drawn geometry per master (`cutSide` reads drawn tangents): under 14.5° to the partner, past the clamp, or with the cut crossing the partner's drawn edge or its midpoint outside the partner, the draw throws. The record reads `A=tee`, `ends=tee/…` and carries `tee=<stroke>@<segment><side>` (section 12) |
 | `butt`, or any unmapped letter | none | none | a square end |
 
 ## 6. What interpolates linearly and what does not
@@ -436,11 +449,15 @@ on:
 
 It does **not** throw on an `ends` table missing a letter a skeleton uses; that end draws square.
 
-**Compatibility promise, exactly.** A 0.1 project that copies 0.2's `scripts/` over its own and rebuilds, without touching `concepts.js` or `font.json`, gets
-the same outlines and tables (decoded TTF, export JSON and manifest figures) as 0.1.0 gave. The promise is **per platform and node major version**: the
-generator's floating-point output depends on both, so the digests the repo records (`tests/fixtures/baseline-0.1.0.json`) are keyed `darwin/26`, `linux/22`
-and so on, and a platform that is not recorded has no promise until it is recorded from the 0.1.0 code. The raw woff2 bytes are a separate claim, also
-per brotli version. The branch record is not part of it; it gains tokens (section 12), and only a curl end (`curlsg`) or a set `crotch` writes one.
+**Compatibility promise, exactly.** A project on 0.1 to 0.4 that copies 0.5's `scripts/` over its own and rebuilds, without touching `concepts.js` or
+`font.json`, gets the same outlines and tables (decoded TTF, export JSON and manifest figures) as before **except the glyph `R`**, whose leg root is
+redrawn in 0.5.0 (the hidden-join disk gone, the end cut level on the bar's centre line; every other point of `R`, its advance, its spacing profile and
+its kerns unchanged: `tests/test_r_leg_join.py::test_only_the_r_changed_since_0_4_0` holds that against the 0.4.0 generator read from git). From 0.5.0
+the three examples' digests are held to the 0.5.0 record (`tests/fixtures/baseline.json`, whose `supersedes` entry names the 0.1.0 record and that one
+departure), and a later change that moves them is a regression unless its changelog says otherwise. The promise is **per platform and node major
+version**: the generator's floating-point output depends on both, so the digests are keyed `darwin/26`, `linux/22` and so on, and a platform that is
+not recorded has no promise until it is recorded from the baseline commit. The raw woff2 bytes are a separate claim, also per brotli version. The branch
+record is not part of it; it gains tokens (section 12), and only a curl end (`curlsg`), a set `crotch` or a T-join end (`tee`) writes one.
 
 ## 12. The branch record, and why the exporter refuses masters
 
@@ -468,7 +485,19 @@ sides of the 0.3 test are refused. With `crotch` unset the token is not written 
 (`test_an_unset_crotch_leaves_the_0_1_branch_record`). **The `curlsg` token:** a stroke with a curl end also records `curlsg=a/b`, the handedness (1 or −1,
 0 for no curl) of each spiral, decided on the unmapped cross product like the curl itself; it is the one token 0.2 adds to a 0.1 record, and only a curl
 concept writes it (two masters of a 0.1 curl project that spiral opposite ways would now be refused, as their shapes are not compatible). The shipped glyphs sit far from the test (the `V`'s arms read
-a dot product of 0.72, the circumflex's 0); the margin has not been measured for a concept with `xs` far from 1.
+a dot product of 0.72, the circumflex's 0); the margin has not been measured for a concept with `xs` far from 1. **The `tee` token** (0.5.0): a stroke
+with a T-join end (`i`, section 2) records `tee=<stroke>@<segment><side>/…` per end: the partner stroke's index, the index of the sampled
+SEGMENT of its centre line nearest the end (measured to the segment, not to the sample points, so an end midway between two samples is on one
+segment in every master; the earlier nearest-sample rule flipped there with floating-point rounding between weights), and the edges `clipPast`
+actually pinned past the cut (`L`, `R`, `LR`, or `=` for neither), recorded as the decision was made and not as the angle that predicts it,
+because two masters within a dead band of that angle can pin opposite edges. Masters that pick different strokes or segments, or whose
+stroke crosses perpendicular to the partner between them so that different edges are pinned, are refused. A T-join within a few degrees of
+perpendicular is therefore fragile across weights (the `slope` case of `tests/test_r_leg_join.py`, at 91°, pins `R` at mult 1 and `L` at
+`xs` 1.12 × mult 1.5); draw it clearly off perpendicular, as the `R` is at 54°, or expect the refusal. How many samples the pin reaches is a width, not a decision (the
+acute corner sits `w / (2 tan φ)` along the edge: 11 samples on Bract TextRegular, 17 on TextBold), so it differs between weights by construction
+and is not recorded, like the fold pin's reach (section 3). For the `R` the token is `1@314L` in every roman master and `1@317L` in every italic
+one (measured 2026-11-19 over the five concept files, `tests/test_r_leg_join.py`), and the leg meets the bar at 54° against the 14.5° refusal, so
+no shipped `xs`, weight or slant is near a threshold. Only a stroke with an `i` end writes the token.
 
 **The audit of mapped coordinates inside decisions** (Impasse review of 0.2, G1 and G2). Every geometry-dependent branch of `glyph()`,
 `strokePolys()` and `fitSkeleton()`, and what it reads: `fitSkeleton`'s flat and round tests (literal skeleton coordinates, unmapped by

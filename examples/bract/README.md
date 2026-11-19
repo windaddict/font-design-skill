@@ -42,7 +42,7 @@ outlines are the same.
 (pairs with a period, hyphen, dash, colon or quote) sit at −50 where the shipped font has more (`.|Y` −102 at
 Regular, `endash|five` −170 at Bold). The site's own `font.json` sets `sparse_cap: null` and reproduces the
 shipped kerning. This file is not changed to match, because it is one of the five backward-compatibility
-groups (`tests/fixtures/baseline-0.1.0.json`). For Bract the two settings emit the same 4,100 pairs (measured):
+groups (`tests/fixtures/baseline.json`). For Bract the two settings emit the same 4,100 pairs (measured):
 every pair the −50 cap touches still reaches the threshold of 12. That is a fact about these two values, not
 about the parameter. A cap closer to zero than the threshold, 0 for instance, takes sparse pairs out of the list.
 

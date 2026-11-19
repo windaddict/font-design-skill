@@ -3,6 +3,54 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [0.5.0] — 2026-11-19
+
+The capital `R`'s leg leaves its bowl without a lump. One glyph, one new end type, and the compatibility
+baseline moved for the first time. Planned by Fable (`docs/plan-r-leg.md`), the plan's first construction
+rejected by the operator and replaced, the second reviewed by an independent cross-provider reviewer
+(Impasse, 8 findings: 7 accepted, 1 rejected with the reason), then implemented test-first.
+
+### Fixed
+- **The `R`'s leg started on the bowl's thin closing bar as a hidden join**, whose `disk` cap is 0.42 of the
+  leg's width and so wider than the bar, and the cap showed in the counter at every weight: 15.0, 26.4, 22.0
+  and 35.7 units on Bract's four masters (0.6 px at 40 px, up to 2.9 px at 80 px), 9 to 25 on the neutral
+  example, on 95 of the 134 drawings of the five concept files. The leg's start is now typed `i`, a T-join
+  (below): the nub is 0 on all 134, the cut is level on the bar's centre line and buried by at least 0.54 of
+  the bar's half-thickness, and the filled union's boundary near the join lies on the 0.4.0 bowl-and-stem
+  outline plus the leg's two sides (skia-pathops, worst 0.015 units). The italic leg keeps its join taper.
+  **Nothing else moved:** every other glyph's polygons, every advance, every spacing profile and every kern
+  pair of every example group equal the 0.4.0 generator's (`tests/test_r_leg_join.py::test_only_the_r_changed_since_0_4_0`,
+  which reads the 0.4.0 `gen.js` from git). Issue #1 item 2's `reverse` lump turned out to be at the bar's
+  other end (the stem), on `P`, `B` and `R`; it is recorded in `references/genres.md` section 7 and stays open.
+
+### Added
+- **The `i` end type** (`references/generator.md` section 2): a stroke end on another stroke's interior,
+  cut parallel to that stroke on its centre line, no terminal. `glyph()` throws for an `i` end that meets a
+  stroke's end, lies on no stroke, runs within 14.5° of the stroke it meets, or would need a cut past
+  `cutSide`'s clamp (unreachable: the angle refusal bounds the reach at 1.87 widths), or whose cut crosses an
+  edge of the stroke it meets as drawn or has its midpoint outside it (the burial check, exact: an `i` end too
+  near that stroke's end, whose cut cannot fit, is refused by it; so is a partner bent so tightly between the
+  corners that the cut's middle leaves it, and a dip of the partner's edge however narrow); the decision reads the drawn geometry per master, so a
+  master the x-height map or the shear takes across the threshold fails instead of carrying a half-cut end. The record gains ` tee=<stroke>@<segment><side>` on strokes with an `i` end (the partner's
+  nearest sampled segment, measured to the segment so an end midway between two samples is stable across
+  weights, and the edges `clipPast` pinned past the cut, recorded as the decision was made) and no other record
+  changes. The font suite's record grammar (`test_an_unset_crotch_leaves_the_0_1_branch_record`)
+  accepts the token; it refused the neutral example's `R` until it did (found by the full suite on 2026-11-19).
+- `tests/test_r_leg_join.py` and `tests/r_leg_junction.js`: the R held in every concept at both weights and
+  slants, the T-join's rules on hand-built glyphs through the x-height map and the italic slant, a control
+  that the measurement sees the 0.4.0 defect, the union check, and the 0.4.0 comparison. Every mutation in
+  the file's header was watched red (`references/testing.md` section 8).
+
+### Changed
+- **The compatibility baseline is the 0.5.0 record** (`tests/fixtures/baseline.json`, `supersedes` naming the
+  0.1.0 record `0fc4314` and the one departure). The promise is restated in `generator.md` section 11: a
+  project that takes 0.5's scripts gets the same fonts except the `R`. `record-baseline.yml` records from
+  the new baseline commit and on macOS as well as Linux, and prints the genre recipes' outline digests per
+  leg (`genre-digests.json` in each artifact, written before it is appended to the summary, never piped: the
+  default shell has no pipefail), so a node major the recording machine cannot run is taken from a runner.
+- The genre render review was re-run on the fixed generator (`docs/reviews/genres-2026-11-19.md`); the
+  verdicts are unchanged and re-dated, and the `reverse` row no longer blames the `R`'s leg.
+
 ## [0.4.0] — 2026-11-18
 
 A site runs the platform shots through the skill's own workflow instead of a copy of it. The site keeps a short
