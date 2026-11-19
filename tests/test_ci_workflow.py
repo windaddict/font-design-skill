@@ -102,6 +102,21 @@ def test_the_record_baseline_workflow_is_manual_and_records_both_trees_on_both_o
     assert re.search(rf"--record --rev {BASELINE_REV} --repo \.\./baseline --out entry-baseline\.json", text), "the baseline is not recorded from the worktree"
 
 
+def test_every_ci_job_that_runs_the_repo_tests_checks_out_the_full_history():
+    """tests/test_r_leg_join.py reads the 0.4.0 generator with `git show 598044b:scripts/gen.js`, so a job that runs the repo tests
+    (smoke.sh runs them) needs that commit in its clone. actions/checkout fetches one commit by default, and the first CI run of
+    0.5.0's commit C failed six tests in the chrome job on "invalid object name '598044b'" while record-baseline, which already
+    fetched everything, passed."""
+    doc = load(WORKFLOW)
+    suite = [job for job, s in runs(doc) if "smoke.sh" in s["run"] or re.search(r"pytest\b[^\n]*tests/", s["run"])]
+    assert {"test", "chrome"} <= set(suite), f"expected the test and chrome jobs to run the suite, found {sorted(set(suite))}"
+    for job in sorted(set(suite)):
+        checkouts = [s for s in steps(doc, job) if str(s.get("uses", "")).startswith("actions/checkout@")]
+        assert len(checkouts) == 1, f"{job}: expected one checkout, found {len(checkouts)}"
+        depth = (checkouts[0].get("with") or {}).get("fetch-depth")
+        assert depth == 0, f"{job}: its checkout has fetch-depth {depth!r}; the repo tests need the full history (fetch-depth: 0)"
+
+
 def test_every_workflow_parses_as_yaml():
     """GitHub rejects a workflow that is not valid YAML before running anything, and a plain scalar such as `run: python -c "...; assert x, 'a: b'"`
     (a colon and a space inside) is the easy way to write one (this very file's first raqm step). PyYAML comes with fontbakery in
