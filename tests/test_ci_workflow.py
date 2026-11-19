@@ -63,7 +63,7 @@ def test_the_record_baseline_workflow_is_manual_and_records_both_trees_on_both_o
     (the guard then holds in the worktree), the current head's digests with `--print`, and one artifact per leg. A check on the workflow's
     text, stated as such. Mutations watched red: a `push:` trigger added; `--repo` dropped; the `--print` step removed; node 22 removed; the
     artifact upload removed; (0.5.0) macos removed; the worktree at another commit than the test's; the genre-digest step removed; its
-    python piped into tee."""
+    python piped into tee; pytest dropped from the install; the compare step's pipefail removed."""
     from test_backward_compat import BASELINE_REV
     text = RECORD.read_text(encoding="utf-8")
     on = re.search(r"^on:\n(.*?)(?=^[a-z]+:)", text, re.S | re.M).group(1)
@@ -86,6 +86,15 @@ def test_the_record_baseline_workflow_is_manual_and_records_both_trees_on_both_o
         f"the genre-digest step pipes python's output without pipefail: {step!r}"
     assert re.search(r"python - > genre-digests\.json <<'PY'", step) and "cat genre-digests.json >> \"$GITHUB_STEP_SUMMARY\"" in step, \
         "the genre digests must be written to the file first, then appended to the summary"
+    # the genre-digest step imports tests/test_genres.py, which imports pytest, so the job must install it: the first PR run of 0.5.0
+    # failed on every leg with ModuleNotFoundError before any artifact was uploaded. Mutation watched red: `pytest` dropped from the install
+    install = re.search(r"- name: install\n(?:\s*#[^\n]*\n)*\s*run: ([^\n]*)", text).group(1)
+    assert "pytest" in install.split() or "requirements-dev.txt" in install, f"the record job does not install pytest, which test_genres imports: {install!r}"
+    # every step that pipes python into another command sets pipefail (GitHub's default `bash -e` has none). Mutation watched red: the
+    # compare step's `set -o pipefail` removed
+    for run in re.findall(r"run: \|\n((?:          [^\n]*\n)+)", text):
+        if re.search(r"python[^\n]*\|", run):
+            assert "set -o pipefail" in run, f"a step pipes python's output without pipefail: {run!r}"
     assert "upload-artifact" in text and "entry-baseline.json" in text and "entry-head.json" in text and text.count("genre-digests.json") >= 2, \
         "no artifact carries both entries and the genre digests"
     assert re.fullmatch(r"[0-9a-f]{7,40}", BASELINE_REV), f"BASELINE_REV is {BASELINE_REV!r}, not a git sha"

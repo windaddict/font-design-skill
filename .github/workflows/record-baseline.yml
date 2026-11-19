@@ -49,7 +49,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: install
-        run: pip install -r requirements.txt
+        # pytest because the genre-digest step imports tests/test_genres.py, which imports it; without it every leg failed on
+        # ModuleNotFoundError before uploading anything (the first PR run of 0.5.0)
+        run: pip install -r requirements.txt pytest
       - name: a worktree at the baseline commit
         run: git worktree add ../baseline 788760d
       - name: record the baseline digests (the tool is this branch's, the code built is the worktree's)
@@ -68,7 +70,9 @@ jobs:
           PY
           cat genre-digests.json >> "$GITHUB_STEP_SUMMARY"
       - name: compare them (group by group, digest by digest)
+        # piped into tee, so pipefail: GitHub's default `bash -e` would let a failing python leave a green step
         run: |
+          set -o pipefail
           python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
           import json
           b = json.load(open("entry-baseline.json")); h = json.load(open("entry-head.json"))
