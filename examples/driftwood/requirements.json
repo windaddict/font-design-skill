@@ -1,0 +1,174 @@
+{
+  "$comment": "The expectations scripts/tests/test_font.py compares the Driftwood example's build against, so the suite runs on a second face beside the Sampler: two groups, an avar-mapped roman and a two-master italic, and Driftwood's own concept parameters, which no other fixture exercises (the suite ran on the Sampler alone until 0.7.1, and three of its assertions held only for the Sampler's proportions). Every value is measured from this example's build or copied from its font.json; the name strings are the example's placeholders. hand_kerns lists the non-zero hand pairs only: a zero hand pair suppresses the automatic kern and is not emitted.",
+  "family": "Driftwood Example",
+  "groups": {
+    "roman": {
+      "axes": {
+        "wght": [
+          400,
+          400,
+          700
+        ]
+      },
+      "avar": {
+        "wght": [
+          [
+            0.333,
+            0.46
+          ]
+        ]
+      },
+      "masters": {
+        "Regular": {
+          "wght": 400
+        },
+        "Bold": {
+          "wght": 700
+        }
+      },
+      "instances": {
+        "Regular": {
+          "wght": 400
+        },
+        "Medium": {
+          "wght": 500
+        },
+        "Bold": {
+          "wght": 700
+        }
+      },
+      "hairline_floors": {
+        "Regular": 30,
+        "Bold": 50
+      },
+      "vertical_metrics": {
+        "ascender": 760,
+        "descender": -240,
+        "line_gap": 0
+      },
+      "interpolated_check": {
+        "location": {
+          "wght": 500
+        },
+        "between": [
+          "Regular",
+          "Bold"
+        ],
+        "t": 0.46
+      },
+      "word_space": {
+        "Regular": 236,
+        "Bold": 254
+      }
+    },
+    "italic": {
+      "axes": {
+        "wght": [
+          400,
+          400,
+          500
+        ]
+      },
+      "masters": {
+        "Regular": {
+          "wght": 400
+        },
+        "Medium": {
+          "wght": 500
+        }
+      },
+      "instances": {
+        "Italic": {
+          "wght": 400
+        },
+        "Medium Italic": {
+          "wght": 500
+        }
+      },
+      "hairline_floors": {
+        "Regular": 30,
+        "Medium": 39
+      },
+      "vertical_metrics": {
+        "ascender": 760,
+        "descender": -240,
+        "line_gap": 0
+      },
+      "interpolated_check": {
+        "location": {
+          "wght": 450
+        },
+        "between": [
+          "Regular",
+          "Medium"
+        ],
+        "t": 0.5
+      },
+      "word_space": {
+        "Regular": 236,
+        "Medium": 244
+      },
+      "hand_kerns": {
+        "I|P": -45,
+        "I|D": -35,
+        "I|B": -35,
+        "I|E": -35,
+        "I|R": -35,
+        "I|N": -30,
+        "I|M": -30,
+        "I|m": -25,
+        "I|n": -25,
+        "P|I": -20,
+        "A|I": -40,
+        "T|h": -100,
+        "T|w": -130,
+        "T|r": -130,
+        "K|e": -120,
+        "A|t": -30
+      },
+      "italic_angle": 10
+    }
+  },
+  "cmap": " !\"#$%&'()*+,-./0123456789:;?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz ©ÀÁÂÄÇÈÉÊËÍÏÑÓÔÖÚÜàáâäçèéêëìíîïñòóôöùúûüāš–—‘’“”•…™",
+  "required_characters": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&%$\"“”‘’©™• ",
+  "hand_kerns": {
+    "A|I": -30,
+    "I|A": -30,
+    "L|T": -25,
+    "L|V": -60,
+    "L|Y": -60,
+    "L|W": -45,
+    "r|.": -50,
+    "r|,": -50
+  },
+  "titles": [
+    "AI Agents Need an Org Chart",
+    "Don't Hire a Fractional CTO",
+    "Moving Average Inc."
+  ],
+  "size_budget_bytes": 102400,
+  "fold_units": {
+    "raw": 4,
+    "decimated": 10
+  },
+  "names": {
+    "family": "Driftwood Example",
+    "copyright": "Copyright {{year}} {{operator}}",
+    "manufacturer": "{{operator}}",
+    "designer": "{{operator}}",
+    "vendor_id": "EXMP",
+    "vendor_url": "https://example.com/",
+    "licence_contains": "licence the operator chose",
+    "fs_type": 4
+  },
+  "gasp": {
+    "65535": 15
+  },
+  "$comment_tables": "tables pins the font-table decisions build.py makes by default, as in the neutral fixture: prep_hex is the smart-dropout program that pairs with the gasp above; code_page_range1 is OS/2 ulCodePageRange1 (bit 0, Latin 1); mac_names false means Windows and Unicode name records only. names.fs_type is 4, from this example's font.json.",
+  "tables": {
+    "code_page_range1": 1,
+    "prep_hex": "B801FF85B0048D",
+    "mac_names": false
+  },
+  "accepted_qa_findings": []
+}
