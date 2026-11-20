@@ -1,0 +1,43 @@
+# CLAUDE.md: working on the font-design skill
+
+WHAT IT'S FOR: rules for an agent that changes this repository. The skill's own instructions for
+designing a face are in `SKILL.md`; this file is about developing the skill itself.
+
+## Choosing how much to test
+
+The checks here are slow, so pick the smallest set that can see the change, and say which set you ran
+and why in the commit or pull request. Running less than the full set is a decision you state, not an
+omission. No duration is recorded yet for any layer below; when you time one, add the figure and the
+date here.
+
+The layers, from cheapest to most expensive:
+
+1. **One or a few repo test files.** `.venv/bin/python3 -m pytest tests/test_<area>.py -q`.
+2. **The repo tests.** `.venv/bin/python3 -m pytest -q` (664 tests in 22 files on 2026-11-20). Most
+   files start subprocesses (Node, the font build or Chrome).
+3. **The font suite on a fixture.** `scripts/tests/test_font.py`, run by path with `--font` and
+   `--requirements` (see `pytest.ini`). It is not part of layer 2.
+4. **`scripts/smoke.sh`.** Steps 1 to 7: exports and builds all three fixtures, checks reproducibility,
+   runs the font suite, the FontBakery gate, EVERY mutation in `scripts/tests/mutate.py`, the concept
+   pages and layer 2. `--full` adds the Chrome steps 8 to 11. CI's `test` job runs steps 1 to 7 on four
+   machines and takes 60 to 81 minutes per machine.
+5. **CI by hand.** `gh workflow run ci.yml --ref <branch>`. It does not run on push.
+
+Which layer a change needs:
+
+| The change touches | Run |
+|---|---|
+| Prose only: `CHANGELOG.md`, a README, `references/`, `SKILL.md`, `docs/` | `tests/test_docs_commands.py`, `tests/test_hygiene.py`; add `tests/test_versions_and_skill.py` for `SKILL.md` or `VERSION` |
+| A workflow in `.github/workflows/` or `templates/platform-shots.yml` | `tests/test_ci_workflow.py`, `tests/test_hygiene.py` |
+| One tool that draws no glyph: `shoot*.py`, `compare-shots.py`, `specimen.py`, `diff.py`, `check-env.py`, `fontbakery-gate.py`, `fallback-metrics.py`, `opsz.py`, `bounds.js`, `mine-*.py`, `scripts/concepts/` | that tool's test files (find them with `grep -l <script name> tests/test_*.py`), plus `tests/test_hygiene.py` |
+| What draws or builds a glyph: `gen.js`, `export.js`, `build.py`, `render.js`, or an example's `font.json` | layer 4, `scripts/smoke.sh`: a geometry change can break a fixture no unit test looks at |
+| The font suite or its harness: `scripts/tests/` | layer 3 on the neutral fixture, then layer 4 for the mutations |
+| A shared helper: `tests/conftest.py`, `requirements*.txt`, `pytest.ini` | layer 2 |
+| A release (`VERSION` bump), or a commit a site's pin will move to | layer 4 with `--full`, then layer 5 |
+
+The grep in the tool row finds the files that name a script, which is a lead, not proof that they test
+it. If a change reaches more than one row, run the larger layer. If you cannot tell which files a
+change reaches, run layer 2.
+
+Narrowing the run does not relax the rule on new tests: a new or changed guard must still be watched
+going red under a mutation, as `references/testing.md` section 1 says.

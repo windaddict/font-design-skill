@@ -22,9 +22,15 @@ name: ci
 #            scripts/smoke.sh (preinstalled on ubuntu-latest). The test job's lint step keeps ruff and
 #            node --check.
 
+# TRIGGERS (2026-11-20): the test matrix and the chrome job take 47-81 minutes each, and push plus pull_request ran
+# them twice for every pull request branch. Now lint runs once when a pull request is opened or reopened, not on
+# later pushes to it, and on a manual run. The test and chrome jobs run only on a manual run:
+#   gh workflow run ci.yml -R windaddict/font-design-skill --ref <branch>
+# Start one before merging a change to the scripts or bumping a site's pin. Nothing runs on push.
 on:
-  push:
   pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -44,6 +50,7 @@ jobs:
 
   test:
     name: ${{ matrix.os }} / node ${{ matrix.node }}
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -88,6 +95,7 @@ jobs:
 
   chrome:
     name: ubuntu / chrome (the browser steps of smoke.sh)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

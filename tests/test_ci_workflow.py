@@ -637,3 +637,21 @@ def test_the_leg_decision_matches_whole_words_and_refuses_an_unknown_one(tmp_pat
     assert code == 1 and "'ubuntu'" in err, f"a partial OS name must fail the leg: {code} {err!r}"
     code, line, err = decide("", all_oses)
     assert code == 1 and "empty" in err, f"an empty browsers input must fail the leg: {code} {err!r}"
+
+
+def test_ci_runs_lint_once_per_pull_request_and_the_long_jobs_only_by_hand():
+    """The test matrix and the chrome job take 47-81 minutes each (run 44771965331, 2026-11-20), and `push` plus `pull_request` ran them twice
+    for every pull request branch. So: no `push` trigger; `pull_request` only on opened and reopened, so a later push to the pull request
+    runs nothing; `workflow_dispatch` for the long jobs, which are gated on it; lint ungated, so it runs on both. A YAML structure assertion
+    is unavoidable: GitHub evaluates the triggers and the `if:`, the suite cannot. Mutations watched red on 2026-11-20: `push:` added;
+    the `types` line removed; `synchronize` added to the types; the chrome job's `if:` removed."""
+    doc = load(WORKFLOW)
+    on = doc["on"]
+    assert "push" not in on, f"ci.yml must not run on push: {list(on)}"
+    assert set(on) == {"pull_request", "workflow_dispatch"}, f"triggers: {list(on)}"
+    assert (on["pull_request"] or {}).get("types") == ["opened", "reopened"], \
+        f"a pull request must run CI once, not on every push to it: {on['pull_request']!r}"
+    jobs = doc["jobs"]
+    for job in ("test", "chrome"):
+        assert jobs[job].get("if") == "github.event_name == 'workflow_dispatch'", f"the {job} job must run only on a manual run"
+    assert "if" not in jobs["lint"], "the lint job must run on every trigger"

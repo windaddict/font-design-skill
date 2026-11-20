@@ -3,6 +3,21 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [Unreleased]
+
+### Changed
+- **CI's long jobs run only by hand.** The test matrix and the `chrome` job took 47 to 81 minutes each, and the
+  `push` and `pull_request` triggers ran them twice for every pull request branch. `ci.yml` no longer runs on push.
+  The `lint` job runs once when a pull request is opened or reopened, not on later pushes to it, and on a manual
+  run; the `test` and `chrome` jobs run only on a manual run (`gh workflow run ci.yml --ref <branch>`). Start one
+  before merging a change to the scripts or bumping a site's pin. `test_ci_runs_lint_once_per_pull_request_and_the_long_jobs_only_by_hand`
+  holds the triggers.
+
+### Added
+- **`CLAUDE.md`: how much to test for a change.** Rules for an agent developing the skill: five layers from one
+  test file to CI by hand, a table saying which layer each kind of change needs, and the rule that the commit or
+  pull request names the layer it ran.
+
 ## [0.7.1] — 2026-11-20
 
 Two tests in the font suite held only for the neutral fixture, and the first project to run the suite on its
