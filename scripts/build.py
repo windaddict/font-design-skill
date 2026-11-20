@@ -45,6 +45,14 @@ masters JSON (about 10 MB per group) is written to a temporary directory and dis
 --keep-masters PATH names where to keep it; nothing but the woff2s, the manifest and (with --static)
 the statics is ever written into out_dir.
 
+Skeleton override (0.6.0): when font.json names `skeletons`, a bare .js file name beside it (refused when it has a directory
+part, does not end .js, names no file, or takes the name of one of the five hashed sources), export.js applies that file's
+function to the generator's skeleton tables before drawing and records its name and sha256 in the export. The manifest then
+hashes six sources, not five: gen.js, export.js, build.py, font.json, concepts.js and the override under its own name, and
+records `skeletons` (the name); without the key neither appears, so a project without it builds the manifest 0.5.0 built.
+--masters refuses an export whose override name, presence or sha256 disagrees with font.json and the file as it is now
+(review F002 of docs/plan-skeleton-overrides.md), because that path never runs export.js.
+
 Output per group: <out_dir>/<Family>-VF.woff2, or <Family>-Italic-VF.woff2 for an italic group (spaces
 removed from the family; `group.file` overrides, relative to out_dir), plus one <out_dir>/manifest.json
 covering every group (font.json `manifest` overrides). The woff2 and the manifest are meant to be tracked.
@@ -117,6 +125,7 @@ import math
 import os
 import pathlib
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -149,6 +158,9 @@ except ImportError as exc:
 
 HERE = pathlib.Path(__file__).resolve().parent
 SCRIPT_SOURCES = ["gen.js", "export.js", "build.py"]  # hashed into the manifest beside font.json and concepts.js
+# the names the manifest's sources_sha256 already uses, which a face's skeletons file may not take (it is keyed by its bare name)
+HASHED_SOURCE_NAMES = SCRIPT_SOURCES + ["font.json", "concepts.js"]
+SKELETONS_NAME = re.compile(r"^[^/\\]+\.js$")  # a bare .js file name beside font.json, as export.js and font.schema.json require
 EXPORT_SCHEMA = "font-design/export/v1"
 MANIFEST_SCHEMA = "font-design/manifest/v1"
 # Defaults for the optional font.json keys; every value a project can override is read from the config.
@@ -253,6 +265,16 @@ def load_config(font_path, out_dir_override=None):
     cfg["_dir"] = font_path.parent
     cfg["_concepts"] = (font_path.parent / cfg["concepts"]).resolve()
     check(cfg["_concepts"].is_file(), f"concepts file {cfg['_concepts']} does not exist")
+    # skeletons: the face's own skeleton override (gen.js applySkeletons), a bare .js name beside font.json, hashed into the
+    # manifest under that name; absent, nothing about the build changes (0.6.0; docs/plan-skeleton-overrides.md)
+    if "skeletons" in cfg:
+        sk = cfg["skeletons"]
+        check(isinstance(sk, str) and SKELETONS_NAME.match(sk),
+              f"font.json skeletons must name a .js file beside font.json (a bare file name, no directory part): {json.dumps(sk)}")
+        check(sk not in HASHED_SOURCE_NAMES,
+              f"font.json skeletons may not take the name of a hashed source ({', '.join(HASHED_SOURCE_NAMES)}): {sk}; rename the file")
+        cfg["_skeletons"] = font_path.parent / sk
+        check(cfg["_skeletons"].is_file(), f"font.json skeletons names no file: {cfg['_skeletons']}")
     # out_dir and `manifest` (keys in the file) resolve against the directory of font.json; --out-dir (a
     # command-line path) against the working directory; under --out-dir the manifest lands in that
     # directory too, whatever the `manifest` key says
@@ -347,7 +369,7 @@ def quote_glyphs(ap_polys, ap_adv, italic_angle=0.0):
     tan(angle), as Driftwood's build did; the curly marks come from the already slanted apostrophe.
     quotedblleft advances by the apostrophe's advance plus the gap between its two marks, like
     quotedblright (Driftwood carried the straight quotes' advance there and the second mark overhung).
-    In an italic group (italic_angle set) the two OPENING quotes grow, since 0.6.0, to hold their ink: the
+    In an italic group (italic_angle set) the two OPENING quotes grow, since 0.7.0, to hold their ink: the
     generator spaces an italic apostrophe over the x-height band only, so its slanted body overhangs the
     advance by 30 to 53 units on the examples, and an opening quote is followed by a letter, which that
     overhang touched. Their advance becomes max(the apostrophe-derived advance, round(xMax + max(xMin, 0)) of the
@@ -1014,6 +1036,17 @@ def load_masters(path, cfg, group_name, requirements=None):
     check(float(data.get("italicAngle", 0)) == group["_angle"], f"{path}: export italicAngle {data.get('italicAngle')} is not the group's {group['_angle']}")
     check(data.get("foldUnits") == cfg["fold_units"],
           f"export.js ({data.get('foldUnits')}) and font.json ({cfg['fold_units']}) disagree on the fold thresholds")
+    # the skeleton override the export was drawn with must be the one font.json names, byte for byte (review F002): the
+    # --masters path never runs export.js, so without this an export drawn before an edit of the override, or with none,
+    # would be built and recorded under the current file's hash
+    check(data.get("skeletons") == cfg.get("skeletons"),
+          f"{path}: the export was drawn with skeletons {data.get('skeletons')!r} but font.json names {cfg.get('skeletons')!r}; "
+          "export again (build without --masters)")
+    if cfg.get("_skeletons"):
+        now = sha256(cfg["_skeletons"])
+        check(data.get("skeletonsSha256") == now,
+              f"{path}: the export was drawn with {cfg['skeletons']} at sha256 {data.get('skeletonsSha256')} but the file's sha256 is {now} now; "
+              "export again (build without --masters)")
     masters = data["masters"]
     check(list(masters) == list(group["masters"]), f"masters are {list(masters)}, expected {list(group['masters'])}")
     names = list(masters)
@@ -1303,14 +1336,19 @@ def compose_manifest(cfg, entries, previous, requirements_path=None):
     sources = {s: sha256(HERE / s) for s in SCRIPT_SOURCES}
     sources["font.json"] = sha256(cfg["_path"])
     sources["concepts.js"] = sha256(cfg["_concepts"])
+    if cfg.get("_skeletons"):
+        sources[cfg["skeletons"]] = sha256(cfg["_skeletons"])
     if requirements_path is None:
         req_record = None
     else:
         rp = pathlib.Path(requirements_path).resolve()
         req_record = rp.relative_to(cfg["_dir"]).as_posix() if rp.is_relative_to(cfg["_dir"]) else rp.as_posix()
+    # the override's name only when font.json names one: an unconditional "skeletons": null would move every project's manifest
+    head = {"schema": MANIFEST_SCHEMA, "family": cfg["family"], "version": cfg["version"], "font_json": cfg["_path"].name, "concepts": cfg["concepts"]}
+    if cfg.get("_skeletons"):
+        head["skeletons"] = cfg["skeletons"]
     return {
-        "schema": MANIFEST_SCHEMA, "family": cfg["family"], "version": cfg["version"],
-        "font_json": cfg["_path"].name, "concepts": cfg["concepts"], "requirements": req_record,
+        **head, "requirements": req_record,
         "sources_sha256": sources, "tools": tool_versions(),
         "source_date_epoch": int(os.environ["SOURCE_DATE_EPOCH"]),
         "size_budget_bytes": cfg["size_budget_bytes"], "raster_budget": cfg["raster"]["budget"], "raster_sizes": list(cfg["raster"]["sizes"]),

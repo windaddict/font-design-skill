@@ -3,7 +3,7 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
-## [0.6.0] — 2026-11-19
+## [0.7.0] — 2026-11-19
 
 An italic group can carry a master much heavier than its Regular, and the italic opening quotes hold their ink.
 Two small defects a user's italic met when it needed a Bold master; the compatibility baseline moved for the
@@ -46,7 +46,7 @@ then implemented test-first.
   and 1.65 and at 1 and 2.0 through the real exporter; a `thinGrow` fixture whose fit-moved serif kind reads
   the Regular's width and hairline; a near-perpendicular T-join whose pinned edge still differs between weights
   (what the rule does not cover, pinned); the builder's opening-quote rule on synthetic apostrophes against the
-  0.5.0 derivation read from git, the `max()` case included; the 0.5.0-versus-0.6.0 build comparison; a
+  0.5.0 derivation read from git, the `max()` case included; the 0.5.0-versus-0.7.0 build comparison; a
   mixed-concept group without a mult-1 master per concept; every serif chosen from the reference geometry
   overlapping its drawn stroke (skia-pathops). In the font suite: `test_weight_does_not_change_any_branch_record`
   and `test_opening_quotes_lie_inside_their_advance` (every named instance, the intermediates included);
@@ -58,12 +58,70 @@ then implemented test-first.
   the drawn geometry draws. The promise is exact about its reach: a group whose masters all sit at a multiplier
   other than 1, or that mixes concepts so one concept has no mult-1 master in the group, may see a decision
   move to the mult-1 one (none of the examples does), and a T-join's pinned edge still reads the drawn geometry.
-- **The compatibility baseline is the 0.6.0 record** (`tests/fixtures/baseline.json`, `supersedes` naming the
+- **The compatibility baseline is the 0.7.0 record** (`tests/fixtures/baseline.json`, `supersedes` naming the
   0.5.0 record `788760d` and the one departure: the TTF digests and woff2 bytes of the two italic groups). The
   promise is restated in `generator.md` section 11. The genre review record does not move (its digests draw
   the roman `G`); the `scotch` note in `genres.md`, the recipe and the page content say its italic exports.
 - `references/traps.md` row 32 is rewritten as fixed, with the general cause; row 37 records the opening
   quotes' overhang and what of the italic's spacing deliberately stays.
+
+## [0.6.0] — 2026-11-19
+
+A face can redraw letters of the shared skeleton tables without forking the generator: one project file named by
+`font.json`. Issue #9. Planned by Fable (`docs/plan-skeleton-overrides.md`), the plan reviewed by an independent
+cross-provider reviewer (Impasse, 9 findings, all accepted), then implemented test-first. The default is byte for byte
+0.5.0's: a project without the new key builds to the unchanged `tests/fixtures/baseline.json`.
+
+### Added
+- **`font.json` `skeletons`**: a bare `.js` file name beside `font.json` whose function `(G, GI, S, D, ring)` edits the
+  skeleton tables before anything is drawn (`references/generator.md`, "Per-face skeletons"). One file serves every group
+  and master of the face. `export.js` applies it, prints one stderr line naming every key it overrode, added or re-derived,
+  and records `skeletons` and `skeletonsSha256` in the export JSON (only when the key is set; `templates/export.schema.json`
+  declares both). `build.py` hashes it as a sixth source in `sources_sha256` and records `skeletons` in the manifest (again
+  only when set), so `--check` and the site suite's manifest test see an edit to it. `templates/font.schema.json`,
+  `export.js` and `build.py` refuse a value with a directory part or not ending `.js`; `build.py` also refuses the five names
+  the manifest already hashes and a missing file.
+- **`applySkeletons(fn, name)` in `gen.js`**: copies every entry, calls the function, refuses a deleted key, a malformed
+  entry (its own path validator: `sampleCounts` skips a token it does not know), a new key the cmap cannot map and a new
+  `GI` key with no `G` counterpart, a new key outside the Basic Multilingual Plane or a lone surrogate, and a stroke carrying fields of two
+  shapes (a dot with a path is drawn as the dot), rebuilds the derived glyphs the override did not touch, empties the glyph cache, and
+  refuses a second call. **Derived glyphs follow their base**: the 51 accented letters built from a base are registered
+  with `derive()` (`DERIVED` in the exports) and rebuilt in place, so the glyph order does not move; a derived key the
+  override changed itself is kept. The italic still falls back to `G` where `GI` has no entry, so a `G.t` override reaches
+  the italic `t`. Stated limit: the accented capitals exist in `G` only, so an override of `GI.A` does not reach italic `Á`.
+- **`build-page.js --skeletons PATH`**: the concept pages draw the face's own letters. The override is applied to a fresh
+  `gen.js` in a child node first (a malformed one fails the build with the generator's message), then spliced after
+  `gen.js` wrapped in a function (it adds one top-level name, `SKELETONS`), with the call and a `data-fd-skeletons`
+  attribute set on `<html>` once the call returns in the browser, beside `data-fd-override-sha256`, the file's sha256. The
+  page builder runs the file as a page would, with no `module`, and refuses it unless `SKELETONS` is then a function (an
+  anonymous export, or a `SKELETONS` set only where `module` exists, passes node and would leave the page without it). The top-level clash check reads `let`, `const` and
+  `class` as well as `var` and `function`. `scripts/smoke.sh` step 8a builds and shoots such a page in Chrome.
+- **`build.py --masters` refuses an export drawn with another override**, or with none, or with the same name at another
+  sha256 (review F002: that path never runs `export.js`).
+- `tests/test_skeleton_overrides.py` (36 test cases), `tests/skeleton_probe.js` and `tests/fixtures/skeletons/`; a schema test
+  for each schema; a copy-into-site variant whose face names an override. Every test failed on the 0.5.0 scripts for its
+  declared reason, or, for the two that pin existing behaviour, under a mutation; the mutation log is
+  `references/testing.md` section 8. Four survivors on the first run were findings about the tests: an equivalent
+  mutation (M10, now caught by pinning the registered derivations), two `build.py` checks matched through `export.js`'s
+  identical message (the test now requires `build.py`'s own line), and a plan mutation (M4'') that no build in its
+  assigned test could reach (now held by a `--check` after a `font.json` edit).
+
+### Changed
+- **The copy-and-patch convention is retired from the docs**: a site's glyph additions moved from
+  `tools/<face>/scripts/extra-glyphs.js` plus a three-line patch in a copied `gen.js` to `tools/<face>/skeletons.js`, so the
+  phase 7 `diff -r` of the copied `scripts/` now always prints nothing. `build-page.js --gen` and `--render` still work.
+- `scripts/tests/test_font.py`'s manifest test hashes the override beside the five sources when `font.json` names one.
+
+### First use: Bract's n, m, h and r (measured on `examples/bract`, 2026-11-19)
+The shoulder of `n`, `m` and `r` showed a nick where the wedge head serif meets the arch: 28.3, 19.6, 28.0 and 19.2 units
+deep on `n` at text x1, text x1.5, display x1 and display x1.5 (`tests/skeleton_probe.js shoulder`). The fixture
+`tests/fixtures/skeletons/bract-shoulder.js` (the plan's candidate B7: the arch starts at the serif's corner, its first
+controls on the 510 line, `h` sharing `n`'s arch) takes it to 4.0, 0.2, 4.6 and 1.5; `m` and `r` to 2.3 or less and 4.8 or
+less. Through the real `export.js`: only `h`, `m`, `n`, `r` and `ñ` change; no advance, title width or word space moves; 14,
+7, 29 and 21 of 4,100 kern pairs change, each by exactly 1 unit, because the lowercase pairs are kerned against the `n|n`
+gap. One figure the plan did not have: on `m` at text x1.5 a join cap stands 0.96 units above the outline near the stem
+(the plan reported 0 before the override only). The fixture is the skill's test of the mechanism; which candidate
+Bract ships, and its rollout to the site, are decided later (plan sections 4.3 and 10).
 
 ## [0.5.0] — 2026-11-19
 

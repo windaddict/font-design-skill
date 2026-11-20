@@ -90,10 +90,12 @@ and review before code (Bract plan finding F011).}}
 {{The skill version; the origin line; name-table copyright and licence per the operator's answer in
 section 8.}}
 
-### 2.2 gen.js changes
+### 2.2 Skeleton changes: the face's `skeletons.js`
 
-{{New skeletons needed by real titles (measured from the built pages); cmap decisions (U+0027,
-U+00A0) with counts; anything else.}}
+{{New or redrawn skeletons needed by real titles (measured from the built pages), each as an entry in
+`tools/<face>/skeletons.js` named by `font.json`'s `skeletons` key, never an edit of `gen.js`
+(`references/generator.md`, "Per-face skeletons"); what overriding `n` or `H` does to the kerning;
+cmap decisions (U+0027, U+00A0) with counts; anything else.}}
 
 ### 2.3 export.js and font.json
 

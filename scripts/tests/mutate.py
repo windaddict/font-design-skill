@@ -396,7 +396,7 @@ def mutations(h):
         expect="units from the exported master")
 
     # quotes (#23): Driftwood's quotedblleft advance restored, the straight quotes' instead of the apostrophe's plus the gap
-    # the 0.6.0 opening rule is bypassed too, so the italic's max() cannot hide the straight quotes' advance behind the ink's
+    # the 0.7.0 opening rule is bypassed too, so the italic's max() cannot hide the straight quotes' advance behind the ink's
     add("quotes-#23: quotedblleft given the straight quotes' advance", ["test_quote_glyphs_follow_the_apostrophe_in_every_master"],
         lambda: h.rep(B, '"quotedblleft": opening(round(ap_adv + dbl_gap), turned + shifted(turned)),',
                       '"quotedblleft": {"adv": round(tick_adv + aw * 0.8), "polys": turned + shifted(turned)},'), "all",
@@ -645,13 +645,13 @@ def mutations(h):
         lambda: h.rep(GEN, "var pu = U ? U.pts : pts, ju = U ? U.joins : joins;", "var pu = pts, ju = joins;"), expect="xh changed a branch record")
     # the curl test is decided on the drawn tail again (no shipped face curls, so only the test's all-curl variant can see it). The
     # outer call (with `info`) reads the drawn cross product; the inner call on the reference copy keeps its own, so when the two
-    # disagree the copy is padded to the drawn length: since 0.6.0 the reference copy exists at every multiplier but 1, and the
+    # disagree the copy is padded to the drawn length: since 0.7.0 the reference copy exists at every multiplier but 1, and the
     # one-line form left the two arrays different lengths and crashed node instead of failing the assertion (UNPROVEN, smoke step 5)
     def curl_mapped():
         h.rep(GEN, "if (Math.abs(crossD) < 0.06) return 0;", "if (Math.abs(info ? cross : crossD) < 0.06) return 0;")
         h.rep(GEN, "  if (dec) addCurl(dec, P);", "  if (dec) { addCurl(dec, P); while (dec.length < pts.length) dec.push(dec[dec.length - 1]); }")
     add("xh-curl-mapped: the curl decision reads the drawn skeleton", ["test_xh_does_not_change_any_branch_record"], curl_mapped, expect="xh changed a branch record")
-    # weight (0.6.0, docs/plan-italic-bold.md): the decisions read the drawn geometry again at every multiplier but 1, so xf's weight
+    # weight (0.7.0, docs/plan-italic-bold.md): the decisions read the drawn geometry again at every multiplier but 1, so xf's weight
     # widening and the fit's half width move them; the italic w's serif kind flips between the masters
     add("weight-branch-drawn: every decision reads the drawn geometry away from mult 1", ["test_weight_does_not_change_any_branch_record"],
         lambda: h.rep(GEN, "var decideOn = mapOn || P.W !== P.W0;", "var decideOn = mapOn;"), expect="weight changed a structure or branch record")

@@ -11,6 +11,10 @@
 // skeleton, naming the code points.
 //
 // Usage:  node export.js --font font.json [--group roman] [--eps 1] [--requirements requirements.json] OUT.json
+// When font.json names a `skeletons` file (a bare .js name beside it), that file's function edits the generator's
+// skeleton tables before anything is drawn (gen.js applySkeletons); one stderr line names every key it overrode,
+// added or re-derived, and the export records the file's name and sha256 (`skeletons`, `skeletonsSha256`), which
+// build.py --masters checks against the file. Without the key the export is what 0.5.0 wrote.
 // The JSON shape is templates/export.schema.json: per master, advances, decimated polygons ("polys"),
 // undecimated polygons ("raw", for build.py's before/after raster check), edge runs, kept indices,
 // branch signatures, minimum stroke width, kern pairs, word space, and the laid width of the
@@ -106,6 +110,15 @@ function loadFontConfig(fontPath) {
     throw new Error(`kerning.sparse_cap must be null or an integer <= 0, not ${JSON.stringify(cap)}`);
   cfg._dir = dir;
   cfg._conceptsPath = path.resolve(dir, cfg.concepts);
+  // skeletons: the face's own skeleton override, a bare .js file name beside font.json (no directory part, so the
+  // manifest's file-name key and a site's copy of the sources both hold). Absent = the shared tables, as before 0.6.0
+  if (cfg.skeletons !== undefined) {
+    const v = cfg.skeletons;
+    if (typeof v !== "string" || !/^[^/\\]+\.js$/.test(v)) throw new Error(`font.json skeletons must name a .js file beside font.json: ${JSON.stringify(v)}`);
+    const sp = path.resolve(dir, v);
+    if (!fs.existsSync(sp) || !fs.statSync(sp).isFile()) throw new Error(`font.json skeletons names no file: ${sp}`);
+    cfg._skeletonsPath = sp;
+  }
   return cfg;
 }
 function kernSetFor(cfg, keys, LIGS) {
@@ -144,6 +157,17 @@ function main(argv) {
   const FOLD_UNITS = cfg.fold_units || FOLD_UNITS_DEFAULT;
   const m = require(path.resolve(__dirname, "gen.js"));
   const concepts = m.loadConcepts(cfg._conceptsPath);
+  // --- 0a. the face's skeleton override (font.json `skeletons`), applied before any key is listed or drawn ---------
+  let skeletonsSha256 = null;
+  if (cfg._skeletonsPath) {
+    skeletonsSha256 = require("crypto").createHash("sha256").update(fs.readFileSync(cfg._skeletonsPath)).digest("hex");
+    const rep = m.applySkeletons(require(cfg._skeletonsPath), cfg.skeletons);
+    const said = [];
+    if (rep.overridden.length) said.push(`overrides ${rep.overridden.join(", ")}`);
+    if (rep.added.length) said.push(`adds ${rep.added.join(", ")}`);
+    if (rep.rederived.length) said.push(`re-derives ${rep.rederived.join(", ")}`);
+    console.error(`skeletons ${cfg.skeletons}: ${said.length ? said.join("; ") : "changes nothing"}`);
+  }
   const keys = Object.keys(m.G);
 
   // --- 0. required characters (review finding F011): fail before drawing anything ----------------
@@ -152,7 +176,7 @@ function main(argv) {
     const req = readJson(reqPath);
     const missing = missingCharacters(req.required_characters || "", keys, cfg);
     if (missing.length) {
-      console.error(`export.js: ${missing.length} required character(s) have no skeleton in gen.js: ${missing.map(c => `${JSON.stringify(c)} U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`).join(", ")}. Add a skeleton to G (and GI for an italic) or a composite rule; see references/generator.md.`);
+      console.error(`export.js: ${missing.length} required character(s) have no skeleton in gen.js: ${missing.map(c => `${JSON.stringify(c)} U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`).join(", ")}. Add a skeleton to the face's skeletons file (font.json \`skeletons\`), or to G (and GI) in the skill for a glyph every face needs; see references/generator.md.`);
       return 1;
     }
   }
@@ -302,6 +326,8 @@ function main(argv) {
     };
     console.error(`${groupName}/${n}: ${Object.keys(G).length} glyphs, ${kerns.length} kern pairs, min interior stroke ${minw.toFixed(1)} units at ${minwAt}, ${folds[n].foldedEdges} folded edges (worst raw ${folds[n].max.raw} at ${folds[n].worstAt.raw}, decimated ${folds[n].max.decimated} at ${folds[n].worstAt.decimated})`);
   }
+  // written only when font.json names an override, so an export without the key is byte for byte what 0.5.0 wrote
+  if (cfg._skeletonsPath) { out.skeletons = cfg.skeletons; out.skeletonsSha256 = skeletonsSha256; }
   console.error(`decimation eps ${EPS}: ${rawPoints} -> ${keptPoints} points per master`);
   fs.mkdirSync(path.dirname(path.resolve(outPath)), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(out));

@@ -5,11 +5,11 @@ every geometry-dependent decision (the serif kind `|T[0]| > 0.1`, `vert`, `curve
 pairing) from the DRAWN tangent, and the drawn geometry moves with weight: `xf` widens heavier masters by `1 + 0.16 (W/W0 - 1)`
 and the vertical fit pulls a flat stroke's ends in by half the stroke width. At 0.5.0 44 (glyph, concept, slant) cases over the
 five concept files changed structure or record between mult 1 and some multiplier from 0.8 to 2.0, and the Driftwood example's
-italic group refused a Bold master at x1.65 on the `w` (`serifA=head` against `serifA=diag`). Since 0.6.0 the decisions read the
+italic group refused a Bold master at x1.65 on the `w` (`serifA=head` against `serifA=diag`). Since 0.7.0 the decisions read the
 geometry at mult 1 and xh 500 (`PU` in `glyph()`), as the x-height map's decisions already did. Second, `build.py`'s
 `quote_glyphs()` gave the opening quotes the apostrophe's advance in an italic group, where the apostrophe is spaced over the
 x-height band only and its slanted body overhangs the advance by 30 to 53 units; an opening quote is followed by a letter, so
-its ink landed on that letter. Since 0.6.0 an italic group's `quoteleft` and `quotedblleft` grow to hold their ink with a right
+its ink landed on that letter. Since 0.7.0 an italic group's `quoteleft` and `quotedblleft` grow to hold their ink with a right
 side bearing that is never negative and equals the left wherever the ink, not the apostrophe-derived advance, sets the advance;
 the roman and the closing quotes are unchanged.
 
@@ -210,12 +210,12 @@ console.log(JSON.stringify(out));
 
 
 def test_a_near_perpendicular_t_join_still_pins_a_different_edge_per_weight():
-    """What the 0.6.0 rule does NOT cover, pinned so the promise stays exact (review F002): the T-join's cut and the edges `clipPast`
+    """What the 0.7.0 rule does NOT cover, pinned so the promise stays exact (review F002): the T-join's cut and the edges `clipPast`
     pins past it read the drawn geometry per master (generator.md section 12), so a leg that crosses perpendicular to its bar between
     two weights records `L` in one and `R` in the other and the exporter refuses the pair. The crossing construction drawn from mult
     0.8 to 2.0: the token's partner stroke and segment never change and no polygon or point count moves (the join is a width, not a
     decision), but the pinned edges take both `L` and `R` over the range (and `=`, neither, where the leg stands perpendicular). A pin
-    of present behaviour, green before and after 0.6.0. Mutation: the side letter fixed to `L` (the set is {L}, red)."""
+    of present behaviour, green before and after 0.7.0. Mutation: the side letter fixed to `L` (the set is {L}, red)."""
     r = run([node(), "-e", TEE_FIXTURE, str(GEN), str(REPO / "examples" / "neutral" / "concepts.js")])
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
@@ -456,7 +456,7 @@ def test_only_the_italic_opening_quotes_changed_since_0_5_0(builds):
 # --- F001: a mixed-concept group whose masters keep their decisions under the reset does not move ---------------------------
 
 def test_a_mixed_concept_group_without_a_mult_1_master_per_concept_exports_as_0_5_0_did(old_tree, tmp_path):
-    """The 0.6.0 rule resets each master's decisions to ITS OWN concept's mult-1 decisions, so a group whose masters use different
+    """The 0.7.0 rule resets each master's decisions to ITS OWN concept's mult-1 decisions, so a group whose masters use different
     concepts is covered by the compatibility promise only while every master keeps its decisions under that reset (review F001). The
     narrowed fixture: the bract example's `text` at mult 1 beside its `display` at mult 1.5, one roman group, the heavier concept with
     no mult-1 master of its own (the shipped bract roman has one per concept, so it cannot show this). Exported with the 0.5.0

@@ -11,7 +11,7 @@ reference.
 
 | File | What it is |
 |---|---|
-| `build-page.js` | splices `scripts/gen.js` (module.exports stripped) + `scripts/render.js` into `/*GEN*/`, the project's `concepts.js` into `/*CONCEPTS*/`, and a content JSON into `/*CONTENT*/` (as `<script type="application/json">` with `<` escaped); refuses a template whose placeholder count is not exactly one per marker; parses the assembled script with `new Function` before writing |
+| `build-page.js` | splices `scripts/gen.js` (module.exports stripped) into `/*GEN*/`, `scripts/render.js` into `/*RENDER*/`, the project's `concepts.js` into `/*CONCEPTS*/`, and a content JSON into `/*CONTENT*/` (as `<script type="application/json">` with `<` escaped); with `--skeletons FILE`, the face's skeleton override right after `gen.js`, wrapped so it declares only `SKELETONS`, then the `applySkeletons` call and the line that sets `data-fd-skeletons` on `<html>` (the override is applied in a child node first, so a malformed one fails the build); refuses a template whose placeholder count is not exactly one per marker; parses the assembled script with `new Function` before writing |
 | `round1-template.html` | the spectrum: optional audit section, guidelines, "all N side by side" with a text input and a weight select, one full specimen per concept on the site's surfaces, a character row, a recommendation footer |
 | `round2-template.html` | the shortlist on three mock pages of a FIXED generic layout (home, article, contents: hop-safari's redesign): a sticky face picker, a glance card per concept, headline slots as `.r[data-t][data-size][data-w][data-min][data-fit][data-lh][data-caps]` whose sizes come from `content.slot_sizes` (required for rounds 2 and 3; a slot left out keeps its hop-safari default and is named on stderr), images only from `img/` |
 | `round3-template.html` | the head-to-head: the verdict box (`#verdict`, from the content JSON's `verdict`), a ranking, the two-cut face switching at `DISPLAY_FROM`, `localStorage` memory of the pick, the comparison CSS face |
@@ -24,6 +24,7 @@ reference.
 node scripts/concepts/build-page.js --template round1 --concepts concepts.js --content content.json out/round1.html
 node scripts/concepts/build-page.js --template round2 --concepts concepts.js --content content.json out/round2.html
 node scripts/concepts/build-page.js --template round3 --concepts concepts.js --content content.json out/round3.html
+node scripts/concepts/build-page.js --template round1 --concepts concepts.js --content content.json --skeletons skeletons.js out/round1.html   # the face's override
 ```
 
 Then look at it in Chrome before anyone else does (`.venv/bin/python3` is the skill venv's interpreter, run from the skill folder,

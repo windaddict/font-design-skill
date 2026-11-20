@@ -200,7 +200,7 @@ def expected_quote_glyphs(ap_polys, ap_adv, italic_angle=0.0):
     a 13-point half-round over a two-point base, width 0.64 of the apostrophe's plus 70 each side, slanted
     about y=610 by tan(angle) in an italic group; double marks sit 0.8 (ticks) or 1.45 (curly)
     apostrophe-widths apart and the advance grows by the same gap; opening quotes are the apostrophe
-    turned 180 degrees about its box centre. Since 0.6.0, in an italic group only, an opening quote's
+    turned 180 degrees about its box centre. Since 0.7.0, in an italic group only, an opening quote's
     advance is at least the sum of its ink's two x extremes, so its right side bearing equals its left
     (the italic apostrophe is spaced over the x-height band and its slanted body overhangs the advance,
     and an opening quote is followed by a letter); the turn keeps the apostrophe's x extent, so the sum
@@ -592,6 +592,8 @@ def test_the_shipped_fonts_match_their_manifest(cfg, manifest, req, req_path):
         assert m["woff2_bytes"] == path.stat().st_size
     sources = {"gen.js": SCRIPTS / "gen.js", "export.js": SCRIPTS / "export.js", "build.py": SCRIPTS / "build.py",
                "font.json": cfg["_path"], "concepts.js": cfg["_concepts"]}
+    if "skeletons" in cfg:  # the face's skeleton override (0.6.0), hashed under its bare file name beside font.json
+        sources[cfg["skeletons"]] = cfg["_dir"] / cfg["skeletons"]
     assert set(manifest["sources_sha256"]) == set(sources), f"manifest hashes {sorted(manifest['sources_sha256'])}"
     for src, digest in manifest["sources_sha256"].items():
         assert hashlib.sha256(sources[src].read_bytes()).hexdigest() == digest, f"{src} changed since the font was built"
@@ -1339,7 +1341,7 @@ def test_weight_does_not_change_any_branch_record(cfg):
     """The weight counterpart of the xh test above (docs/plan-italic-bold.md): a heavier master must not flip a geometry-dependent
     decision, or the exporter refuses the group. At 0.5.0 the decisions read the DRAWN tangent, which `xf`'s weight widening
     (`1 + 0.16 (W/W0 - 1)`) and the fit's half-width move with weight; the italic `w` of the Driftwood example flipped its serif kind
-    at mult 1.4 and the neutral example's at mult 0.9. Since 0.6.0 the decisions read the geometry at mult 1 and xh 500. This draws
+    at mult 1.4 and the neutral example's at mult 0.9. Since 0.7.0 the decisions read the geometry at mult 1 and xh 500. This draws
     every master's concept of the project's groups, at that master's slant, as drawn and with every end but the serif a curl, at mult
     0.8, 1, 1.25, 1.5, 1.65 and 2, and compares each glyph's polygon count, point counts, edge runs and record with the mult-1 ones.
     Red at 0.5.0 on the neutral fixture (the italic `w` at mult 0.8).

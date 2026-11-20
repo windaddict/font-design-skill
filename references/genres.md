@@ -41,7 +41,7 @@ rest are the file's own (read it for the exact numbers, and `generator.md` secti
 |---|---|---|---|
 | Didone / modern (`didone`) | vertical stress, hairline unbracketed serifs and horizontals, ball terminals | `nib 0, thin 0.28, pow 2.2, serifH 0.13, serifLen 0.7, serifBracket 0, tear false, flareAmt 0.2` | **partly** (2026-11-19): Moderate contrast because of the hairline floor, and equal-weight diagonals on `A V W M N v w x y`, so it reads as a light modern, not a Didone. The diagonals need an expansion model, which is out of scope |
 | Fat face (`fatface`) | a Didone at poster weight, counters reduced to slits | the Didone knobs at `W 130`, `thin 0.22`, `xs 0.98`, `track -4`; the Bold is `mult 1.5` | **no** (2026-11-19): Stems are about 1/6 of the cap height even at the Bold; `W` past its range cannot reach 1/3-cap stems without collapsing the counters. It needs new shapes |
-| Scotch roman / transitional (`scotch`) | slightly oblique or vertical stress, bracketed serifs, moderate to high contrast | Bract's `foil` (`examples/bract/concepts.js`): `nib 0, thin 0.27, pow 2.4, xs 0.9, serifH 0.13, serifLen 0.72, tear true` | **reaches** (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the `a` terminal are what differ. Also shipped and reviewed as Bract's `foil` on hopsafari.com (2026-11-15).. Its italic exported since 0.6.0 (section 4) |
+| Scotch roman / transitional (`scotch`) | slightly oblique or vertical stress, bracketed serifs, moderate to high contrast | Bract's `foil` (`examples/bract/concepts.js`): `nib 0, thin 0.27, pow 2.4, xs 0.9, serifH 0.13, serifLen 0.72, tear true` | **reaches** (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the `a` terminal are what differ. Also shipped and reviewed as Bract's `foil` on hopsafari.com (2026-11-15).. Its italic exported since 0.7.0 (section 4) |
 | Clarendon (`clarendon`) | bracketed slab serifs, moderate contrast, drawn as a bold companion | `thin 0.74, serifH 0.85, serifLen 0.5, serifBracket 1, serifGrow 0.6`, with the three optical knobs because `thin` is above 0.7 | **no** (2026-11-19): The serifs are short pointed wedges, not square bracketed slabs, so it reads as a wedge serif. A longer `serifLen` with `serifGrow 0` might fix it; untested. Rendering defects: section 7 |
 | Egyptian / slab (`slab`) | unbracketed slab serifs | the Clarendon knobs with `serifBracket 0` | **reaches** (2026-11-19): Square unbracketed slabs at stem weight, low contrast, in Rockwell or Memphis proportion. Rendering defects: section 7 |
 | Grotesque (`grot`) | near-uniform stroke, flat apexes, horizontal terminals on the curves | `thin 1, nib 0, pow 1`, no `thinGrow`, `ends` butt and cut, `hzThin 0.92, roundGain 1.04, diagThin 0.95, xh 540, joints true, crotch 0.3` | **partly** (2026-11-19): A monoline neo-grotesque with level-cut joints and a straight-leg `R`; the double-storey `g` with its sharp ear and the hooked `a` read humanist, which needs skeleton work. Seen after the `cut` default was fixed (section 7) |
@@ -59,17 +59,17 @@ make the shape. Each names what the next version would have to add.
 | Tuscan (bifurcated serifs) | split, curled serif ends | **no**: a serif with a notch is a new construction in `serifPoly`; no knob forks a serif |
 | Art Deco (Broadway, Bifur) | one-idea letters, two-tone strokes, high or low waists | **no**: the pen has no two-tone stroke and no bar-height knob; `shear` and `bend` are a lean, not Deco |
 | A circular `O` (the geometric genre's anchor) | the `O` is a circle | **no**: the skeleton's ring is 600 by 720, and `xs` scales it to a wider oval, never a circle; it needs a skeleton change in `G.O` |
-| A single-storey roman `a` | the geometric and Futura-style `a` | **no** in the library: the roman `G.a` is double-storey. A site can set `G.a = GI.a` in its `extra-glyphs.js` (`generator.md`, "Adding glyphs"), provided its `ends` maps `x` |
+| A single-storey roman `a` | the geometric and Futura-style `a` | **no** in the library: the roman `G.a` is double-storey. A site can set `G.a = GI.a` in its `skeletons` file (`generator.md`, "Per-face skeletons"), provided its `ends` maps `x` |
 | A spurred `G` | the grotesque's `G` with a spur | **no**: the skeleton's `G` has a bar; a spur needs a skeleton change |
 | Pointed apexes (`A`, `M`, `N`, `V`, `W` meeting in a point) | the strokes meet at a sharp apex | **no**: `apex` is designed, not built (`generator.md`, "Designed, not built: `apex`"); `params()` refuses it, and no recipe sets it |
 | An expansion (pointed-pen) contrast model | thick and thin diagonals from a flexible pen | **no**: the pen is a translation model, so mirrored diagonals share a width; it is the limit behind every "partly" in the Didone rows |
 
 ## 4. Notes on single recipes
 
-- **`scotch`** is Bract's `foil` with a new id and labels. Until 0.6.0 its `xs 0.9` made the italic
+- **`scotch`** is Bract's `foil` with a new id and labels. Until 0.7.0 its `xs 0.9` made the italic
   `w` take a different serif branch at mult 1 and mult 1.5 (the serif kind read the drawn tangent, which
   the Bold's `xs` widening moved; `generator.md` section 12), so the exporter refused an italic group and
-  the test recorded that one refusal by name. Since 0.6.0 every decision reads the geometry at mult 1 and
+  the test recorded that one refusal by name. Since 0.7.0 every decision reads the geometry at mult 1 and
   the italic exports (`KNOWN_ITALIC_REFUSALS` in `tests/test_genres.py` is empty, and fails if a recipe
   is refused again). The recipe is still a roman recipe: its italic is built and self-checked, not reviewed.
 - **`clarendon` and `slab`** set `hzThin`, `roundGain` and `diagThin` because their `thin` is above

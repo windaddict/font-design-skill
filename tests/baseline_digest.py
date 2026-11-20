@@ -6,7 +6,7 @@ as it was. A rebuild that only has to "look the same" cannot prove that, and the
 tracked (fonts are never published from this repo), so there is nothing to diff against. This module
 turns an example's build into three short digests that a tracked JSON file can hold, so
 tests/test_backward_compat.py can compare a fresh build with what the baseline commit produced (0.1.0's `0fc4314` from 0.2 to 0.4; 0.5.0's
-`788760d`, the commit that redrew the R's leg root, which moved every group's export and TTF digest; since 0.6.0 the commit that widened the italic
+`788760d`, the commit that redrew the R's leg root, which moved every group's export and TTF digest; since 0.7.0 the commit that widened the italic
 opening quotes, which moved the TTF digests of the two italic groups only: the fixture's `supersedes` entry records the last step).
 
 The three digests, per example group:

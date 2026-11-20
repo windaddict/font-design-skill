@@ -1,6 +1,6 @@
 {
   "baseline_rev": "c5b4abb",
-  "baseline_version": "0.6.0",
+  "baseline_version": "0.7.0",
   "by_platform_node": {
     "darwin/20": {
       "brotli": "1.2.1",
@@ -192,6 +192,6 @@
   "supersedes": {
     "baseline_rev": "788760d",
     "baseline_version": "0.5.0",
-    "why": "0.6.0 widened the italic opening quotes (docs/plan-italic-bold.md): the TTF digests and woff2 bytes of the two italic groups moved; every export and manifest digest and every roman digest did not; tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0 holds every glyph outline, every other advance and every kern to the 0.5.0 build. The darwin/26 entry was taken from the fixed tree before its commit existed (--print) and is re-recorded under the --record guard at commit A; the other platforms are recorded by the record-baseline workflow from commit A"
+    "why": "0.7.0 widened the italic opening quotes (docs/plan-italic-bold.md): the TTF digests and woff2 bytes of the two italic groups moved; every export and manifest digest and every roman digest did not; tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0 holds every glyph outline, every other advance and every kern to the 0.5.0 build. The darwin/26 entry was taken from the fixed tree before its commit existed (--print) and is re-recorded under the --record guard at commit A; the other platforms are recorded by the record-baseline workflow from commit A"
   }
 }

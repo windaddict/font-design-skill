@@ -3,7 +3,7 @@
 //
 // WHAT IT'S FOR: a branch decision that reads drawn, weight-dependent geometry (the `xs` widening of heavier masters, the vertical
 // fit's half-width) flips between the masters of a group and the exporter refuses the group (docs/plan-italic-bold.md section 0.1:
-// 44 cases over the five concept files at 0.5.0). Since 0.6.0 every decision reads the geometry at mult 1 and xh 500, so a glyph's
+// 44 cases over the five concept files at 0.5.0). Since 0.7.0 every decision reads the geometry at mult 1 and xh 500, so a glyph's
 // polygon count, point counts, edge runs and record at any multiplier must equal its mult-1 ones. One node process per concept and
 // slant: a single process holding every drawing of every concept ran out of heap (measured at 4 GB while planning).
 //

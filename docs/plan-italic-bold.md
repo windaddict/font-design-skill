@@ -244,7 +244,7 @@ group. Nothing in GPOS moves: the curly quotes are outside every `kerning.set` (
   (measured green with it: 6 passed). Every other test of the font suite and of `tests/` that runs the generator
   stays green (measured: the suite on the neutral build, `test_r_leg_join.py`, `test_genres.py` except the
   refusal list).
-- **Sites:** a site that takes 0.6's `scripts/` and rebuilds gets the same roman; an italic group gets two wider
+- **Sites:** a site that takes 0.7's `scripts/` and rebuilds gets the same roman; an italic group gets two wider
   opening quotes and nothing else, and may now add a heavier master. The manifest's `sources_sha256` changes, so
   a site's `build.py --check` fails until the rebuild, as it should.
 
@@ -283,7 +283,7 @@ not an option (a digest that skipped tables would stop proving what it proves). 
 commit, the way 0.5.0 moved it:
 
 1. `tests/fixtures/baseline.json`: `baseline_rev` = the sha of the commit carrying both changes,
-   `baseline_version` `"0.6.0"`, and `supersedes` naming `788760d`, `0.5.0` and the reason ("0.6.0 widened the
+   `baseline_version` `"0.7.0"`, and `supersedes` naming `788760d`, `0.5.0` and the reason ("0.7.0 widened the
    italic opening quotes: the TTF digests of the two italic groups moved; every export and manifest digest and
    every roman digest did not; `tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0`
    holds every glyph outline, every other advance and every kern to the 0.5.0 build"). `supersedes` stays one
@@ -303,31 +303,31 @@ commit, the way 0.5.0 moved it:
    is red on every leg until **commit C** merges the four `entry-baseline.json` artifacts
    (`--merge`). The genre legs need nothing: their digests are unchanged. The PR merges only after C.
 
-The promise, exactly, for `generator.md` section 11 and the docstring: a project on 0.1 to 0.5 that copies 0.6's
+The promise, exactly, for `generator.md` section 11 and the docstring: a project on 0.1 to 0.5 that copies 0.7's
 `scripts/` and rebuilds without touching `concepts.js` or `font.json` gets the same outlines and tables as
 before, **except the advances of `quoteleft` and `quotedblleft` in an italic group**, which grow to hold the
 slanted ink with equal bearings (no outline, no other advance, no kern moves); and a group whose masters all sit
 at a multiplier other than 1 may see a branch decision move to the mult-1 decision (none of the examples does).
-The three examples' digests are held to the 0.6.0 record per platform and node major.
+The three examples' digests are held to the 0.7.0 record per platform and node major.
 
 ## 6. Docs, CHANGELOG, version
 
 - `references/generator.md`: section 4's `xs` row ("multiplied by `1 + 0.16·(W/W0 − 1)` … a branch flipper"): the
   widening still draws but no longer decides; `xs` itself still flips between concepts. Section 9 (the italic):
-  one paragraph on the apostrophe's band spacing and the opening quotes' advance rule. Section 11: the 0.6.0
+  one paragraph on the apostrophe's band spacing and the opening quotes' advance rule. Section 11: the 0.7.0
   compatibility paragraph (section 5 above) beside the 0.5.0 one. Section 12: the decision rule restated as
   "the geometry at mult 1 and xh 500 decides, the drawn geometry draws", the audit list (`fitSkeleton` at `PU`;
   the widening), the "When it refuses" paragraph (weight removed from the list of movers), and the measured-margins
   paragraph (the italic `w`'s 0.0028 is an `xs` margin at every weight; the sentence "the Bold's widening lifts it
   to 0.123" goes).
-- `references/traps.md`: row 32 rewritten as fixed in 0.6.0, with the general cause (a branch read from drawn,
+- `references/traps.md`: row 32 rewritten as fixed in 0.7.0, with the general cause (a branch read from drawn,
   weight-dependent geometry: 44 cases over the five concept files at `5d0b29f`, the `w`'s serif kind being 19 of
   them) and the guard (tests a–c). This is the trap the caller asked about, and it is row 32, not a new row: the
   0.5.0 text named the mechanism and the workaround (`xs` 0.92 and above) without the general cause. A new row 37:
   the italic opening quotes overhang (cause: the band spacing of an apostrophe whose flare dips below the x-height;
   guard: the builder's rule and tests d–f; where: the Driftwood example's italic, 43 units, and the neutral
   italic, 30, both measured here; a user's italic build, where the mark touched a following capital).
-- `references/genres.md` section 4 (`scotch`): the refusal note becomes "exported since 0.6.0"; the table cell,
+- `references/genres.md` section 4 (`scotch`): the refusal note becomes "exported since 0.7.0"; the table cell,
   the recipe `desc` and `content.genres.json` `risk` lose "The italic is refused (section 4)" together (section 3).
 - `references/variable-font-build.md`: the quote-derivation sentence gains the opening quotes' italic advance.
 - `references/testing.md` section 8: rows for tests a–f and the two existing tests that changed, the mutation
@@ -335,16 +335,16 @@ The three examples' digests are held to the 0.6.0 record per platform and node m
 - `scripts/gen.js`: the comment at `strokePolys`' head ("U carries the same stroke on the UNMAPPED skeleton (the
   x-height map undone)") names the weight too; `scripts/build.py` `quote_glyphs()` docstring; the
   `expected_quote_glyphs` docstring in the font suite.
-- `CHANGELOG.md`: `## [0.6.0] — <date>`: Fixed (the italic Bold master, with the 44-case count and "no shipped
+- `CHANGELOG.md`: `## [0.7.0] — <date>`: Fixed (the italic Bold master, with the 44-case count and "no shipped
   output moved"; the opening quotes, with the before/after advances), Changed (the decision rule; the baseline
   re-recorded and the promise restated; the `scotch` note), Added (tests a–f), and the pointer to this plan.
-- `VERSION`, `SKILL.md` (frontmatter `metadata.version` and the "**Version 0.6.0**" line), `README.md` badge,
+- `VERSION`, `SKILL.md` (frontmatter `metadata.version` and the "**Version 0.7.0**" line), `README.md` badge,
   `package.json` `version`: `tests/test_versions_and_skill.py::test_version_is_the_same_everywhere` holds the five
   equal (read).
 - This plan: the status paragraph updated at build, as `plan-r-leg.md` was; the file must carry no machine path
   or session string (`tests/test_hygiene.py` walks `docs/`, read).
 
-**Version: 0.6.0.** The output of every italic group changes (two advances), the baseline is re-recorded, and a
+**Version: 0.7.0.** The output of every italic group changes (two advances), the baseline is re-recorded, and a
 decision rule changes with a documented migration note: the same kind of change 0.5.0 was. 0.5.1 is defensible as
 "the same fonts, two advances corrected"; section 8 asks.
 
@@ -386,7 +386,7 @@ Questions, each with the recommendation:
 4. **The closing quotes and the apostrophe stay as they are?** Their overhang (30 to 53 units) is the italic
    band rule working as designed, and the apostrophe's advance is the generator's and kerned. Recommendation:
    leave them, and record the figures in traps row 37 for the italic's first design review.
-5. **0.6.0 or 0.5.1?** Recommendation: 0.6.0 (section 6).
+5. **0.7.0 or 0.5.1?** Recommendation: 0.7.0 (section 6).
 6. **No genre re-review** (the roman digests are unchanged, measured) and the `scotch` note reworded without a
    new date. Recommendation: yes.
 7. **The neutral example's italic `w` stays 0.0028 from the `xs` threshold at every weight.** Moving it means a

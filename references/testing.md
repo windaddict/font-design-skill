@@ -353,8 +353,9 @@ and watched turn that test red (2026-11-16, both dry runs).
   `gen.js`, `export.js` and `build.py` in place and restores them by digest; a copy taken mid-run
   carries a mutated file, which the manifest's source hashes catch later and nothing catches at
   copy time. `diff -r <skill dir>/scripts tools/<face>/scripts` after the copy must print nothing
-  (second dry run, finding 14), except for a project whose copy was made early to carry a glyph: the recorded
-  `gen.js` patch and `extra-glyphs.js` only.
+  (second dry run, finding 14). Since 0.6.0 there is no exception: a face's own letters are in
+  `tools/<face>/skeletons.js`, beside `font.json` and outside the copy, and the manifest hashes that file
+  as a sixth source.
 
 ## 8. The repository's own guards for the added tools, and the survivors they showed
 
@@ -577,7 +578,60 @@ units between two of nine probes; mutation: nine probes restored → it draws, r
 contour by push order → red). And the workflow step writes `genre-digests.json` before appending it to the summary, never through a pipe,
 because GitHub's default `bash -e` has no pipefail (mutation: the `| tee` form restored → red).
 
-Added with the weight-independent decisions and the italic opening quotes (0.6.0, `docs/plan-italic-bold.md`;
+Added with per-face skeleton overrides (0.6.0, `docs/plan-skeleton-overrides.md`; `tests/test_skeleton_overrides.py` with
+`tests/skeleton_probe.js`, the node half that applies an override and prints the report, the tables and the drawings; the
+fixtures are `tests/fixtures/skeletons/`). The tests run the real `export.js`, `build.py` and `build-page.js` on copies of the
+examples. `FONT_DESIGN_SK_GEN` names another `scripts/` folder. Every new test was first run against the 0.5.0 scripts
+(`git archive 5d0b29f scripts`) and failed there for its declared reason (`m.applySkeletons is not a function`; "changed []"; "the
+export does not name the override"; the key accepted; no `skeletons` in the manifest; "a stale export built after the override was
+edited"; the page built without the splice, `data-fd-skeletons` absent), except the two that pin existing behaviour (no key builds
+as today; the fixture is the neutral `font.json` plus the key), which were held by mutation. Each mutation below was applied by a
+scratch harness on 2026-11-19, to a fresh copy of `scripts/` or, for the tests that read the repo's own files, to the repo file
+restored by sha256, with `__pycache__` cleared:
+
+| Mutation (plan section 5) | Test turned red, on |
+|---|---|
+| M1 `Ñ` dropped from the capitals' derivations | `test_backward_compat`: "the examples no longer build to the baseline digests" |
+| M2 / M10' the rebuild deleting and re-adding each key | (a ii) "an empty override changed the woff2 bytes"; (c) "the override moved the key order" |
+| M3 `"skeletons": null` in a manifest without the key | (a i) "a manifest without the key carries a skeletons entry"; `test_backward_compat`: "the examples no longer build to the baseline digests" |
+| M4 `skeletons: null` in an export without the key | (a i) "an export without the key carries an override record" (compat was not run under it: `export_digest` keeps only named fields, so by reading it would stay green) |
+| M4' one advance moved when the key is set | (a ii) on the woff2 bytes |
+| M4'' `font.json`'s hash kept from the previous manifest | (f) "--check passed after font.json was edited". **Not** (a ii): its builds write fresh `--out-dir` folders with no previous manifest, so the plan's assignment of M4'' to test a could never bite; the `font.json` edit and `--check` were added to test f for it |
+| M5 the override applied to a copy of the tables | (b) "changed []" |
+| M6 / M8 the rebuild skipped | (b) `ñ` missing from the changed set; (c) `rederived` empty |
+| M7 the report built from reference equality | (b) the stderr line reads only "re-derives G ñ" |
+| M7' the export's hash taken of `concepts.js` | (b) on `skeletonsSha256` |
+| M9 the rebuild ignoring the snapshot | (c) the override's `ñ` overwritten |
+| M10 `©` registered as a derivation | **survived the first form of (c)**: under the content rule the override touched `©`, so the registration is skipped, and a rebuilt literal is identical, so the mutation is equivalent on every override. (c) now also asserts the registered set (`DERIVED`) equals the plan's table, and goes red naming `G ©` |
+| M11 the italic fallback reading a load-time copy of `G` | (d) the italic `t` keeps `A=exit` |
+| M12 the function handed a copy of `GI` | (d) the italic `a` unchanged |
+| M12' italic accented capitals rebuilt from `GI.A` | (d) "italic A-acute followed GI.A" |
+| each refusal of `applySkeletons` deleted (not a function, delete, unknown command, number, first `M`, no segment, end letter, dot, ring radius, ring `d`, empty entry, unmappable key, italic-only key, the once-only mark) | (e) the matching case, each "was accepted" or a message other than the refusal's |
+| F005: the path validator replaced by `sampleCounts` | (e) `bad-q.js` "was accepted": the mutation that shows the validator is needed |
+| the italic-only refusal widened to every new `GI` key | `test_a_glyph_added_to_both_tables_exports_in_both_groups` |
+| export.js's name and existence checks deleted | (e, key cases) the `.json`, `sub/` and missing-file cases |
+| build.py's name, hashed-name and existence checks deleted | **survived the first form** for the name and existence checks: with build.py's check gone, build.py ran export.js, which refuses in the same words, and the test matched the message anywhere in the log (two guards on one fixture). The test now requires `build.py: <message>` and no export.js line; all three red |
+| M13 the override left out of `sources_sha256` | (f) the source set; the copy-into-site variant (the copied suite fails) |
+| the site suite's `sources` entry for the override deleted (`scripts/tests/test_font.py`) | the copy-into-site variant |
+| M14 the override hashed as `concepts.js` | (f) on the sha256 |
+| M14' / M14'' `load_masters`'s comparison dropped / its hash half dropped | (f, `--masters`) the stale export builds |
+| M15 the call without the splice | (g) the marker count; the Chrome shot (the page script throws `SKELETONS is not defined`) |
+| M16 the splice after `concepts.js` | (g) the order assertion |
+| M17 a line spliced without the flag | (g) the page built without the flag |
+| M17' the wrapper dropped | (g) the `const DEG` page refused ("Identifier 'DEG' has already been declared"); the Chrome shot |
+| M17'' the attribute set before the call | not applicable: the call and the attribute are one expression, `setAttribute(..., f(applySkeletons(...)))`, so the attribute cannot be set unless the call returned |
+| the build-time application in a child node dropped | (g) `bad-q.js` builds a page |
+| the `SKELETONS` clash check deleted | (g) the template declaring `SKELETONS` builds |
+| M18 / M18' the key removed from the font schema / its pattern loosened to `\.js$` | (h) the fixture rejected / `sub/skeletons.js` accepted |
+| `skeletonsSha256` removed from the export schema | `test_the_export_schema_accepts_the_override_record` |
+| `applySkeletons`'s glyph-cache reset deleted | survived every test above on 2026-11-19 (no caller draws before applying); `test_a_drawing_cached_before_the_override_is_not_served_after_it` was added for it and is red: "the glyph cache served n as drawn before the override" |
+
+Two harness faults found on the way, both about the run, not the code: a node id holding `/` (`[sub/skeletons.js]`) was passed
+to pytest unprefixed and collected nothing, which reads as a survivor; and the first `--masters` test read `export.json` where a
+two-group `font.json` built with `--group roman` keeps `export-roman.json`, so its first red on 0.5.0 was a missing file, not the
+missing check (rerun after the fix: "a stale export built after the override was edited").
+
+Added with the weight-independent decisions and the italic opening quotes (0.7.0, `docs/plan-italic-bold.md`;
 `tests/test_weight_decisions.py` with `tests/weight_flips.js`, two tests in the font suite, two mutations in `mutate.py`).
 Every test was written first and watched red on the unmodified 0.5.0 tree for the reason it names (2026-11-19); then each
 mutation below was applied by hand to the real `scripts/gen.js`, `scripts/build.py` or `scripts/export.js`, the named tests
@@ -605,13 +659,13 @@ structure differences are [], expected ['w']") when the fix was applied and is `
 Two catalogue mutations the change broke, found by `scripts/smoke.sh` step 5 (120 mutations, 118 RED, 2 UNPROVEN on the
 first run), both re-formed and RED: `quotes-#23` no longer matched (its target line now reads `opening(...)`) and now bypasses
 the opening rule too, so the italic's `max()` cannot hide the straight quotes' advance behind the ink's; `xh-curl-mapped`
-(the curl decision reads the drawn cross product) crashed node instead of failing the assertion, because since 0.6.0 the
+(the curl decision reads the drawn cross product) crashed node instead of failing the assertion, because since 0.7.0 the
 reference copy of a stroke exists at every multiplier but 1 and the one-line form let the drawn stroke take its spiral while
 the copy declined, leaving the two arrays different lengths (the "mutation that crashed instead of failing" shape above). Its
 second form decides on the drawn cross in the outer call only and pads the copy to the drawn length, so the record differs
 and nothing else does. The re-run of step 5 is quoted in section 5.
 
-**The 0.6.0 diff review (Impasse, 2026-11-19) and the guards it added**, each watched red by hand on the real file and restored by
+**The 0.7.0 diff review (Impasse, 2026-11-19) and the guards it added**, each watched red by hand on the real file and restored by
 digest: F001, the quote rule counted ink left of the origin, so `round(xMax + xMin)` left a negative right bearing; the rule now
 counts that extreme as 0, and `test_quote_glyphs_opening_rule` has a fourth case (ink from x −20): mutation `max(min(xs), 0)` back
 to `min(xs)` → RED ("overhanging from left of the origin, italic quoteleft: advance 70, expected 90"). F002, the 0.5.0 comparison
@@ -623,7 +677,7 @@ serif-overlap guard imports skia-pathops instead of skipping without it. F004, t
 comparisons, not a floor that two dropped multipliers passed. F005, every statement of the quote rule says the bearings are equal
 only where the ink-derived value sets the advance.
 
-**The 0.6.0 re-review (Impasse, 2026-11-19)**, fixed without a third review: F001, `round()` could take a fractional right extreme
+**The 0.7.0 re-review (Impasse, 2026-11-19)**, fixed without a third review: F001, `round()` could take a fractional right extreme
 down (90.5 → 90, a right bearing of −0.5); the advance is now also at least `ceil(xMax)`, with a fifth synthetic case: mutation, the
 `ceil` term dropped → RED ("a fractional right extreme, italic quoteleft: advance 90, expected 91"). F002, `HVAR` was compared only at
 the masters and one midpoint; the comparison now instances every italic group on a grid of five points per axis and holds every other

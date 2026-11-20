@@ -29,6 +29,11 @@
  *   7. The italic is restored from Driftwood as an opt-in third argument to params(): GI skeletons,
  *      the shear, the narrower set, shorter serifs, the sidebearing band and the J rule. Roman and
  *      italic are structurally different skeletons, so they are built as separate font files.
+ *   8. Per-face skeletons (0.6.0). A face may redraw letters of G and GI without forking this file:
+ *      font.json names one `skeletons` file whose function applySkeletons() calls on the live tables
+ *      before anything is drawn (export.js, and build-page.js --skeletons for a concept page). The
+ *      accented letters built from a base are registered with derive(), so they follow an overridden
+ *      base. Without the key nothing here runs and every table is what 0.5.0 built.
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
@@ -233,10 +238,29 @@ var GI_CAPS = {
   J: [S("M 300 700 L 300 20 C 300 -130 230 -200 140 -200 C 80 -200 40 -170 20 -130", "s", "t")]
 };
 Object.keys(GI_CAPS).forEach(function (k) { GI[k] = GI_CAPS[k]; });
+/* ---------- Derived glyphs ----------
+   WHAT IT'S FOR: an accented letter is its base's skeleton plus a mark, and a per-face override
+   (applySkeletons, below) may redraw the base after this file has loaded. Every glyph built FROM a base
+   is therefore registered with derive(), which assigns it now and records how it was built, so
+   applySkeletons can build it again from the overridden base. derive(table, key, build, ifAbsent)
+   assigns table[key] = build() (only when the key is absent if ifAbsent is set, as the accent loop below
+   always did) and records {table, key, build} in DERIVATIONS, in file order; a second registration of
+   one key replaces the first's build, as a second assignment replaced the first's value. Entries that
+   are NOT built from a base stay plain assignments and are never rebuilt: the dotless-i accents (a
+   literal stem), the copyright, trade mark and bullet (authored glyphs that happen to sit here), and
+   the italic dotless-i accents. */
+var DERIVATIONS = [];
+function derive(table, key, build, ifAbsent) {
+  if (ifAbsent && table[key]) return;
+  var name = table === G ? "G" : "GI", prev = null;
+  for (var i = 0; i < DERIVATIONS.length; i++) if (DERIVATIONS[i].table === table && DERIVATIONS[i].key === key) prev = DERIVATIONS[i];
+  if (prev) prev.build = build; else DERIVATIONS.push({ table: table, name: name, key: key, build: build });
+  table[key] = build();
+}
 // accented letters: the base skeleton plus a mark drawn above the x-height
-G["š"] = G.s.concat([S("M 150 700 L 260 610", "j", ""), S("M 260 610 L 370 700", "", "j")]);
-G["ā"] = G.a.concat([S("M 130 650 L 420 650", "j", "j")]);
-G["é"] = G.e.concat([S("M 250 610 L 350 720", "j", "t")]);
+derive(G, "š", function () { return G.s.concat([S("M 150 700 L 260 610", "j", ""), S("M 260 610 L 370 700", "", "j")]); });
+derive(G, "ā", function () { return G.a.concat([S("M 130 650 L 420 650", "j", "j")]); });
+derive(G, "é", function () { return G.e.concat([S("M 250 610 L 350 720", "j", "t")]); });
 // marks, centred on cx above the x-height
 function acute(cx) { return [S("M " + (cx - 40) + " 610 L " + (cx + 60) + " 720", "j", "t")]; }
 function grave(cx) { return [S("M " + (cx + 40) + " 610 L " + (cx - 60) + " 720", "j", "t")]; }
@@ -248,12 +272,12 @@ var BASES = { a: 270, e: 280, o: 290, u: 275 };
 [["á", acute], ["à", grave], ["â", circ], ["ä", diaer]].forEach(function (m) {
   ["a", "e", "o", "u"].forEach(function (b) {
     var k = { a: "aáàâä", e: "eéèêë", o: "oóòôö", u: "uúùûü" }[b]["áàâä".indexOf(m[0]) + 1];
-    if (!G[k]) G[k] = G[b].concat(m[1](BASES[b]));
+    derive(G, k, function () { return G[b].concat(m[1](BASES[b])); }, true);
   });
   G[{ "á": "í", "à": "ì", "â": "î", "ä": "ï" }[m[0]]] = DOTLESS_I.concat(m[1](110));
 });
-G["ñ"] = G.n.concat(tilde(275));
-G["ç"] = G.c.concat([S("M 290 -10 L 290 -70 C 350 -70 380 -100 380 -140 C 380 -190 330 -215 250 -205", "j", "t")]);
+derive(G, "ñ", function () { return G.n.concat(tilde(275)); });
+derive(G, "ç", function () { return G.c.concat([S("M 290 -10 L 290 -70 C 350 -70 380 -100 380 -140 C 380 -190 330 -215 250 -205", "j", "t")]); });
 G["©"] = [ring(330, 330, 270, 300), S("M 425 425 C 400 465 370 485 333 485 C 265 485 220 420 220 330 C 220 240 265 175 333 175 C 370 175 400 195 428 235", "t", "t")];
 G["™"] = [S("M 40 700 L 300 700"), S("M 170 700 L 170 430", "j", "j"),
           S("M 370 430 L 380 700", "j", ""), S("M 380 700 L 490 520"), S("M 490 520 L 600 700"), S("M 600 700 L 610 430", "", "j")];
@@ -269,16 +293,132 @@ function raise(strokes, dy) {
 var CAPS = { A: 330, E: 290, I: 120, O: 380, U: 340, N: 340 };
 [["Á", "A", acute], ["À", "A", grave], ["Â", "A", circ], ["Ä", "A", diaer], ["É", "E", acute], ["È", "E", grave], ["Ê", "E", circ], ["Ë", "E", diaer],
  ["Í", "I", acute], ["Ï", "I", diaer], ["Ó", "O", acute], ["Ô", "O", circ], ["Ö", "O", diaer], ["Ú", "U", acute], ["Ü", "U", diaer], ["Ñ", "N", tilde]
-].forEach(function (m) { G[m[0]] = G[m[1]].concat(raise(m[2](CAPS[m[1]]), 170)); });
-G["Ç"] = G.C.concat([S("M 370 -10 L 370 -70 C 430 -70 460 -100 460 -140 C 460 -190 410 -215 330 -205", "j", "t")]);
-// italic accented letters reuse the italic base where there is one
-GI["ā"] = GI.a.concat([S("M 130 650 L 420 650", "j", "j")]);
-GI["é"] = GI.e.concat([S("M 250 610 L 350 720", "j", "t")]);
-"áàâä".split("").forEach(function (k, i) { GI[k] = GI.a.concat([acute, grave, circ, diaer][i](270)); });
-"éèêë".split("").forEach(function (k, i) { GI[k] = GI.e.concat([acute, grave, circ, diaer][i](280)); });
-"úùûü".split("").forEach(function (k, i) { GI[k] = GI.u.concat([acute, grave, circ, diaer][i](275)); });
-GI["ñ"] = GI.n.concat(tilde(275));
+].forEach(function (m) { derive(G, m[0], function () { return G[m[1]].concat(raise(m[2](CAPS[m[1]]), 170)); }); });
+derive(G, "Ç", function () { return G.C.concat([S("M 370 -10 L 370 -70 C 430 -70 460 -100 460 -140 C 460 -190 410 -215 330 -205", "j", "t")]); });
+// italic accented letters reuse the italic base where there is one. The accented CAPITALS exist in G only, so an italic
+// group draws them from the roman table slanted, and an override of an italic capital (GI.A) does not reach them
+derive(GI, "ā", function () { return GI.a.concat([S("M 130 650 L 420 650", "j", "j")]); });
+derive(GI, "é", function () { return GI.e.concat([S("M 250 610 L 350 720", "j", "t")]); });
+"áàâä".split("").forEach(function (k, i) { derive(GI, k, function () { return GI.a.concat([acute, grave, circ, diaer][i](270)); }); });
+"éèêë".split("").forEach(function (k, i) { derive(GI, k, function () { return GI.e.concat([acute, grave, circ, diaer][i](280)); }); });
+"úùûü".split("").forEach(function (k, i) { derive(GI, k, function () { return GI.u.concat([acute, grave, circ, diaer][i](275)); }); });
+derive(GI, "ñ", function () { return GI.n.concat(tilde(275)); });
 "íìîï".split("").forEach(function (k, i) { GI[k] = [exitStem(110, 500, "s")].concat([acute, grave, circ, diaer][i](110)); });
+var DERIVED = DERIVATIONS.map(function (d) { return d.name + " " + d.key; });
+
+/* ---------- Per-face skeletons: applySkeletons ----------
+   WHAT IT'S FOR: lets one face redraw letters of the shared skeleton tables without forking this file. A
+   project names one JavaScript file in font.json (`skeletons`); export.js, and build-page.js for a
+   concept page, call applySkeletons(fn, label) with the function that file exports, once, before
+   anything is drawn. fn(G, GI, S, D, ring) edits the two live tables in place: it replaces entries,
+   edits a stroke inside one, or adds a key. Its return value is ignored. In order, this function: deep
+   copies every entry in place (so no two keys share a stroke object and an edit of G.n[1] reaches only
+   G.n) and keeps the JSON of each as the snapshot; calls fn; refuses a deleted key, a malformed entry,
+   a new key the cmap cannot map and a new GI key with no G counterpart; rebuilds every registered
+   derivation (DERIVATIONS, above) whose own key the override did not change, in place, so the glyph
+   order stays; empties the glyph and kern cache; and returns { overridden, added, rederived }, each a
+   list of "G n" / "GI a" names: the keys whose content the override changed, the keys it added, and the
+   derived keys whose rebuilt content differs from before. A derived key the override changed itself is
+   the override's (listed under overridden) and is not rebuilt. A second call in one process throws.
+   label names the file in every message. references/generator.md, "Per-face skeletons", is the contract. */
+var skeletonsApplied = false;
+var STROKE_ENDS = ["", "s", "t", "u", "x", "j", "i"];
+var NUMBER_TOKEN = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
+function finiteNumber(v) { return typeof v === "number" && isFinite(v); }
+// what is wrong with a stroke's path, or null: M and two numbers, then one or more L (two numbers) or C (six numbers), and nothing else.
+// sampleCounts() and samplePath() skip a token they do not know, so they cannot be the check
+function pathProblem(d) {
+  if (typeof d !== "string") return "its d is not a string";
+  var t = d.trim().split(/[\s,]+/), i = 1, segs = 0;
+  function nums(n, cmd) {
+    for (var j = 0; j < n; j++, i++) {
+      if (i >= t.length) return cmd + " needs " + n + " numbers and the path ends after " + j;
+      if (!NUMBER_TOKEN.test(t[i]) || !isFinite(+t[i])) return cmd + " needs " + n + " numbers and " + JSON.stringify(t[i]) + " is not one";
+    }
+    return null;
+  }
+  if (t[0] !== "M") return "its d must start with M, not " + JSON.stringify(t[0]);
+  var e = nums(2, "M");
+  if (e) return e;
+  while (i < t.length) {
+    var c = t[i++];
+    if (c === "L") e = nums(2, "L");
+    else if (c === "C") e = nums(6, "C");
+    else return "its d holds " + JSON.stringify(c) + " where L or C was expected (only M, L and C are drawn)";
+    if (e) return e;
+    segs++;
+  }
+  return segs ? null : "its d is an M with no L or C segment";
+}
+function strokeProblem(st) {
+  if (!st || typeof st !== "object" || Array.isArray(st)) return "is not a stroke object (use S(), D() or ring())";
+  // the three shapes are exclusive: glyph() draws a stroke carrying dot as a dot and ignores its path (diff review F005)
+  if ("dot" in st) {
+    if (Object.keys(st).length !== 1) return "is a dot that also carries d, a or b (a dot is D(x, y) and nothing else)";
+    return Array.isArray(st.dot) && st.dot.length === 2 && st.dot.every(finiteNumber) ? null : "is a dot whose dot is not [x, y] with two finite numbers";
+  }
+  if ("closed" in st || "r" in st) {
+    if (Object.keys(st).some(function (k) { return ["d", "closed", "r"].indexOf(k) < 0; })) return "is a ring with a field ring() does not set (a ring is d, closed and r)";
+    var r = st.r;
+    if (st.closed !== true || !Array.isArray(r) || r.length !== 4 || !r.every(finiteNumber)) return "is a ring that needs closed: true and r: [cx, cy, rx, ry] of four finite numbers";
+    if (!(r[2] > 0 && r[3] > 0)) return "is a ring whose rx and ry must be positive (r is " + JSON.stringify(r) + ")";
+    if (st.d !== ring(r[0], r[1], r[2], r[3]).d) return "is a ring whose d is not what ring(" + r.join(", ") + ") draws; build rings with ring()";
+    return null;
+  }
+  if (Object.keys(st).some(function (k) { return ["d", "a", "b"].indexOf(k) < 0; })) return "is a stroke with a field S() does not set (a stroke is d, a and b)";
+  var p = pathProblem(st.d);
+  if (p) return p;
+  for (var e = 0; e < 2; e++) {
+    var end = e ? st.b : st.a;
+    if (typeof end !== "string" || STROKE_ENDS.indexOf(end) < 0) return "has end " + (e ? "b" : "a") + " " + JSON.stringify(end) + ", not one of \"\" s t u x j i";
+  }
+  return null;
+}
+function applySkeletons(fn, label) {
+  var who = "skeletons " + (label || "(unnamed)");
+  if (skeletonsApplied) throw new Error(who + ": skeletons already applied in this process (a second override needs a second process)");
+  if (typeof fn !== "function") throw new Error(who + " does not export a function: it must set module.exports = function (G, GI, S, D, ring) { ... }");
+  skeletonsApplied = true;
+  var tables = [["G", G], ["GI", GI]], before = { G: {}, GI: {} };
+  tables.forEach(function (t) {
+    Object.keys(t[1]).forEach(function (k) { var j = JSON.stringify(t[1][k]); before[t[0]][k] = j; t[1][k] = JSON.parse(j); });
+  });
+  fn(G, GI, S, D, ring);
+  var report = { overridden: [], added: [], rederived: [] }, touched = {};
+  tables.forEach(function (t) {
+    var name = t[0], T = t[1], snap = before[name];
+    Object.keys(snap).forEach(function (k) {
+      if (!(k in T)) throw new Error(who + ": " + name + " " + JSON.stringify(k) + " was deleted; an override may replace or add entries, never remove one");
+    });
+    Object.keys(T).forEach(function (k) {
+      var isNew = !(k in snap), entry = T[k];
+      if (!isNew && JSON.stringify(entry) === snap[k]) return;
+      var at = who + ": " + name + " " + JSON.stringify(k);
+      if (!Array.isArray(entry) || !entry.length) throw new Error(at + " is not an array of at least one stroke");
+      entry.forEach(function (st, i) { var why = strokeProblem(st); if (why) throw new Error(at + " stroke " + i + " " + why); });
+      if (isNew) {
+        // one UTF-16 unit, not one code point: export.js layTitle and keysFor read text unit by unit, so a character outside the
+        // Basic Multilingual Plane would be looked up as two halves (diff review F003)
+        // and not a lone surrogate, which is a code unit and no character at all (re-review F003)
+        if ((k.length !== 1 || /[\uD800-\uDFFF]/.test(k)) && LIGS.indexOf(k) < 0) {
+          throw new Error(at + " is a new key the cmap cannot map: a new glyph is one character of the Basic Multilingual Plane (its code point) or a ligature named in LIGS (" + LIGS.join(" ") + ")");
+        }
+        if (name === "GI" && !(k in G)) {
+          throw new Error(at + " is a new italic key with no G counterpart: the export draws the keys of G, so it would be left out; add G[" + JSON.stringify(k) + "] too");
+        }
+        report.added.push(name + " " + k);
+      } else report.overridden.push(name + " " + k);
+      touched[name + " " + k] = true;
+    });
+  });
+  DERIVATIONS.forEach(function (d) {
+    if (touched[d.name + " " + d.key]) return;
+    d.table[d.key] = d.build(); // in place: the key keeps its position, so the glyph order is unchanged
+    if (JSON.stringify(d.table[d.key]) !== before[d.name][d.key]) report.rederived.push(d.name + " " + d.key);
+  });
+  cache = {};
+  return report;
+}
 var UPPERISH = /^[A-Z0-9!?&$%\/()\[\]#*©™ÁÀÂÄÉÈÊËÍÏÓÔÖÚÜÑÇ]$/;
 
 /* ---------- Concepts live in the project's concepts.js ----------
@@ -1245,5 +1385,6 @@ function conceptById(list, id) {
 }
 if (typeof module !== "undefined") {
   module.exports = { G: G, GI: GI, LIGS: LIGS, DEG: DEG, DROP_AMT_DEFAULT: DROP_AMT_DEFAULT, S: S, D: D, ring: ring, params: params, glyph: glyph, kern: kern,
-    layWord: layWord, wrap: wrap, keysFor: keysFor, UPPERISH: UPPERISH, sampleCounts: sampleCounts, loadConcepts: loadConcepts, conceptById: conceptById };
+    layWord: layWord, wrap: wrap, keysFor: keysFor, UPPERISH: UPPERISH, sampleCounts: sampleCounts, loadConcepts: loadConcepts, conceptById: conceptById,
+    applySkeletons: applySkeletons, DERIVED: DERIVED };
 }

@@ -53,7 +53,7 @@ GENRES_JS = REPO / "templates" / "concepts.genres.js"
 GENRES_MD = REPO / "references" / "genres.md"
 GEN = pathlib.Path(os.environ.get("FONT_DESIGN_GENRES_GEN", REPO / "scripts" / "gen.js"))
 
-# Recorded exceptions, written out so they cannot widen unnoticed. Empty since 0.6.0: until then Bract's foil
+# Recorded exceptions, written out so they cannot widen unnoticed. Empty since 0.7.0: until then Bract's foil
 # (`scotch`, xs 0.9) took a different serif branch on its italic w at mult 1 and mult 1.5, because the serif
 # kind read the drawn tangent, which the Bold's xs widening moved (generator.md section 12). Every decision now
 # reads the geometry at mult 1, so no recipe is refused; a recipe that appears here again is a regression.
