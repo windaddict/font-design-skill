@@ -3,6 +3,42 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [0.7.1] — 2026-11-20
+
+Two tests in the font suite held only for the neutral fixture, and the first project to run the suite on its
+own two-group face met both. Test changes only: no script that draws or builds a font changed, and no example's font
+file moved (the Driftwood example's manifest now records its requirements instead of `null`).
+
+### Fixed
+- **The closing-quote rule was asserted at intermediate weights.** `test_opening_quotes_lie_inside_their_advance`
+  (0.7.0) checked at every named instance that `quotedblright` advances by the apostrophe's advance plus 1.45
+  of its ink width. That holds at a master, where the builder sets it. An intermediate's advance is the
+  masters' advances mixed by HVAR, but its ink width is not a mix of theirs (an extreme can pass to another
+  point), so the rule fails there on a correct font: the Driftwood example's roman Medium advances 312, the
+  masters' mix 311.6, while 1.45 of its own ink width gives 308. The rule is now checked at the masters only, and an
+  intermediate's advance is checked against the masters' advances mixed at its location (fontTools' `VariationModel`);
+  the opening-quote bearings are still checked at every instance. Watched red before the fix on the Driftwood
+  example; the Q3 mutation (the rule applied to `quotedblright` too) still goes red at the italic masters.
+- **The x-height test's bounds were fitted to the Sampler.** `test_xh_moves_the_lowercase_lines_and_leaves_the_capitals`
+  required the `o` to span −10 to `xh` + 10 within 1.6 units, the `d` bowl and the `O` likewise, and the
+  `o`'s top to move by `xh` − 500 within 0.5. A ring's extreme sits outside the line plus overshoot by an
+  amount the face's stroke modulation sets (at `xh` 500: 0.34 units for the Sampler's Regular, 3.48 for the
+  Driftwood example's ×1.5), so the Driftwood and Bract concepts failed it on unmodified code. The test now
+  compares each face with its own `xh` 500 drawing: the `o`'s centre moves by exactly half the change (within
+  0.05; measured within 0.01 on all three examples), its height by the change within 2 (measured at most
+  1.24), the `d` bowl's top by the change within 1 (at most 0.45); these are margins over measured values, not bounds
+  derived from the generator. A constant offset of the `o` at every `xh` cancels in these checks: the export digests pin
+  it for the shipped concepts, and nothing pins it for the test's butt-ended variant. It runs on
+  the first concept of the face under test and of every bundled example's concepts file. `xh-round-literal` and a weaker mutation (the `o`'s top target 3 units high
+  whenever `xh` moves) go red.
+
+### Added
+- `examples/driftwood/requirements.json`, and `smoke.sh` step 4a runs the font suite on the Driftwood example
+  (an avar-mapped roman and a two-master italic) beside the neutral fixture, so a bound that holds for one
+  face alone fails in this repository's CI. Every value is measured from the example's build or copied from
+  its `font.json`; `hand_kerns` lists the non-zero hand pairs, because a zero pair is not emitted. The
+  example is now built with its requirements, not `--no-requirements`.
+
 ## [0.7.0] — 2026-11-19
 
 An italic group can carry a master much heavier than its Regular, and the italic opening quotes hold their ink.

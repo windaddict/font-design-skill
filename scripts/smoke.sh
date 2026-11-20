@@ -65,10 +65,11 @@ fi
 if want 2; then
   step "2. build the three fixtures with every self-check; statics for the neutral one"
   "$PY" "$HERE/build.py" --font "$NEUTRAL/font.json" --static "$NEUTRAL/out/static"
-  # the two precedent configurations carry no requirements.json (their sites' reviewed expectations live
-  # in the sites' own test files), so the required-character check is declined explicitly (C6)
+  # Bract's example carries no requirements.json (its site's reviewed expectations live in the site's own
+  # test files), so the required-character check is declined explicitly (C6). The Driftwood example has one
+  # since 0.7.1, so the font suite runs on a second face (step 4)
   "$PY" "$HERE/build.py" --font "$ROOT/examples/bract/font.json" --no-requirements
-  "$PY" "$HERE/build.py" --font "$ROOT/examples/driftwood/font.json" --no-requirements
+  "$PY" "$HERE/build.py" --font "$ROOT/examples/driftwood/font.json"
   # 2b. diff.py: the neutral build against a copy of itself must report no change (a renderer that differs
   # between two loads of one file would make every round's "what changed" noise)
   mkdir -p "$OUT/diff-before" && cp -R "$NEUTRAL/out/." "$OUT/diff-before/"
@@ -84,6 +85,10 @@ fi
 if want 4; then
   step "4. the font suite template on the neutral fixture"
   "$PY" -m pytest "$HERE/tests/test_font.py" -q -p no:cacheprovider --font "$NEUTRAL/font.json" --requirements "$NEUTRAL/requirements.json" --static-dir "$NEUTRAL/out/static"
+  # and on the Driftwood example: an avar-mapped roman, a two-master italic and Driftwood's own proportions. In 0.7.0 two tests
+  # held only for the Sampler (the closing quote at an intermediate, the x-height bounds); this run is what would have caught them
+  step "4a. the font suite on the Driftwood example"
+  "$PY" -m pytest "$HERE/tests/test_font.py" -q -p no:cacheprovider --font "$ROOT/examples/driftwood/font.json" --requirements "$ROOT/examples/driftwood/requirements.json" --static-dir none
   # the FontBakery gate (phase 7): every FAIL/ERROR must be in the requirements' accepted_qa_findings. Exit 3 means FontBakery is
   # not installed; that is SKIPPED, NOT PASSED (the gate prints why), not a failure of the skill, so the run goes on and says so.
   step "4b. the FontBakery gate on the neutral fixture (skipped, loudly, when fontbakery is not installed)"

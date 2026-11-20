@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from conftest import SCRIPTS, group_woff2
 from fontTools.misc.roundTools import otRound
@@ -268,7 +269,7 @@ def ink_bearings(static, name):
     return xmin, adv - xmax, xmin, xmax
 
 
-def test_opening_quotes_lie_inside_their_advance(group, instance_name, instance, req):
+def test_opening_quotes_lie_inside_their_advance(group, instance_name, instance, req, font):
     """At every named instance (the masters and the intermediates, from the instanced woff2's outlines and hmtx): in an italic group
     `quoteleft` and `quotedblleft` have a right side bearing of at least 0, and where the ink sets the advance (the sum of the ink's x
     extremes is at least the apostrophe-derived advance, which `quoteright`'s and `quotedblright`'s advances still carry) the two bearings
@@ -277,8 +278,12 @@ def test_opening_quotes_lie_inside_their_advance(group, instance_name, instance,
     rounding arithmetic, not a measurement: at a master the advance is `round(xMin + xMax)` of float coordinates the font stores rounded,
     three roundings of at most 0.5 on an integer result, so at most 1; at an intermediate the masters' own discrepancies interpolate and the
     three values round again, so at most 2 (the neutral `Medium Italic` reads 12 / 11 at wght 500 in whole units, 12.00 / 10.60 before
-    rounding). The closing quotes keep the apostrophe-derived advances: `quotedblright` is the apostrophe's advance plus 1.45 of its ink
-    width within a unit. In a roman group all four curly quotes have a right side bearing of at least 0 (a control, green before and after).
+    rounding). The closing quotes keep the apostrophe-derived advances: at a master, `quotedblright` is the apostrophe's advance plus 1.45 of
+    its ink width within a unit. That rule is checked at the masters only, and at an intermediate the advance must be the masters'
+    advances mixed at its location (fontTools' VariationModel, within a unit): an intermediate's advances are the masters' mixed by HVAR, but
+    its ink width is not a mix (an extreme can pass to another point), so the rule does not hold there (the Driftwood example's roman
+    Medium advances 312, the masters' mix 311.6, while 1.45 of its own ink width gives 308; 0.7.0 asserted it there and failed on that
+    face). In a roman group all four curly quotes have a right side bearing of at least 0 (a control, green before and after).
     Red at 0.5.0 at every italic master and the intermediate (rsb -30 to -47).
     Mutations: `quote-opening-unslanted` (the rule removed, red on every italic instance); Q2 the advance `round(xMax)` (red on the
     bearings); Q3 the rule applied to `quotedblright` too (red on the closing quote)."""
@@ -286,14 +291,30 @@ def test_opening_quotes_lie_inside_their_advance(group, instance_name, instance,
     location = R["instances"][instance_name]
     static = instance(group, location)
     where = f"{group} {instance_name}"
-    tol = 1 if location in R["masters"].values() else 2
+    at_master = location in R["masters"].values()
+    tol = 1 if at_master else 2
     for name in ("quoteleft", "quotedblleft", "quoteright", "quotedblright"):
         assert name in static.getGlyphOrder(), f"{where}: no {name}"
     ap_lsb, ap_rsb, ap_min, ap_max = ink_bearings(static, "quoteright")
     ap_adv = static["hmtx"]["quoteright"][0]
     dbl_adv = static["hmtx"]["quotedblright"][0]
-    assert abs(dbl_adv - round(ap_adv + 1.45 * (ap_max - ap_min))) <= 1, \
-        f"{where}: quotedblright advances {dbl_adv}, expected the apostrophe's {ap_adv} plus 1.45 ink widths ({round(ap_adv + 1.45 * (ap_max - ap_min))})"
+    if at_master:
+        assert abs(dbl_adv - round(ap_adv + 1.45 * (ap_max - ap_min))) <= 1, \
+            f"{where}: quotedblright advances {dbl_adv}, expected the apostrophe's {ap_adv} plus 1.45 ink widths ({round(ap_adv + 1.45 * (ap_max - ap_min))})"
+    else:
+        # at an intermediate the advance must be the masters' advances mixed at this location (fvar normalisation, then avar),
+        # computed with fontTools' own model so the expectation is not the font's HVAR read back
+        from fontTools.varLib.models import VariationModel, normalizeLocation, piecewiseLinearMap
+        axes = {a.axisTag: (a.minValue, a.defaultValue, a.maxValue) for a in font["fvar"].axes}
+        segs = font["avar"].segments if "avar" in font else {}
+
+        def norm(loc):
+            n = normalizeLocation(loc, axes)
+            return {t: piecewiseLinearMap(v, segs[t]) if segs.get(t) else v for t, v in n.items()}
+        masters = list(R["masters"].values())
+        mixed = VariationModel([norm(m) for m in masters]).interpolateFromMasters(
+            norm(location), [instance(group, m)["hmtx"]["quotedblright"][0] for m in masters])
+        assert abs(dbl_adv - mixed) <= 1, f"{where}: quotedblright advances {dbl_adv}, the masters' advances mixed here give {mixed:.1f}"
     if "italic_angle" not in R:
         for name in ("quoteleft", "quotedblleft", "quoteright", "quotedblright"):
             lsb, rsb, _, _ = ink_bearings(static, name)
@@ -1224,37 +1245,52 @@ def test_xh_moves_the_lowercase_lines_and_leaves_the_capitals(cfg):
     above the x-line left unmapped; the dot rule reading the mapped position."""
     node = shutil.which("node")
     assert node, "node is not on PATH"
-    r = subprocess.run([node, "-e", XH_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr
-    out = json.loads(r.stdout)
-    for xh in (600, 400):
-        for mult in (1, 1.5):
-            R, B = out["runs"][f"{xh}/{mult}"], out["runs"][f"500/{mult}"]
-            where = f"xh {xh} at mult {mult}"
-            ov = 10
-            # a ring's measured extreme sits up to 1.2 units outside the line plus overshoot even at xh 500 (the offset of a stroke whose
-            # width varies with direction: measured 511.15 for a Bold at xh 500), so the absolute bound is 1.6 and the shift is the exact check
-            assert abs(R["o_top"] - (xh + ov)) < 1.6 and abs(R["o_bot"] + ov) < 1.6, \
-                f"{where}: the `o` spans {R['o_bot']:.2f} to {R['o_top']:.2f}, expected {-ov} to {xh + ov}"
-            assert abs((R["o_top"] - B["o_top"]) - (xh - 500)) < 0.5, f"{where}: the `o` top moved by {R['o_top'] - B['o_top']:.2f} from xh 500, expected {xh - 500}"
-            assert abs(R["n_stem_top"] - xh) < 0.05, f"{where}: the `n` stem ends at {R['n_stem_top']:.2f}, expected the x-line {xh}"
-            assert abs(R["z_top"] - xh) < 0.1, f"{where}: the `z` bar's top edge is at {R['z_top']:.2f}, expected the x-line {xh}"
-            assert abs(R["dash_cy"] - 260 * xh / 500) < 0.1, f"{where}: the `-` is centred at {R['dash_cy']:.2f}, expected {260 * xh / 500}"
-            assert abs(R["d_stem_top"] - 740) < 0.05, f"{where}: the `d` stem ends at {R['d_stem_top']:.2f}, expected 740"
-            assert abs(R["d_bowl_top"] - (xh + ov)) < 1.6 and abs((R["d_bowl_top"] - B["d_bowl_top"]) - (xh - 500)) < 0.5, \
-                f"{where}: the `d` bowl tops out at {R['d_bowl_top']:.2f} (xh 500: {B['d_bowl_top']:.2f}), expected {xh + ov}"
-            for k in ("H_top", "O_top", "zero_top", "l_top"):
-                assert abs(R[k] - B[k]) < 0.01, f"{where}: {k} moved from {B[k]:.2f} to {R[k]:.2f}; capitals, figures and ascenders do not follow xh"
-            assert abs(R["H_top"] - 700) < 0.05 and abs(R["O_top"] - 710) < 1.6 and abs(R["l_top"] - 740) < 0.05, \
-                f"{where}: H {R['H_top']}, O {R['O_top']}, l {R['l_top']}"
-            assert all(abs(a - b) < 0.01 for a, b in zip(R["apos"], B["apos"])), f"{where}: the apostrophe moved from {B['apos']} to {R['apos']}"
-            W = out["W0"] * mult
-            rd = W * out["dot"]
-            low, high = R["colon"]
-            assert abs(low - (rd - 4)) < 0.05 and abs(high - (xh - rd + 4)) < 0.05, \
-                f"{where}: the colon's dots are centred at {low:.2f} and {high:.2f}, expected {rd - 4:.2f} and {xh - rd + 4:.2f}"
-            assert len(R["i_dot"]) == 1 and abs(R["i_dot"][0] - ymap(680, xh)) < 0.05, f"{where}: the `i` dot is at {R['i_dot']}, expected {ymap(680, xh):.2f}"
-            assert R["shape_diff"] is None, f"{where}: {R['shape_diff']!r} has a different polygon or point count than at xh 500"
+    # The face under test, then every bundled example's concepts file (present in the skill's own checkout, not in a project's copy
+    # of scripts/); XH_FIXTURE draws each file's first concept. The map is the generator's, so it must hold for every face, and
+    # 0.7.0's bounds held for the Sampler alone.
+    own = Path(cfg["_concepts"]).resolve()
+    files = [own] + sorted(p.resolve() for p in (SCRIPTS.parent / "examples").glob("*/concepts.js") if p.resolve() != own)
+    for concepts in files:
+        r = subprocess.run([node, "-e", XH_FIXTURE, str(SCRIPTS / "gen.js"), str(concepts)], cwd=SCRIPTS, capture_output=True, text=True)
+        assert r.returncode == 0, f"{concepts}: {r.stderr}"
+        out = json.loads(r.stdout)
+        for xh in (600, 400):
+            for mult in (1, 1.5):
+                R, B = out["runs"][f"{xh}/{mult}"], out["runs"][f"500/{mult}"]
+                where = f"{concepts.parent.name}: xh {xh} at mult {mult}"
+                # The `o` is compared with the same face's own `o` at xh 500, never with the literal line plus overshoot: a ring's measured
+                # extreme sits outside that line by an amount the face's stroke modulation sets (at xh 500, 0.3 units for the Sampler's Regular,
+                # 3.5 for the Driftwood example's ×1.5; 0.7.0 bounded it at 1.6 from the Sampler alone and failed on Bract and Driftwood).
+                # The ring's centre moves by exactly half the change (measured within 0.01 on all three examples); its height grows by the
+                # change plus what a taller ring does to the stroke at its extremes (measured at most 1.24 on the three, Driftwood ×1.5 at xh
+                # 400), so the height bound is 2. These bounds are margins over measured values, not derived from the generator. Round
+                # targets left at 500 move neither by anything near 100. A constant offset of the `o` at every xh cancels here: for the
+                # shipped concepts the export digests pin it (tests/test_backward_compat.py); for this fixture's butt-ended variant nothing does.
+                moved_centre = (R["o_top"] + R["o_bot"]) - (B["o_top"] + B["o_bot"])
+                assert abs(moved_centre - (xh - 500)) < 0.1, \
+                    (f"{where}: the `o` spans {R['o_bot']:.2f} to {R['o_top']:.2f} (xh 500: {B['o_bot']:.2f} to {B['o_top']:.2f}); "
+                     f"its centre moved by {moved_centre / 2:.2f}, expected {(xh - 500) / 2}")
+                grown = (R["o_top"] - R["o_bot"]) - (B["o_top"] - B["o_bot"])
+                assert abs(grown - (xh - 500)) < 2, f"{where}: the `o` grew by {grown:.2f} from xh 500, expected {xh - 500}"
+                assert abs(R["n_stem_top"] - xh) < 0.05, f"{where}: the `n` stem ends at {R['n_stem_top']:.2f}, expected the x-line {xh}"
+                assert abs(R["z_top"] - xh) < 0.1, f"{where}: the `z` bar's top edge is at {R['z_top']:.2f}, expected the x-line {xh}"
+                assert abs(R["dash_cy"] - 260 * xh / 500) < 0.1, f"{where}: the `-` is centred at {R['dash_cy']:.2f}, expected {260 * xh / 500}"
+                assert abs(R["d_stem_top"] - 740) < 0.05, f"{where}: the `d` stem ends at {R['d_stem_top']:.2f}, expected 740"
+                # the bowl's top, like the ring's, against the same face at xh 500 (measured within 0.45 of the change on the three examples)
+                assert abs((R["d_bowl_top"] - B["d_bowl_top"]) - (xh - 500)) < 1, \
+                    f"{where}: the `d` bowl tops out at {R['d_bowl_top']:.2f} (xh 500: {B['d_bowl_top']:.2f}), expected it {xh - 500} higher"
+                for k in ("H_top", "O_top", "zero_top", "l_top"):
+                    assert abs(R[k] - B[k]) < 0.01, f"{where}: {k} moved from {B[k]:.2f} to {R[k]:.2f}; capitals, figures and ascenders do not follow xh"
+                # H and l end in butts and flats, so their lines are exact; the round O's overshoot is the face's, as the `o`'s is (above)
+                assert abs(R["H_top"] - 700) < 0.05 and abs(R["l_top"] - 740) < 0.05, f"{where}: H {R['H_top']}, l {R['l_top']}"
+                assert all(abs(a - b) < 0.01 for a, b in zip(R["apos"], B["apos"])), f"{where}: the apostrophe moved from {B['apos']} to {R['apos']}"
+                W = out["W0"] * mult
+                rd = W * out["dot"]
+                low, high = R["colon"]
+                assert abs(low - (rd - 4)) < 0.05 and abs(high - (xh - rd + 4)) < 0.05, \
+                    f"{where}: the colon's dots are centred at {low:.2f} and {high:.2f}, expected {rd - 4:.2f} and {xh - rd + 4:.2f}"
+                assert len(R["i_dot"]) == 1 and abs(R["i_dot"][0] - ymap(680, xh)) < 0.05, f"{where}: the `i` dot is at {R['i_dot']}, expected {ymap(680, xh):.2f}"
+                assert R["shape_diff"] is None, f"{where}: {R['shape_diff']!r} has a different polygon or point count than at xh 500"
 
 
 BRANCH_FIXTURE = r"""

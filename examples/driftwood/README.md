@@ -13,20 +13,25 @@ later, is `references/examples/driftwood.md`.
 Files: `font.json` (roman group: Regular `×1`, Bold `×1.65`, `avar` user 500 → design 538 for the
 `×1.3` Medium; italic group at 10°: Regular `×1`, Medium `×1.3`, axis 400–500; the kern set with
 threshold 8, the hand, space, italic hand and italic space pairs; three public page titles as
-character-set illustrations) and `concepts.js` (Driftwood, the concept that shipped, and the three
-it was chosen over: Tideline, Dune, Windswept).
+character-set illustrations), `concepts.js` (Driftwood, the concept that shipped, and the three
+it was chosen over: Tideline, Dune, Windswept) and `requirements.json` (since 0.7.1: the expectations
+the font suite compares this example's build against, every value measured from that build or copied
+from `font.json`, so the suite runs on a second face beside the Sampler; `smoke.sh` step 4a).
 
 ## Build
 
 ```
 node scripts/export.js --font examples/driftwood/font.json --group roman out/driftwood-roman.json
 node scripts/export.js --font examples/driftwood/font.json --group italic out/driftwood-italic.json
-.venv/bin/python3 scripts/build.py --font examples/driftwood/font.json --no-requirements
+.venv/bin/python3 scripts/build.py --font examples/driftwood/font.json
+.venv/bin/python3 -m pytest scripts/tests/test_font.py -q --font examples/driftwood/font.json --requirements examples/driftwood/requirements.json --static-dir none
 ```
 
-`--no-requirements` because this example carries no `requirements.json` (the site's reviewed
-expectations live in its own test file); `build.py` otherwise refuses to build without the
-required-character check, and the manifest records `requirements: null`.
+`build.py` reads the `requirements.json` beside `font.json` for the required-character check. Its
+`hand_kerns` list the non-zero hand pairs only: a zero pair (`f|f`) suppresses the automatic kern and
+is not emitted, so there is no value to compare. Until 0.7.1 this example carried no
+`requirements.json` and was built with `--no-requirements`; the suite ran on the Sampler alone, and
+two of its tests held only for the Sampler's proportions (`CHANGELOG.md`, 0.7.1).
 
 The output is `out/DriftwoodExample-VF.woff2` and `out/DriftwoodExample-Italic-VF.woff2` under the
 neutral name table. **What shipped, as history:** the site's five statics carried copyright,

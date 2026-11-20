@@ -4,12 +4,12 @@ description: Design, build and ship a custom display typeface for a website as a
 license: MIT
 compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow, uharfbuzz, unicodedata2), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
 metadata:
-  version: 0.7.0
+  version: 0.7.1
 ---
 
 # font-design
 
-**Version 0.7.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
+**Version 0.7.1** — the single source of truth is the `VERSION` file at the repo root; this line, the
 frontmatter and the README badge are checked against it by `tests/test_versions_and_skill.py`. **Say
 this version number when you begin**, so the operator knows which copy answered.
 
@@ -481,6 +481,6 @@ Do not ship while any of these holds (finding F015):
 - `references/fallbacks.md` — when the strongest model, Impasse, Codex, frontend-design, Chrome, Playwright or artifacts are absent.
 - `references/examples/bract.md` — the full-process worked example; `references/examples/driftwood.md` — the earlier precedent (static union pipeline, five CFF files) whose lessons and bugs shaped the skill.
 - `templates/` — `font.example.json`, `requirements.example.json`, `concepts.example.js`, `font-record.md`, `plan.md`, the three reviewer briefs, the two Impasse instructions, the two schemas, `platform-shots.yml` (the caller a site copies; the legs live in the skill's `.github/workflows/platform-shots-reusable.yml`).
-- `examples/neutral/` — the smoke fixture ("Sampler": roman with two axes, italic with one). It is a finished sample with two concepts for speed, its floors and `opsz` ends are the fixture's rather than measured from a site, and its content JSON is sample text, audit section included; a real run writes about six round-1 concepts and sets its floors from its own measurements. `examples/bract/`, `examples/driftwood/` — the two faces' parameters and configuration under neutral name tables ("Bract Example", "Driftwood Example"), MIT like the rest of the repo, no font files.
+- `examples/neutral/` — the smoke fixture ("Sampler": roman with two axes, italic with one). It is a finished sample with two concepts for speed, its floors and `opsz` ends are the fixture's rather than measured from a site, and its content JSON is sample text, audit section included; a real run writes about six round-1 concepts and sets its floors from its own measurements. `examples/bract/`, `examples/driftwood/` — the two faces' parameters and configuration under neutral name tables ("Bract Example", "Driftwood Example"), MIT like the rest of the repo, no font files; the Driftwood example also carries a `requirements.json`, so the font suite runs on it as a second face (`smoke.sh` step 4a).
 - `docs/plan.md` — the plan this repo was built from, with its independent review (F001–F015).
 - `scripts/smoke.sh` — the pre-publish run: build the three fixtures, run the suites and mutations, build and shoot the concept pages.
