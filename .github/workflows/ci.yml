@@ -23,13 +23,22 @@ name: ci
 #            node --check.
 
 # TRIGGERS (2026-11-20): the test matrix and the chrome job take 47-81 minutes each, and push plus pull_request ran
-# them twice for every pull request branch. Now lint runs once when a pull request is opened or reopened, not on
-# later pushes to it, and on a manual run. The test and chrome jobs run only on a manual run:
+# them twice for every pull request branch. They now run only on a manual run:
 #   gh workflow run ci.yml -R windaddict/font-design-skill --ref <branch>
 # Start one before merging a change to the scripts or bumping a site's pin. Nothing runs on push.
+# The lint job takes seconds, so it runs on every push to a pull request that changes a file it lints, its
+# config or this workflow (the paths below match eslint.config.js's `files`, scripts/smoke.sh for shellcheck,
+# and package.json, which defines the lint commands), and on a manual run. A docs-only push runs nothing.
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
+    paths:
+      - scripts/*.js
+      - scripts/concepts/*.js
+      - scripts/smoke.sh
+      - eslint.config.js
+      - package.json
+      - .github/workflows/ci.yml
   workflow_dispatch:
 
 jobs:

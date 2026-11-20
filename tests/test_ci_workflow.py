@@ -639,19 +639,33 @@ def test_the_leg_decision_matches_whole_words_and_refuses_an_unknown_one(tmp_pat
     assert code == 1 and "empty" in err, f"an empty browsers input must fail the leg: {code} {err!r}"
 
 
-def test_ci_runs_lint_once_per_pull_request_and_the_long_jobs_only_by_hand():
+def test_ci_lints_pull_request_pushes_that_touch_linted_files_and_runs_the_long_jobs_only_by_hand():
     """The test matrix and the chrome job take 47-81 minutes each (run 44771965331, 2026-11-20), and `push` plus `pull_request` ran them twice
-    for every pull request branch. So: no `push` trigger; `pull_request` only on opened and reopened, so a later push to the pull request
-    runs nothing; `workflow_dispatch` for the long jobs, which are gated on it; lint ungated, so it runs on both. A YAML structure assertion
-    is unavoidable: GitHub evaluates the triggers and the `if:`, the suite cannot. Mutations watched red on 2026-11-20: `push:` added;
-    the `types` line removed; `synchronize` added to the types; the chrome job's `if:` removed."""
+    for every pull request branch. So: no `push` trigger; `workflow_dispatch` for the long jobs, which are gated on it. Lint takes seconds and
+    is ungated: it runs on every push to a pull request (`synchronize`) whose diff touches a file it lints, its config, package.json or this
+    workflow, so a later commit is checked and a docs-only push runs nothing. A YAML structure assertion is unavoidable: GitHub evaluates
+    the triggers, the path filter and the `if:`, the suite cannot. Mutations watched red on 2026-11-20: `push:` added;
+    the `types` line removed; the chrome job's `if:` removed; `synchronize` removed; `scripts/smoke.sh` dropped from `paths`; `paths` removed."""
     doc = load(WORKFLOW)
     on = doc["on"]
     assert "push" not in on, f"ci.yml must not run on push: {list(on)}"
     assert set(on) == {"pull_request", "workflow_dispatch"}, f"triggers: {list(on)}"
-    assert (on["pull_request"] or {}).get("types") == ["opened", "reopened"], \
-        f"a pull request must run CI once, not on every push to it: {on['pull_request']!r}"
+    pr = on["pull_request"] or {}
+    assert pr.get("types") == ["opened", "reopened", "synchronize"], f"lint must run on every push to a pull request: {pr!r}"
+    want = {"scripts/*.js", "scripts/concepts/*.js", "scripts/smoke.sh", "eslint.config.js", "package.json", ".github/workflows/ci.yml"}
+    assert set(pr.get("paths") or []) == want, f"the path filter must be exactly what lint reads: {pr.get('paths')!r}"
     jobs = doc["jobs"]
     for job in ("test", "chrome"):
         assert jobs[job].get("if") == "github.event_name == 'workflow_dispatch'", f"the {job} job must run only on a manual run"
     assert "if" not in jobs["lint"], "the lint job must run on every trigger"
+
+
+def test_the_lint_path_filter_covers_every_file_eslint_lints():
+    """The path filter and eslint.config.js's `files` are two lists of the same thing; a glob added to the config and not to the filter
+    would leave those files unlinted on a pull request. Reads the config's first `files` array as text.
+    Mutation watched red on 2026-11-20: `templates/*.js` added to the config's `files` and not to the filter."""
+    text = (REPO / "eslint.config.js").read_text(encoding="utf-8")
+    files = re.search(r"files:\s*\[([^\]]*)\]", text).group(1)
+    globs = set(re.findall(r'"([^"]+)"', files))
+    paths = set(load(WORKFLOW)["on"]["pull_request"]["paths"])
+    assert globs <= paths, f"eslint lints {sorted(globs - paths)} but the pull request path filter does not list them"
