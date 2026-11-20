@@ -8,10 +8,12 @@ file, repeated in `SKILL.md` and the README badge and checked by the tests.
 ### Changed
 - **CI's long jobs run only by hand.** The test matrix and the `chrome` job took 47 to 81 minutes each, and the
   `push` and `pull_request` triggers ran them twice for every pull request branch. `ci.yml` no longer runs on push.
-  The `lint` job runs once when a pull request is opened or reopened, not on later pushes to it, and on a manual
-  run; the `test` and `chrome` jobs run only on a manual run (`gh workflow run ci.yml --ref <branch>`). Start one
-  before merging a change to the scripts or bumping a site's pin. `test_ci_runs_lint_once_per_pull_request_and_the_long_jobs_only_by_hand`
-  holds the triggers.
+  The `test` and `chrome` jobs run only on a manual run (`gh workflow run ci.yml --ref <branch>`); start one before
+  merging a change to the scripts or bumping a site's pin. The `lint` job runs on a manual run and on every push to a
+  pull request that changes a file it lints, `eslint.config.js`, `package.json` or `ci.yml`; a docs-only push runs
+  nothing. (#19 first ran lint only when a pull request opened, which left later commits unchecked.)
+  `test_ci_lints_pull_request_pushes_that_touch_linted_files_and_runs_the_long_jobs_only_by_hand` holds the triggers,
+  and `test_the_lint_path_filter_covers_every_file_eslint_lints` holds the filter to the ESLint config.
 
 ### Added
 - **`CLAUDE.md`: how much to test for a change.** Rules for an agent developing the skill: five layers from one
