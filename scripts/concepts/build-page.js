@@ -15,7 +15,15 @@
  * parser never sees as a tag (a title containing "</script>" cannot end the block).
  *
  *     node build-page.js --template round1|round2|round3|PATH --concepts C.js --content C.json
- *                        [--gen ../gen.js] [--render ../render.js] OUT.html
+ *                        [--skeletons tools/<face>/skeletons.js] [--gen ../gen.js] [--render ../render.js] OUT.html
+ *
+ * --skeletons names the face's skeleton override (the file font.json's `skeletons` key names; references/generator.md,
+ * "Per-face skeletons"), so the page draws the face's own letters. The file is first applied to a fresh gen.js in a child
+ * node, so a malformed override is refused here with gen.js's message and no page is written; then it is spliced right
+ * after gen.js, wrapped in a function so the only top-level name it adds is SKELETONS, followed by the call to
+ * applySkeletons and one line that sets data-fd-skeletons on <html> to the keys the call overrode or added, which the
+ * browser can only do once the call has returned (the page's evidence, read by shoot.py --dump-dom). Without the flag
+ * nothing is spliced and the page is the one 0.5.0 built.
  *
  * It refuses (exit 1, naming the marker) when a marker appears other than exactly once, parses the
  * assembled main script with new Function so a syntax error fails here and not in the browser, and
@@ -45,9 +53,9 @@ var MARKERS = ["/*GEN*/", "/*RENDER*/", "/*CONCEPTS*/", "/*CONTENT*/"];
 
 function fail(msg) { console.error("build-page.js: " + msg); process.exit(1); }
 
-// options: --template roundN|PATH, --concepts PATH, --content PATH, OUT.html; and --gen PATH / --render PATH to
-// splice another gen.js or render.js (a site's copy of gen.js patched to load its extra-glyphs.js, so the
-// concept pages draw a glyph the site carries; references/generator.md, "Adding glyphs")
+// options: --template roundN|PATH, --concepts PATH, --content PATH, OUT.html; --skeletons PATH, the face's skeleton
+// override (above); and --gen PATH / --render PATH to splice another gen.js or render.js (kept for a site still on the
+// copy-and-patch convention that 0.6.0's --skeletons replaces)
 function args(argv) {
   var o = { out: null };
   for (var i = 0; i < argv.length; i++) {
@@ -73,6 +81,38 @@ function stripExports(src, name) {
   var block = /^if \(typeof module !== "undefined"\) \{\s*module\.exports = [\s\S]*?;\s*\}\s*$/;
   if (!oneLine.test(tail) && !block.test(tail)) fail(name + ": the export block is not the last thing in the file, or has an unexpected shape: " + tail.slice(0, 80));
   return src.slice(0, i);
+}
+
+/* The override's splice: the file applied to a fresh gen.js in a child node first (so every refusal of applySkeletons fires
+   here, with its message, before a page exists), then its source with the export block removed, wrapped so its own top-level
+   declarations stay inside a function, the call, and the evidence line. Returns { text, report }. */
+var APPLY_JS = 'try { const m = require(process.argv[1]); const r = m.applySkeletons(require(process.argv[2]), require("path").basename(process.argv[2]));' +
+  ' process.stdout.write(JSON.stringify(r)); } catch (e) { process.stderr.write(e.message); process.exit(1); }';
+function skeletonsSplice(file, genPath) {
+  if (!fs.existsSync(file)) fail("--skeletons names no file: " + file);
+  var name = path.basename(file);
+  var raw = fs.readFileSync(file, "utf8"), src = stripExports(raw, file);
+  // the page reads the function by the name SKELETONS, node by module.exports, so a file can pass node and leave the page
+  // without its override (an anonymous export, or SKELETONS set only where `module` exists: diff review F001 and its re-review).
+  // Rather than match the file's text, run the page's own wrapper as a page would, with gen.js's names and no `module`, and
+  // require it to return a function
+  var asPage;
+  try {
+    asPage = require("vm").runInNewContext("(function () {\n" + src + "\n;return SKELETONS; })()", Object.assign({}, require(genPath)), { filename: file });
+  } catch (e) { asPage = e; }
+  if (typeof asPage !== "function") {
+    fail("--skeletons " + file + " must declare SKELETONS and export it: var SKELETONS = function (G, GI, S, D, ring) { ... }; " +
+         'if (typeof module !== "undefined") module.exports = SKELETONS;');
+  }
+  var sha = require("crypto").createHash("sha256").update(raw).digest("hex");
+  var r = require("child_process").spawnSync(process.execPath, ["-e", APPLY_JS, genPath, file], { encoding: "utf8" });
+  if (r.status !== 0) fail("--skeletons " + file + " is refused by " + genPath + ": " + (r.stderr || "").trim());
+  var report = JSON.parse(r.stdout);
+  var text = "var SKELETONS = (function () { /* ---- skeletons: " + name + " ---- */\n" + src + "\n;return SKELETONS; })();\n" +
+    "document.documentElement.setAttribute(\"data-fd-override-sha256\", " + JSON.stringify(sha) + ");\n" +
+    "document.documentElement.setAttribute(\"data-fd-skeletons\", (function (r) { return r.overridden.concat(r.added).join(\",\"); })(applySkeletons(SKELETONS, " +
+    JSON.stringify(name) + ")));\n";
+  return { text: text, report: report };
 }
 
 function jsonForScript(obj) {
@@ -231,6 +271,7 @@ function main() {
   var gen = stripExports(fs.readFileSync(genPath, "utf8"), genPath);
   var render = stripExports(fs.readFileSync(renderPath, "utf8"), renderPath);
   var concepts = stripExports(fs.readFileSync(conceptsPath, "utf8"), conceptsPath);
+  var skeletons = o.skeletons ? skeletonsSplice(path.resolve(o.skeletons), genPath) : null;
   var list = require(genPath).loadConcepts(conceptsPath);
   var params = require(genPath).params;
   list.forEach(function (c) { params(c, 1, false); }); // a concept gen.js refuses must fail here, not in the browser
@@ -246,16 +287,24 @@ function main() {
   }
   // the template's script shares one function scope with the spliced sources, so a top-level name
   // declared in both silently overwrites (gen.js's ROUND table once became the string "round3")
-  function topNames(src) { var out = {}, re = /^(?:var|function)\s+([A-Za-z_$][\w$]*)/gm, m; while ((m = re.exec(src))) out[m[1]] = true; return out; }
-  var ours = topNames((template.match(/<script>([\s\S]*?)<\/script>/) || ["", ""])[1]);
+  // (var, function, let, const and class are all read since 0.6.0; a let or const clash is a SyntaxError in the browser)
+  function topNames(src) { var out = {}, re = /^(?:var|function|let|const|class)\s+([A-Za-z_$][\w$]*)/gm, m; while ((m = re.exec(src))) out[m[1]] = true; return out; }
+  var templateScript = (template.match(/<script>([\s\S]*?)<\/script>/) || ["", ""])[1];
+  var ours = topNames(templateScript);
   var theirs = topNames(gen + "\n" + render + "\n" + concepts);
   var clash = Object.keys(ours).filter(function (n) { return theirs[n]; });
   if (clash.length) fail("the template declares top-level names that gen.js, render.js or concepts.js also declare: " + clash.join(", "));
-  [gen, render, concepts].forEach(function (src, i) {
-    if (/<\/script/i.test(src)) fail(["gen", "render", "concepts"][i] + " contains '</script', which would end the page's script block");
+  // the override's splice declares one top-level name, SKELETONS, and sets one attribute, data-fd-skeletons; neither may be
+  // anyone else's (its own declarations sit inside the wrapper function, so they cannot clash with gen.js's DEG and the like)
+  if (skeletons) {
+    if (ours.SKELETONS || theirs.SKELETONS) fail("--skeletons: the template, gen.js, render.js or concepts.js already declare SKELETONS, the one name the override's splice adds");
+    if (/data-fd-skeletons/.test(template + gen + render + concepts)) fail("--skeletons: data-fd-skeletons is already used by the template or a source; the splice sets it");
+  }
+  [gen, render, concepts].concat(skeletons ? [skeletons.text] : []).forEach(function (src, i) {
+    if (/<\/script/i.test(src)) fail(["gen", "render", "concepts", "skeletons"][i] + " contains '</script', which would end the page's script block");
   });
   var page = template
-    .replace("/*GEN*/", function () { return "/* ---- gen.js ---- */\n" + gen; })
+    .replace("/*GEN*/", function () { return "/* ---- gen.js ---- */\n" + gen + (skeletons ? "\n" + skeletons.text : ""); })
     .replace("/*RENDER*/", function () { return "/* ---- render.js ---- */\n" + render; })
     .replace("/*CONCEPTS*/", function () { return "/* ---- concepts.js ---- */\n" + concepts; })
     .replace("/*CONTENT*/", function () { return jsonForScript(content); });
@@ -268,7 +317,9 @@ function main() {
   if (/<|>|&|\u2028|\u2029/.test(block[1])) fail("internal: the JSON block still contains < > & or a line separator");
   fs.mkdirSync(path.dirname(path.resolve(o.out)), { recursive: true });
   fs.writeFileSync(o.out, page);
-  console.log(o.out + ": " + round + ", " + conceptIds.length + " concept(s) [" + conceptIds.join(", ") + "], " + page.length + " bytes, script parses");
+  console.log(o.out + ": " + round + ", " + conceptIds.length + " concept(s) [" + conceptIds.join(", ") + "], " +
+    (skeletons ? "skeletons " + path.basename(o.skeletons) + " (" + skeletons.report.overridden.concat(skeletons.report.added).join(", ") + "), " : "") +
+    page.length + " bytes, script parses");
 }
 
 main();

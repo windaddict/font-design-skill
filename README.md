@@ -1,6 +1,6 @@
 # font-design — a Claude Code skill for making a website its own typeface
 
-![version](https://img.shields.io/badge/version-0.5.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
+![version](https://img.shields.io/badge/version-0.6.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
 
 A skill that designs, builds and ships a custom display typeface for a website as a self-hosted
 variable web font. The face is generated from centre-line skeletons by a parametric generator, chosen

@@ -427,3 +427,40 @@ def test_the_schema_accepts_null_and_rejects_a_positive_sparse_cap():
         cfg["kerning"]["sparse_cap"] = bad
         with pytest.raises(jsonschema.ValidationError):
             jsonschema.validate(cfg, FONT_SCHEMA)
+
+
+def test_the_schema_accepts_the_key_and_rejects_a_non_js_value():
+    """0.6.0's `skeletons` key (references/generator.md, "Per-face skeletons"): the fixture font.json that names an override
+    validates; a number, a .json file and a path with a directory part are rejected (review F008: the manifest keys the override
+    by its bare file name, as export.js and build.py also require); templates/font.example.json still validates without the key.
+    Mutations watched red (references/testing.md section 8): M18 the key removed from the schema (the valid case then fails on
+    additionalProperties), M18' the pattern loosened to \\.js$ (the subdirectory case then validates)."""
+    fixture = json.loads((REPO / "tests" / "fixtures" / "skeletons" / "font.json").read_text())
+    jsonschema.validate(fixture, FONT_SCHEMA)
+    for bad in (3, "a.json", "sub/skeletons.js", "sub\\skeletons.js"):
+        cfg = dict(fixture, skeletons=bad)
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(cfg, FONT_SCHEMA)
+    example = json.loads((REPO / "templates" / "font.example.json").read_text())
+    assert "skeletons" not in example
+    jsonschema.validate(example, FONT_SCHEMA)
+
+
+def test_the_export_schema_accepts_the_override_record(tmp_path):
+    """An export drawn with an override carries `skeletons` and `skeletonsSha256` (export.js, when font.json names the key), and the
+    export schema has additionalProperties false at the top level, so both are declared there: the neutral roman group exported
+    with the fixture's empty override validates against the whole schema, and a sha256 that is not 64 hex characters is rejected."""
+    proj = tmp_path / "p"
+    proj.mkdir()
+    fx = REPO / "tests" / "fixtures" / "skeletons"
+    for name in ("concepts.js", "requirements.json"):
+        shutil.copyfile(REPO / "examples" / "neutral" / name, proj / name)
+    shutil.copyfile(fx / "font.json", proj / "font.json")
+    shutil.copyfile(fx / "empty.js", proj / "skeletons.js")
+    r = run([node(), str(REPO / "scripts" / "export.js"), "--font", str(proj / "font.json"), "--group", "roman", str(tmp_path / "e.json")])
+    assert r.returncode == 0, r.stderr[-1500:]
+    data = json.loads((tmp_path / "e.json").read_text())
+    assert data["skeletons"] == "skeletons.js" and len(data["skeletonsSha256"]) == 64
+    jsonschema.validate(data, EXPORT_SCHEMA)
+    with pytest.raises(jsonschema.ValidationError, match="skeletonsSha256|does not match"):
+        jsonschema.validate(dict(data, skeletonsSha256="abc"), EXPORT_SCHEMA)

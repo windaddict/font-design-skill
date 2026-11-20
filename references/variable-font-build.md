@@ -200,7 +200,8 @@ wght-only italic (the Driftwood example). A one-axis group still needs two maste
 ## 11. The export JSON contract (templates/export.schema.json)
 
 One file per group, `schema: "font-design/export/v1"`. Top level: `family`, `group`, `italic`,
-`italicAngle`, `eps`, `foldUnits`, `masters`. Per master: `concept`, `mult`, `location`, `W`,
+`italicAngle`, `eps`, `foldUnits`, `masters`, and, only when `font.json` names a `skeletons` file, `skeletons` (its
+name) and `skeletonsSha256` (the sha256 of the file the export applied). Per master: `concept`, `mult`, `location`, `W`,
 `thin`, `track`, `space` (the word space in units), `minStrokeWidth` and `minStrokeAt` (`"r stroke 1"`),
 `foldedEdges`, `maxBackwardExcursion {raw, decimated}`, `worstFoldAt`, `glyphs`, `kerns`
 (`[left, right, value]` triples, the same pair list in every master), `titles` (title → laid width
@@ -211,7 +212,11 @@ has no interior sample, since Infinity has no JSON form), `minwStroke`.
 
 `build.py` re-checks what matters rather than trusting these figures: with `--masters JSON` it
 compares branch records and point structure across masters and recomputes the fold measure in
-Python from the polygons (re-review finding F001: the first `--masters` path bypassed both).
+Python from the polygons (re-review finding F001: the first `--masters` path bypassed both). It also
+refuses an export whose `skeletons` differs from `font.json`'s key (present in one and not the other, or another
+name) or whose `skeletonsSha256` is not the file's sha256 now, naming both values (0.6.0; review F002 of
+`docs/plan-skeleton-overrides.md`): `--masters` never runs `export.js`, so without that an export drawn before an
+edit of the override would be built and recorded under the new file's hash.
 
 ## 12. font.json, key by key (templates/font.schema.json)
 
@@ -224,6 +229,7 @@ is a valid instance. Paths are relative to the file.
 | `family` | yes | the family name in the name table and the default file name (`<Family>-VF.woff2`); no path characters |
 | `version` | yes | `major.minor[.patch]`; the name table's version string |
 | `concepts` | yes | path to `concepts.js` |
+| `skeletons` | no | the face's skeleton override (0.6.0): a **bare** `.js` file name beside `font.json`, no directory part, not one of `gen.js`, `export.js`, `build.py`, `font.json`, `concepts.js`; its function edits the generator's skeleton tables before anything is drawn (`references/generator.md`, "Per-face skeletons"). Hashed into the manifest's `sources_sha256` under its name, beside the five sources, and named in the manifest's `skeletons`. Absent: neither appears and the build is what 0.5.0 built |
 | `out_dir` | yes | where the woff2 (and `--ttf`) land; `manifest` overrides the manifest path (default `<out_dir>/manifest.json`) |
 | `groups` | yes | one entry per font file, lowercase names (`roman`, `italic`) |
 | `groups.*.italic` | yes | `true` builds the group with the italic skeletons and metadata |
@@ -312,7 +318,7 @@ line prints the figure to compare. Elements with an explicit `line-height` are n
 node scripts/export.js --font font.json [--group roman] [--eps 1] [--requirements requirements.json] out/roman.json
 .venv/bin/python3 scripts/build.py --font font.json                 # export, build, self-check, write woff2 + manifest
 .venv/bin/python3 scripts/build.py --font font.json --check         # rebuild to a temp dir; exit 1 if the shipped bytes differ
-.venv/bin/python3 scripts/build.py --font font.json --group roman --masters out/roman.json   # reuse an export; it is re-checked, never trusted
+.venv/bin/python3 scripts/build.py --font font.json --group roman --masters out/roman.json   # reuse an export; it is re-checked, never trusted, and refused when drawn with another skeletons file (or none)
 .venv/bin/python3 scripts/build.py --font font.json --static out/static        # static instances for modern renderers, overlaps kept
 .venv/bin/python3 scripts/build.py --font font.json --group roman --ttf out/Family-VF.ttf    # also write the TTF for inspection; never ship it
 .venv/bin/python3 scripts/build.py --font font.json --out-dir /tmp/try          # a whole build elsewhere: woff2s AND manifest in that directory (the `manifest` key is ignored)

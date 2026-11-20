@@ -405,7 +405,8 @@ maps or derives them from the apostrophe.
 To add a character:
 
 1. **A new skeleton.** Add `G["@"] = [S(...), ...]` with coordinates on the standard lines
-   (section 7) and end types from section 2. Decide joints by placing stroke ends within 2 units
+   (section 7) and end types from section 2: in a project, in the face's `skeletons` file (section
+   "Per-face skeletons", below); in the skill's own repository, in `G` itself. Decide joints by placing stroke ends within 2 units
    of each other. If the italic needs its own form, add `GI["@"]`; otherwise the roman is slanted.
 2. **A composite rule.** Accented letters are the base skeleton plus a mark:
    `G["ő"] = G.o.concat(acute(290))` for lowercase marks (`acute`, `grave`, `circ`, `diaer`,
@@ -458,6 +459,10 @@ departure), and a later change that moves them is a regression unless its change
 version**: the generator's floating-point output depends on both, so the digests are keyed `darwin/26`, `linux/22` and so on, and a platform that is
 not recorded has no promise until it is recorded from the baseline commit. The raw woff2 bytes are a separate claim, also per brotli version. The branch
 record is not part of it; it gains tokens (section 12), and only a curl end (`curlsg`), a set `crotch` or a T-join end (`tee`) writes one.
+
+0.6.0 adds the optional `skeletons` key (section "Per-face skeletons"); a project without it builds to the 0.5.0 digests, held by the same
+unchanged fixture. A project with it differs from one without in the override's record (two export fields, one manifest key, the sixth
+source hash and `font.json`'s own hash) and in whatever the override draws.
 
 ## 12. The branch record, and why the exporter refuses masters
 
@@ -593,27 +598,121 @@ need a per-glyph exception list or a construction a design review would send bac
 normal signs of the `4`'s joints. The table is the measurement to reproduce first. Until then the nearest things that exist are `crotch`
 (section 4), which opens the counter without moving the point, and `joints`, a level cut at the line.
 
-## Adding glyphs in a site without forking the generator
+## Per-face skeletons: the `skeletons` file
 
-A site's copy of the generator lives at `tools/<face>/scripts/gen.js`, and a glyph the site needs
-(a character the skeleton table lacks) is added there. Editing that file forks it from the skill's
-`scripts/gen.js`, and the next skill update then has to be merged by hand. Convention (a convention
-the skill asks for, not a mechanism `gen.js` has today): keep the site's additions in
-`tools/<face>/scripts/extra-glyphs.js`, a module that exports a function taking `(G, GI, S, D, ring)`
-and adding entries, and make the site's `gen.js` load it with a three-line patch at the end of the
-skeleton section:
+WHAT IT'S FOR: a face sometimes needs its own form of a letter the shared tables draw for everyone (Bract's
+`n`, `m`, `h` and `r`, whose shoulder showed a nick where the head serif meets the arch), or a glyph the
+tables lack. Since 0.6.0 that goes in one project file named by `font.json`, not in an edited copy of
+`gen.js`, so a skill update can replace `scripts/` wholesale and the edit is hashed into the manifest like
+any other source. The design record is `docs/plan-skeleton-overrides.md`.
+
+**The contract.** `font.json` gains `"skeletons": "skeletons.js"`: a **bare file name** beside `font.json`
+(no directory part, ending `.js`; `export.js`, `build.py` and `templates/font.schema.json` all refuse
+anything else, and `build.py` refuses the five names the manifest already hashes). The file has the shape
+of `concepts.js`, a CommonJS module in node and a script leaving one global when spliced into a page. The
+file must set `SKELETONS` unconditionally and export that: node reads `module.exports`, a concept page reads
+`SKELETONS`. `build-page.js --skeletons` runs the file as a page would (with `gen.js`'s names and no `module`)
+and refuses it unless `SKELETONS` is then a function, so an anonymous `module.exports = function ...`, or a
+`SKELETONS` set only inside `if (typeof module !== "undefined")`, fails the build instead of leaving the page
+without the override:
 
 ```js
-// site additions, kept out of the skill's file so it can be replaced wholesale
-var EXTRA = require("path").join(__dirname, "extra-glyphs.js");
-if (require("fs").existsSync(EXTRA)) require(EXTRA)(G, GI, S, D, ring);
+// tools/<face>/skeletons.js
+var SKELETONS = function (G, GI, S, D, ring) {
+  G.n[1] = S("M 90 480 C 170 510 225 510 290 510 C 410 510 460 440 460 330 L 460 0", "", "s");
+};
+if (typeof module !== "undefined") module.exports = SKELETONS;
 ```
 
-Record the patch in the font record. To take a skill update: copy the new `scripts/gen.js` over the
-site's, re-apply the three lines, rebuild, and run the suite; `test_the_shipped_fonts_match_their_manifest`
-goes red until the rebuild, which is the point. Additions that belong to everyone (a missing
-punctuation mark, a currency sign) are a separate change to the skill's own repository, never an edit of the
-installed copy during a project: draw the glyph in the site's `extra-glyphs.js` for this project, then, only
-on the operator's word, add it as a skeleton in `G` in a checkout of the skill repository with its own tests
-and review. The project picks it up with the next skill update (the paragraph above), after which its
-`extra-glyphs.js` entry is deleted.
+The function edits the two live tables in place: it replaces an entry, edits a stroke inside one
+(`G.t[0].a = "s"`), or adds a key. Its return value is ignored. It receives the three constructors of
+section 2 and nothing else: the mark helpers (`acute`, `grave`, `circ`, `diaer`, `tilde`, `raise`,
+`exitStem`) are private, so an override that needs a mark writes its strokes itself. One file serves every
+group and every master of the face; there are no per-master or per-concept skeletons (masters of one group
+must share a skeleton to interpolate).
+
+**When it runs.** `export.js` calls `applySkeletons(fn, name)` once, after loading the concepts and before
+listing or drawing any glyph, and prints one stderr line, for example
+`skeletons skeletons.js: overrides G h, G m, G n, G r; re-derives G ñ` (with `adds ...` for new keys, or
+`changes nothing`). It writes `skeletons` (the name) and `skeletonsSha256` (the file's sha256) into the
+export JSON, only when the key is set. `build.py` hashes the file into `sources_sha256` under its name and
+records `skeletons` in the manifest, again only when set, so `--check`, the site suite's manifest test and a
+site's font-diff see an edit to it as they see an edit to `gen.js`. `build-page.js --skeletons PATH` does
+the same for a concept page (`references/concept-pipeline.md` section 8). A second `applySkeletons` call in
+one process throws.
+
+`applySkeletons` does, in order: copies every entry in place (so no two keys share a stroke object, and an
+edit of `G.n[1]` reaches `G.n` only) and keeps the JSON of each; calls the function; applies the refusals
+below; rebuilds the derived glyphs it did not touch; empties the glyph and kern cache; and returns
+`{ overridden, added, rederived }`.
+
+**Derived glyphs follow their base.** Every glyph built from a base at load is registered with
+`derive(table, key, build)` (the list is `DERIVED` in the exports), and the rebuild assigns it again from
+the overridden tables, in place, so the glyph order does not move:
+
+| Table | Base | Derived keys |
+|---|---|---|
+| `G` | `a` `e` `o` `u` | `á à â ä ā`, `é è ê ë`, `ó ò ô ö`, `ú ù û ü` |
+| `G` | `n` `c` `s` | `ñ`, `ç`, `š` |
+| `G` | `A E I O U N C` | `Á À Â Ä`, `É È Ê Ë`, `Í Ï`, `Ó Ô Ö`, `Ú Ü`, `Ñ`, `Ç` |
+| `GI` | `a` `e` `u` `n` | `ā á à â ä`, `é è ê ë`, `ú ù û ü`, `ñ` |
+
+The rule is **touched or followed**, decided by content, not by reference: a derived key the override
+changed itself (assigned whole, or edited inside) is the override's and is not rebuilt; one it left alone
+follows its base. Not derived, so never rebuilt: `í ì î ï` in both tables (built on a literal dotless stem,
+so an override of `i` does not reach them), `©`, `™` and `•` (authored glyphs that sit among the composites),
+the ligatures `fi fl ff` (authored; an override of `f` or `i` does not reach them), and `GI`'s capitals (merged
+at load, before any override).
+
+**The italic falls back to the roman entry.** `glyph()` reads `GI[key]` and then `G[key]` from the live
+tables at draw time, so a `G` override reaches the italic for every key `GI` lacks (`t`, and every roman key
+outside `GI`). Adding `GI.t` gives the italic its own form. A `G` override leaves an existing `GI` entry
+alone. **One limit:** the accented capitals exist in `G` only, so an italic group draws them from the roman
+table slanted, and an override of `GI.A` does not reach italic `Á`. An override that wants an italic `Á`
+assigns `GI["Á"]` itself.
+
+**Refused, each naming the file, the table, the key and the stroke:**
+
+1. the module does not export a function;
+2. a key present before the call is missing after it (an override may not delete);
+3. an entry that is not an array of at least one stroke, or a stroke that is not one of the three shapes:
+   `{d, a, b}` (those three fields and no other) whose path is `M` and two numbers, then one or more `L` (two numbers) or `C` (six numbers)
+   and nothing else, with `a` and `b` each one of `""`, `s`, `t`, `u`, `x`, `j`, `i`; `{dot: [x, y]}` with two
+   finite numbers and no other field (`glyph()` draws a stroke carrying `dot` as a dot and ignores a path beside
+   it); or a ring, `{d, closed: true, r: [cx, cy, rx, ry]}` and no other field, with positive `rx` and `ry` and `d`
+   exactly what `ring()` draws. This is its own validator: `sampleCounts()` and `samplePath()` skip a token
+   they do not know (a `Q`, a stray number), so they cannot be the check;
+4. a new key the cmap cannot map: anything longer than one UTF-16 unit that is not in `LIGS`, or a lone
+   surrogate (a code unit, not a character). A character outside the Basic Multilingual Plane is refused too, because `export.js`'s title layout and `keysFor` read
+   text unit by unit and would look it up as two halves;
+5. a new `GI` key with no `G` counterpart (the export draws the keys of `G`, so it would be left out); a glyph
+   added for both groups goes into both tables;
+6. a second call in one process.
+
+Not refused: an override that would change a glyph's stroke count between masters cannot exist (every
+master of a group draws one table), and the exporter's compatibility check still refuses a pen that makes
+branches differ.
+
+**What an override cannot change:** the end-type letters and their meaning (section 2), `LIGS`, `UPPERISH`
+(a new capital-like key spaces and fits as lowercase), the mark helpers, and the kerning reference.
+**Overriding `n` or `H` re-kerns.** Every lowercase pair is kerned against the `n|n` gap and every capital
+pair against `H|H` (section 8), so redrawing `n`'s arch moves the reference by hundredths of a unit and
+re-rounds the pairs that sat nearest a half unit: for Bract's shoulder override on `examples/bract`, 14, 7, 29
+and 21 of 4,100 pairs on the four masters, each by exactly 1 unit, with no advance moved (plan section 4.2,
+re-run through `export.js` for 0.6.0). The plan's alternative, raising `n`'s serif with a taller stem, moved
+`n`'s sidebearing and advance and re-kerned 1,324 to 1,777 pairs per master (plan section 4.1; not re-run).
+
+**`--masters` refuses a stale export.** That path never runs `export.js`, so `build.py` compares the export's
+`skeletons` with `font.json`'s key and its `skeletonsSha256` with the file as it is now, and refuses either
+disagreement naming both values. An export kept with `--keep-masters` is therefore unusable after any edit of
+the override; export again.
+
+**A glyph every face needs** (a missing punctuation mark, a currency sign) goes into `G` in the skill's own
+repository, with its own tests and review, never into the installed copy during a project. Draw it in the
+project's `skeletons.js` meanwhile; after the skill update that carries it, delete the project's entry.
+
+**Retired: the copy-and-patch convention.** Before 0.6.0 a site kept its additions in
+`tools/<face>/scripts/extra-glyphs.js` and patched three lines into its copy of `gen.js` to load it, and built
+concept pages with `--gen` pointing at that copy. A site on that convention moves the file's function into
+`tools/<face>/skeletons.js` (the same `(G, GI, S, D, ring)` signature), names it in `font.json`, deletes the
+patch, and rebuilds; `build-page.js --gen` still works for anyone who has not moved.

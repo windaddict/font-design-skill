@@ -63,7 +63,9 @@ fold pinning; branch recording; spacing and kerning with the pair count. -->
 font-design skill {{version}}, which derives from John Knox's Driftwood (movingavg.com, 67a4e5b)
 and Bract (hopsafari.com, 90a085c) generators.
 
-- **Skeletons.** {{Any skeletons added, and which titles needed them.}}
+- **Skeletons.** {{The face's override, `tools/<face>/skeletons.js` (named in `font.json` as `skeletons`): each key it
+  overrides or adds, why (the measurement or the title that needed it), and the build log's `skeletons ...` line. "None" when
+  the face draws the shared tables.}}
 - **The pen.** `W × (thin + (1 − thin)·|sin(θ − nib)|^pow)`, {{swell}} % swell. `W` {{value}}; the
   Bold masters are `W × {{mult}}`.
 - **{{serifGrow N}}.** {{Why this value.}}

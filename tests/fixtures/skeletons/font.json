@@ -1,0 +1,371 @@
+{
+  "$comment": "Test fixture for tests/test_skeleton_overrides.py: the neutral example's font.json (examples/neutral/font.json) with one key added, `skeletons`. The tests copy it beside the neutral concepts.js and requirements.json and an override file named skeletons.js in a temporary folder; nothing builds from this folder in place.",
+  "family": "Sampler",
+  "version": "0.1.0",
+  "concepts": "concepts.js",
+  "skeletons": "skeletons.js",
+  "out_dir": "out",
+  "groups": {
+    "roman": {
+      "italic": false,
+      "axes": [
+        {
+          "tag": "wght",
+          "name": "Weight",
+          "min": 400,
+          "default": 400,
+          "max": 700,
+          "map": [
+            [
+              400,
+              400
+            ],
+            [
+              500,
+              580
+            ],
+            [
+              700,
+              700
+            ]
+          ]
+        },
+        {
+          "tag": "opsz",
+          "name": "Optical size",
+          "min": 24,
+          "default": 24,
+          "max": 72
+        }
+      ],
+      "masters": {
+        "TextRegular": {
+          "concept": "text",
+          "mult": 1,
+          "location": {
+            "wght": 400,
+            "opsz": 24
+          }
+        },
+        "TextBold": {
+          "concept": "text",
+          "mult": 1.5,
+          "location": {
+            "wght": 700,
+            "opsz": 24
+          }
+        },
+        "DisplayRegular": {
+          "concept": "display",
+          "mult": 1,
+          "location": {
+            "wght": 400,
+            "opsz": 72
+          }
+        },
+        "DisplayBold": {
+          "concept": "display",
+          "mult": 1.5,
+          "location": {
+            "wght": 700,
+            "opsz": 72
+          }
+        }
+      },
+      "instances": [
+        {
+          "name": "Regular",
+          "location": {
+            "wght": 400,
+            "opsz": 24
+          }
+        },
+        {
+          "name": "Medium",
+          "location": {
+            "wght": 500,
+            "opsz": 24
+          }
+        },
+        {
+          "name": "Bold",
+          "location": {
+            "wght": 700,
+            "opsz": 24
+          }
+        },
+        {
+          "name": "Display",
+          "location": {
+            "wght": 400,
+            "opsz": 72
+          }
+        },
+        {
+          "name": "Display Bold",
+          "location": {
+            "wght": 700,
+            "opsz": 72
+          }
+        }
+      ],
+      "hairline_floors": {
+        "TextRegular": 58,
+        "TextBold": 69,
+        "DisplayRegular": 52,
+        "DisplayBold": 62
+      }
+    },
+    "italic": {
+      "italic": true,
+      "italic_angle": 10,
+      "axes": [
+        {
+          "tag": "wght",
+          "name": "Weight",
+          "min": 400,
+          "default": 400,
+          "max": 700,
+          "map": [
+            [
+              400,
+              400
+            ],
+            [
+              500,
+              580
+            ],
+            [
+              700,
+              700
+            ]
+          ]
+        }
+      ],
+      "masters": {
+        "Regular": {
+          "concept": "text",
+          "mult": 1,
+          "location": {
+            "wght": 400
+          }
+        },
+        "Bold": {
+          "concept": "text",
+          "mult": 1.5,
+          "location": {
+            "wght": 700
+          }
+        }
+      },
+      "instances": [
+        {
+          "name": "Italic",
+          "location": {
+            "wght": 400
+          }
+        },
+        {
+          "name": "Medium Italic",
+          "location": {
+            "wght": 500
+          }
+        },
+        {
+          "name": "Bold Italic",
+          "location": {
+            "wght": 700
+          }
+        }
+      ],
+      "hairline_floors": {
+        "Regular": 58,
+        "Bold": 69
+      }
+    }
+  },
+  "charset": {
+    "required": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&#+*%$\"“”‘’ ",
+    "nbsp_to_space": true,
+    "ascii_apostrophe_curly": true
+  },
+  "kerning": {
+    "set": "^[A-Za-z0-9.,':;!?\\-–—…()\\[\\]/&#+*%$]$",
+    "threshold": 12,
+    "hand": {
+      "A|I": -30,
+      "I|A": -30,
+      "L|T": -25,
+      "L|V": -60,
+      "L|Y": -60,
+      "L|W": -45,
+      "r|.": -50,
+      "r|,": -50,
+      "f|f": 0
+    },
+    "space": [
+      [
+        " ",
+        "A",
+        -45
+      ],
+      [
+        " ",
+        "T",
+        -20
+      ],
+      [
+        " ",
+        "V",
+        -35
+      ],
+      [
+        " ",
+        "W",
+        -30
+      ],
+      [
+        " ",
+        "Y",
+        -30
+      ],
+      [
+        "A",
+        " ",
+        -30
+      ],
+      [
+        "V",
+        " ",
+        -30
+      ],
+      [
+        "W",
+        " ",
+        -25
+      ],
+      [
+        "Y",
+        " ",
+        -25
+      ],
+      [
+        "r",
+        " ",
+        -25
+      ],
+      [
+        "f",
+        " ",
+        -25
+      ]
+    ],
+    "italic_hand": {
+      "I|P": -45,
+      "I|D": -35,
+      "I|B": -35,
+      "I|E": -35,
+      "I|R": -35,
+      "I|N": -30,
+      "I|M": -30,
+      "I|m": -25,
+      "I|n": -25,
+      "P|I": -20,
+      "A|I": -40,
+      "T|h": -100,
+      "T|w": -130,
+      "T|r": -130,
+      "K|e": -120,
+      "A|t": -30
+    },
+    "italic_space": [
+      [
+        "f",
+        " ",
+        -20
+      ],
+      [
+        "I",
+        " ",
+        -25
+      ],
+      [
+        " ",
+        "I",
+        -20
+      ]
+    ]
+  },
+  "titles": [
+    "The Quiet Harbour at Dawn",
+    "A Field Guide to Wet Stone",
+    "Notes from the Third Floor #4",
+    "Bracket's Last Stand",
+    "SIX WAYS OUT",
+    "Offline, Afloat & Adrift"
+  ],
+  "size_budget_bytes": 102400,
+  "raster": {
+    "budget": {
+      "decimation": 48,
+      "union": 48,
+      "seam": 24
+    },
+    "sizes": [
+      16,
+      40,
+      80
+    ]
+  },
+  "fold_units": {
+    "raw": 4,
+    "decimated": 10
+  },
+  "decimation_eps": 1,
+  "names": {
+    "fs_type": 0,
+    "copyright": "Copyright 2026 Example Operator",
+    "manufacturer": "Example Site",
+    "designer": "Example Operator",
+    "vendor_id": "SMPL",
+    "vendor_url": "https://example.com/",
+    "licence": "Licensed for use on example.com only. Not for redistribution.",
+    "licence_url": "https://example.com/",
+    "description": "Sampler, the neutral example face of the font-design skill: an upright low-contrast bracketed serif generated from centre-line skeletons."
+  },
+  "source_date_epoch": 1794700800,
+  "review": {
+    "sizes": [
+      15.2,
+      16.8,
+      20,
+      24,
+      28,
+      35,
+      40,
+      48,
+      64,
+      72
+    ],
+    "medium_below_px": 17,
+    "surfaces": [
+      {
+        "name": "paper",
+        "background": "#f4efe6",
+        "foreground": "#22201c"
+      },
+      {
+        "name": "cloth",
+        "background": "#1d2a3a",
+        "foreground": "#f1ebdd"
+      }
+    ],
+    "comparison_faces": [
+      {
+        "name": "Georgia",
+        "family": "Georgia"
+      }
+    ],
+    "body_face": "Georgia"
+  }
+}

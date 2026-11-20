@@ -129,9 +129,9 @@ and recorded in the guidelines and `requirements.json` before phase 3 draws a co
    `node scripts/export.js --font templates/font.example.json --group roman --requirements <site>/requirements.json <site>/tools/<face>/work/charset-check.json`
    — the exporter names every required character without a skeleton and exits non-zero. Bract: fix
    the asterisk H2 as content, carry `#` and `+`, and draw U+0027 as the curly apostrophe. A glyph
-   to carry is drawn before round 1 (`SKILL.md` phase 2 gate, item 1), in the site's
-   `extra-glyphs.js` with the copy of `scripts/` made at the start of phase 3 and the concept pages
-   built with `--gen`. The installed skill is not edited during a project: a glyph that belongs to
+   to carry is drawn before round 1 (`SKILL.md` phase 2 gate, item 1), in the face's skeleton
+   override `tools/<face>/skeletons.js` (`references/generator.md`, "Per-face skeletons"), with the
+   concept pages built with `--skeletons` and the pre-check re-run with the override applied. The installed skill is not edited during a project: a glyph that belongs to
    everyone (a punctuation mark, a currency sign) is a separate change to the skill's own repository,
    on the operator's word, with its own tests and review.
 2. **The `opsz` axis ends**, from the smallest and largest display sizes `mine-sizes.py` reports
@@ -223,9 +223,8 @@ is the operator's to settle.
 **Do.** Copy `scripts/` into the site's `tools/<face>/`, after `smoke.sh` has finished (its mutation
 step edits the scripts in place and restores them by digest, so a copy taken mid-run carries a
 mutated file), and check the copy with `diff -r <skill dir>/scripts tools/<face>/scripts` (no
-output; if phase 3 already made the copy to carry a glyph, do not copy again, and the diff shows only the
-recorded `gen.js` patch and `extra-glyphs.js`). Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
-and floors, and finish `requirements.json`. Paths written inside `font.json` (`out_dir`, `concepts`,
+output: the face's own letters are in `tools/<face>/skeletons.js`, outside the copy). Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
+and floors, plus `"skeletons": "skeletons.js"` when the face has an override, and finish `requirements.json`. Paths written inside `font.json` (`out_dir`, `concepts`,
 a group's `file`) resolve relative to the `font.json`'s directory; the manifest lands at
 `<out_dir>/manifest.json` unless the `manifest` key moves it; every path given on the command line
 (`--static`, `--out-dir`, `--masters`, `--requirements`, `export.js`'s output, `pytest --static-dir`,
