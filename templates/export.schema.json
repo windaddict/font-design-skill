@@ -14,6 +14,8 @@
     "italicAngle": { "type": "number", "minimum": 0, "maximum": 30 },
     "eps": { "type": "number", "minimum": 0 },
     "foldUnits": { "$ref": "#/$defs/foldUnits" },
+    "skeletons": { "type": "string", "pattern": "^[^/\\\\]+\\.js$", "description": "present only when font.json names a skeletons file: its name" },
+    "skeletonsSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "present only with skeletons: the sha256 of the file export.js applied, which build.py --masters checks against the file" },
     "masters": {
       "type": "object",
       "minProperties": 2,

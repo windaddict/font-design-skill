@@ -527,6 +527,8 @@ def test_the_shipped_fonts_match_their_manifest(cfg, manifest, req, req_path):
         assert m["woff2_bytes"] == path.stat().st_size
     sources = {"gen.js": SCRIPTS / "gen.js", "export.js": SCRIPTS / "export.js", "build.py": SCRIPTS / "build.py",
                "font.json": cfg["_path"], "concepts.js": cfg["_concepts"]}
+    if "skeletons" in cfg:  # the face's skeleton override (0.6.0), hashed under its bare file name beside font.json
+        sources[cfg["skeletons"]] = cfg["_dir"] / cfg["skeletons"]
     assert set(manifest["sources_sha256"]) == set(sources), f"manifest hashes {sorted(manifest['sources_sha256'])}"
     for src, digest in manifest["sources_sha256"].items():
         assert hashlib.sha256(sources[src].read_bytes()).hexdigest() == digest, f"{src} changed since the font was built"

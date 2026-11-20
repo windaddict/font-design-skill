@@ -86,7 +86,14 @@ comparison face loaded) that `shoot.py` reads from the dumped DOM, so the smoke 
 **executed** in Chrome, not merely parsed (review finding F001 of the skill plan: the first
 templates called a `render()` that the shipped generator did not have). The attribute names are
 `data-fd-round`, `data-fd-face`, `data-fd-rendered`, `data-fd-font` and `data-fd-error`, set on
-`<html>` by the three templates and read by `scripts/shoot.py` and the smoke run.
+`<html>` by the three templates and read by `scripts/shoot.py` and the smoke run. A page built with
+`--skeletons` (section 8) also carries `data-fd-skeletons`: the keys the face's override changed or added
+(`G h,G m,G n,G r` for Bract's shoulder), set by the line spliced after the call to `applySkeletons`, so
+it is present only when that call returned in the browser. Such a page also carries
+`data-fd-override-sha256`, the sha256 of the override file it was built from, so a page can be matched to
+the `skeletonsSha256` an export records; concept pages come before `font.json` exists (phase 7), so the page
+cannot check the file against it. `shoot.py` does not check it; the repo's
+tests and the smoke run read it from the dumped DOM.
 
 ## 4. Artifact constraints
 
@@ -158,7 +165,14 @@ node scripts/concepts/build-page.js --template round1 --concepts concepts.js --c
 node scripts/concepts/build-page.js --template round2 --concepts concepts.js --content content.json out/round2.html
 node scripts/concepts/build-page.js --template round3 --concepts concepts.js --content content.json out/round3.html
 .venv/bin/python3 scripts/shoot.py out/shots --serve out --pages round1.html --widths 500 1280 --family <comparison family> --font-url /fonts/<its file>.woff2
+node scripts/concepts/build-page.js --template round1 --concepts concepts.js --content content.json --skeletons skeletons.js out/round1.html
 ```
 
-The flags above are the script's own (`--template`, `--concepts`, `--content`, `--gen`, `--render`,
-then the output path); `scripts/concepts/README.md` has the same lines.
+The flags above are the script's own (`--template`, `--concepts`, `--content`, `--skeletons`, `--gen`,
+`--render`, then the output path); `scripts/concepts/README.md` has the same lines. `--skeletons` names the
+face's skeleton override (the file `font.json`'s `skeletons` key names; `references/generator.md`,
+"Per-face skeletons"), so every round draws the face's own letters. `build-page.js` applies it to a
+fresh `gen.js` in a child node first, so a malformed override fails the build with the generator's
+message and no page is written, then splices it right after `gen.js`, wrapped in a function so the only
+top-level name it adds is `SKELETONS`, followed by the call and the `data-fd-skeletons` line. `--gen` and
+`--render` splice another copy of either file; 0.6.0 no longer recommends patching a copy of `gen.js`.

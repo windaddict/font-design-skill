@@ -59,7 +59,7 @@ make the shape. Each names what the next version would have to add.
 | Tuscan (bifurcated serifs) | split, curled serif ends | **no**: a serif with a notch is a new construction in `serifPoly`; no knob forks a serif |
 | Art Deco (Broadway, Bifur) | one-idea letters, two-tone strokes, high or low waists | **no**: the pen has no two-tone stroke and no bar-height knob; `shear` and `bend` are a lean, not Deco |
 | A circular `O` (the geometric genre's anchor) | the `O` is a circle | **no**: the skeleton's ring is 600 by 720, and `xs` scales it to a wider oval, never a circle; it needs a skeleton change in `G.O` |
-| A single-storey roman `a` | the geometric and Futura-style `a` | **no** in the library: the roman `G.a` is double-storey. A site can set `G.a = GI.a` in its `extra-glyphs.js` (`generator.md`, "Adding glyphs"), provided its `ends` maps `x` |
+| A single-storey roman `a` | the geometric and Futura-style `a` | **no** in the library: the roman `G.a` is double-storey. A site can set `G.a = GI.a` in its `skeletons` file (`generator.md`, "Per-face skeletons"), provided its `ends` maps `x` |
 | A spurred `G` | the grotesque's `G` with a spur | **no**: the skeleton's `G` has a bar; a spur needs a skeleton change |
 | Pointed apexes (`A`, `M`, `N`, `V`, `W` meeting in a point) | the strokes meet at a sharp apex | **no**: `apex` is designed, not built (`generator.md`, "Designed, not built: `apex`"); `params()` refuses it, and no recipe sets it |
 | An expansion (pointed-pen) contrast model | thick and thin diagonals from a flexible pen | **no**: the pen is a translation model, so mirrored diagonals share a width; it is the limit behind every "partly" in the Didone rows |

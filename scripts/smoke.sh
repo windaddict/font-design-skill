@@ -6,7 +6,7 @@
 # ship silently broken. Default: no browser (what the CI matrix job runs). --full adds the Chrome
 # steps (what the CI chrome job runs from step 6 on): the three concept rounds built and executed in
 # Chrome with a face switch, a font-load assertion and the comparison face proved visibly set in
-# Sampler, the specimen shot at two widths and an enlarged root with its italic rows proved to resolve
+# Sampler, a round-1 page built with a face's skeleton override (--skeletons) executed with data-fd-skeletons set, the specimen shot at two widths and an enlarged root with its italic rows proved to resolve
 # to the italic FontFace, one leg of the platform shots (the specimen 6000 px tall with --rows --meta, every
 # row inside the capture, and compare-shots.py on that leg), the opsz measurement, the 360 px overflow check on a concept page, which passes
 # only on a "fits" reading taken after the inner page's fonts settled, and (step 11) the phase-8 narrow
@@ -152,6 +152,23 @@ assert {f for where, f in faces if where == "shots-display"} == {"display"}, fac
 assert {f for where, f in faces if where == "shots-comparison"} == {"comparison", "all"}, faces
 assert len({f for _, f in faces}) >= 2, f"the face switch did not change the face: {faces}"
 print("face switch observed:", sorted(faces))
+EOF
+    # 8a. a round-1 page built with a face's skeleton override (Bract's shoulder fixture) executes in Chrome: the page drew, and
+    #     data-fd-skeletons, set only after applySkeletons returned in the browser, names the four keys the override changed
+    #     (tests/test_skeleton_overrides.py runs the same shot where it finds Chrome; this is the run that never skips)
+    node "$HERE/concepts/build-page.js" --template round1 --concepts "$NEUTRAL/concepts.js" --content "$NEUTRAL/content.json" \
+      --skeletons "$ROOT/tests/fixtures/skeletons/bract-shoulder.js" "$OUT/pages/round1-skeletons.html"
+    "$PY" "$HERE/shoot.py" "$OUT/shots-skeletons" --serve "$OUT/pages" --pages round1-skeletons.html --widths 500 --scales 1 --dump-dom --family Sampler --font-url "$FONT_URL"
+    "$PY" - "$HERE" "$OUT/shots-skeletons" <<'EOF'
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from shoot import html_attrs
+doms = sorted(pathlib.Path(sys.argv[2]).glob("*.dom.html"))
+assert doms, "no dumped DOM for the round-1 page built with --skeletons"
+for d in doms:
+    a = html_attrs(d.read_text(encoding="utf-8"))
+    assert int(a.get("data-fd-rendered", "0")) > 0 and a.get("data-fd-skeletons") == "G h,G m,G n,G r", (d, a.get("data-fd-rendered"), a.get("data-fd-skeletons"))
+    print(f"{d.name}: rendered={a['data-fd-rendered']} skeletons={a['data-fd-skeletons']}")
 EOF
     # 8b. the genres page executes in Chrome and every recipe renders: per recipe, its <section id="concept-<id>"> in the dumped
     #     DOM holds drawn paths (>= 10, each a real outline, none with NaN or Infinity); data-fd-rendered alone only sums glyphs

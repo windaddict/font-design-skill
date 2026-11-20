@@ -4,12 +4,12 @@ description: Design, build and ship a custom display typeface for a website as a
 license: MIT
 compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow, uharfbuzz, unicodedata2), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
 metadata:
-  version: 0.5.0
+  version: 0.6.0
 ---
 
 # font-design
 
-**Version 0.5.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
+**Version 0.6.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
 frontmatter and the README badge are checked against it by `tests/test_versions_and_skill.py`. **Say
 this version number when you begin**, so the operator knows which copy answered.
 
@@ -159,7 +159,7 @@ in `docs/plan.md`). Where each field comes from, and when:
 | Field | Source | When |
 |---|---|---|
 | `required_characters`, `titles` | `mine-charset.py --json`: `required_characters` verbatim; the titles from its longest-title report and the site's real titles | now |
-| `cmap` | the template's value: the generator's glyph set plus the builder's quote and space glyphs, which is the same for every project; a glyph added in `extra-glyphs.js` is added here too | now, edited only when a glyph is added |
+| `cmap` | the template's value: the generator's glyph set plus the builder's quote and space glyphs, which is the same for every project; a glyph added in the face's `skeletons.js` is added here too | now, edited only when a glyph is added |
 | `names` | the opening questions (section 1, item 3): owner, licence, vendor | now; if the operator has not answered, the field stays as the template's placeholder and phase 7 cannot start (`font.json` `names` is filled from the same answers) |
 | `groups.*.axes`, `masters`, `instances`, `avar`, `interpolated_check` | the phase 6 plan | phase 6, before `font.json` exists |
 | `groups.*.hairline_floors` | the first `export.js` run of phase 7 (`minStrokeWidth` per master, rounded down), and each master that serves the smallest display size must measure at or above the target `mine-sizes.py` printed (`1000 × 0.75 / smallest px`); a measured minimum below that target is a design finding (thicken `thin`, or move the smallest elements to the body face, gate decision 3), not a floor to record. Bract's 15.2 px numerals read 0.70 px against the 0.75 target and its record carries that as an open item, not a pass. The template's numbers are the fictional Example face's | phase 7, the first export |
@@ -182,15 +182,16 @@ and recorded in the guidelines and `requirements.json` before any concept is dra
    accepts needs no question; a character it refuses is a content fix or a new skeleton
    (`references/generator.md`). **A glyph to carry is drawn before round 1**, because the concept
    pages render the site's real titles and a character no skeleton draws is a gap in every round: it
-   goes into `tools/<face>/scripts/extra-glyphs.js` with the three-line patch in that copy's `gen.js`
-   (`references/generator.md`, "Adding glyphs"), which means the copy of `scripts/` that phase 7
-   otherwise makes is made at the start of phase 3 instead, checked with the same `diff -r` (the
-   patch is the one expected difference). The installed skill is never edited during a project. A
-   glyph that belongs to everyone (a punctuation mark, a currency sign) is a separate change to the
-   skill's own repository, made only on the operator's word, with its own tests and review, and
-   reaches this project through the next skill update. Then re-run
-   the pre-check with that copy's `export.js` until it exits 0, and build every concept page with
-   `--gen tools/<face>/scripts/gen.js`.
+   goes into the face's skeleton override, `tools/<face>/skeletons.js` (`references/generator.md`,
+   "Per-face skeletons"), a project file beside where `font.json` will be, which phase 7 names in
+   `font.json` as `"skeletons": "skeletons.js"`. No copy of `scripts/` is patched. The installed skill
+   is never edited during a project. A glyph that belongs to everyone (a punctuation mark, a currency
+   sign) is a separate change to the skill's own repository, made only on the operator's word, with
+   its own tests and review, and reaches this project through the next skill update. Then re-run the
+   pre-check with the override applied until it exits 0: copy `templates/font.example.json` to
+   `tools/<face>/charset-font.json`, set its `concepts` to the absolute path of the skill's
+   `templates/concepts.example.js` and add `"skeletons": "skeletons.js"`, and pass that file as
+   `--font`. Build every concept page with `--skeletons tools/<face>/skeletons.js`.
 2. **The `opsz` axis ends**, from the smallest and largest display sizes `mine-sizes.py` reports
    (Bract: 40–80 for a 15.2–80 px site, text cut below 40). The neutral example's 24–72 is the
    fixture's range and is wrong for an 80 px site; say which numbers the site's own table gives.
@@ -269,10 +270,10 @@ to the operator.
    runs: the mutation step edits `gen.js`, `export.js` and `build.py` in place and restores them by
    digest, so a copy taken mid-run carries a mutated file (the manifest's source hashes caught one).
    Then compare the copy with the skill: `diff -r <skill dir>/scripts tools/<face>/scripts` must print
-   nothing, **unless phase 3 already made the copy** to carry a glyph (the phase 2 gate, item 1): then do
-   not copy again, and the diff must show only the recorded three-line `gen.js` patch and the added
-   `extra-glyphs.js`, nothing else. Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
-   and floors. **Path rule:** paths written inside `font.json` (`out_dir`, `concepts`, a group's
+   nothing; the face's own letters live in `tools/<face>/skeletons.js`, outside the copy (the phase 2
+   gate, item 1). Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
+   and floors, and, when the face has an override, `"skeletons": "skeletons.js"`; the build log's
+   `skeletons skeletons.js: overrides ...` line names every key it changed. **Path rule:** paths written inside `font.json` (`out_dir`, `concepts`, a group's
    `file`) resolve relative to the `font.json`'s own directory, and the manifest lands at
    `<out_dir>/manifest.json` unless the `manifest` key moves it (relative to `out_dir`); every path
    given on the command line (`--static`, `--out-dir`, `--masters`, `--requirements`, `export.js`'s
@@ -446,10 +447,10 @@ Do not ship while any of these holds (finding F015):
 
 | Tool | Does | Exact guarantee |
 |---|---|---|
-| `scripts/gen.js` | Centre-line skeletons stroked by a broad-nib model into overlapping polygons; `params(concept, mult, italic)`; refuses dead knobs (`flareAmt` with `tear`) | Same point count per segment in every master (pinned sampling); branch outcomes recorded; folds pinned |
-| `scripts/export.js` | Draws every master of a group, checks compatibility, decimates with shared indices, measures hairlines and folds, emits one kern list | Compatible = same contour count, point count per contour and branch record. Not a proof that corresponding points are the same feature |
+| `scripts/gen.js` | Centre-line skeletons stroked by a broad-nib model into overlapping polygons; `params(concept, mult, italic)`; refuses dead knobs (`flareAmt` with `tear`); `applySkeletons(fn, name)` applies a face's override once, rebuilds the accented letters from overridden bases, refuses a malformed one | Same point count per segment in every master (pinned sampling); branch outcomes recorded; folds pinned. An override is validated as data (paths, end letters, dots, rings, mappable keys), not as a design |
+| `scripts/export.js` | Draws every master of a group, checks compatibility, decimates with shared indices, measures hairlines and folds, emits one kern list; applies `font.json`'s `skeletons` file first (one stderr line names what it changed) and records its name and sha256 | Compatible = same contour count, point count per contour and branch record. Not a proof that corresponding points are the same feature |
 | `scripts/check-env.py` | The platform (native Windows is MISSING; WSL passes), Python ≥ 3.10, the four requirements at the versions `requirements.txt` names (`==4.68.*` handled; an older install is MISSING with the pip command), Node ≥ 20, Chrome (through `shoot.py`'s own `find_chrome()`), bash: found or missing, with the fix command; optional FontBakery and Playwright | Exit 1 when a required piece is missing. Reports what this process sees (this interpreter's imports, `node` and `bash` on PATH, the Chrome file); the network is not tested |
-| `scripts/build.py` | Masters → one variable TTF/WOFF2 per group + `manifest.json`; needs `requirements.json` beside `font.json` (or `--requirements`; `--no-requirements` is recorded in the manifest); `--check`, `--static`, `--masters` (re-checked: folds and the minimum stroke width recomputed from the polygons, each master's `W`, `thin` and `track` read back from `gen.js` through node and held against the JSON, one record per polygon in every list); writes `OS/2.fsType` from `names.fs_type` (required, no default), hhea = typo metrics with a line gap of 0, win = every glyph's extent, `USE_TYPO_METRICS`, STAT axis values for every named instance, a smart-dropout `prep` beside `gasp`, no Macintosh names, the Latin 1 code-page bit; refuses an interpreter older than 3.10 or without fontTools, naming the venv command; one `SELF-CHECK ok:` line per check | Every self-check fails the build; rasters are FreeType via Pillow on this machine, not CoreText or DirectWrite; the advances, kern values, word space, title widths and branch records are still the JSON's, held by the font suite against a fresh export; the table properties above are held by the suite against `requirements.json`, not by this file |
+| `scripts/build.py` | Masters → one variable TTF/WOFF2 per group + `manifest.json`; needs `requirements.json` beside `font.json` (or `--requirements`; `--no-requirements` is recorded in the manifest); `--check`, `--static`, `--masters` (re-checked: an export drawn with another skeleton override, or none, refused; folds and the minimum stroke width recomputed from the polygons, each master's `W`, `thin` and `track` read back from `gen.js` through node and held against the JSON, one record per polygon in every list); writes `OS/2.fsType` from `names.fs_type` (required, no default), hhea = typo metrics with a line gap of 0, win = every glyph's extent, `USE_TYPO_METRICS`, STAT axis values for every named instance, a smart-dropout `prep` beside `gasp`, no Macintosh names, the Latin 1 code-page bit; refuses an interpreter older than 3.10 or without fontTools, naming the venv command; one `SELF-CHECK ok:` line per check | Every self-check fails the build; rasters are FreeType via Pillow on this machine, not CoreText or DirectWrite; the advances, kern values, word space, title widths and branch records are still the JSON's, held by the font suite against a fresh export; the table properties above are held by the suite against `requirements.json`, not by this file |
 | `scripts/tests/test_font.py` | The site's font guards, parametrised on `requirements.json` | Reviewed values (cmap, axes, instances, `avar`, floors, hand pairs, word space, names, `fs_type`, line metrics, STAT values, the `prep` bytes, the code-page bit, Macintosh names, budget, fold units) come from `requirements.json`; outlines, every kern pair (no GPOS pair the exporter did not emit, and at least one live automatic pair per master) and the title widths are consistency checks against a fresh export, which share any defect in `gen.js` (`references/testing.md` section 2) |
 | `scripts/tests/mutate.py` | Applies each named mutation, rebuilds when it is a build input, runs the named tests, restores by digest; `--static-dir none` skips the static mutations; every expected text is derived from the project's `requirements.json` | RED only when the mutation applied, the rebuild exited 0 and changed an artefact (or refused with the declared text) and every named test FAILED on its own expected assertion text (read from that test's failure section, not from the run as a whole); a mutation the project cannot exercise is SKIPPED with the reason; anything else is UNPROVEN or GREEN, both findings about the test, and the run exits non-zero |
 | `scripts/fontbakery-gate.py` | Builds each group's variable TTF to a temp folder, runs `fontbakery check-universal` (or `--profile`), fails on any FAIL/ERROR/FATAL not in `requirements.json` `accepted_qa_findings` | The community's format checks at the pinned FontBakery version found nothing outside the accepted list in the TTF (the woff2's uncompressed twin); not proof the font is good, and `--skip-network` leaves the network checks out; exit 3 = not installed, SKIPPED, NOT PASSED |
@@ -462,7 +463,7 @@ Do not ship while any of these holds (finding F015):
 | `scripts/specimen.py` | The review specimen from `font.json`: real titles, sizes, surfaces, comparison faces, spacing control strings and the legibility row (only characters the font maps); italic rows marked `data-fd-probe="italic"`; refuses a page that shows a character the built font's cmap lacks (`--allow-missing` writes it with a footer note) | What it shows is what one renderer drew; the charset check covers the family's own rows, only when the font file is found |
 | `scripts/narrow.html` | 360 px overflow check inside an iframe, measured at the inner load event and again once the inner fonts settled, after a HEAD request for the inner page's status, a count of failed faces and (with `?family=`) a loaded face of the family | `scrollWidth` vs `clientWidth` of a page served 200 with every face loaded; only a `data-fd-narrow-stage="fonts"` reading counts, and a 404, a failed face or a missing family reads `error`, never `false` |
 | `scripts/mine-sizes.py`, `scripts/mine-charset.py` | Sizes and floor from the CSS; the character set of the text the display selectors set in the built pages, with its traps; `--family` finds every selector whose rule sets the family first; `mine-charset.py --css` adds the characters any `text-transform` rule makes the browser draw inside that text (the selector's own rule, a descendant's or a class's) | Reads `clamp()`, `rem`, `px` rules and the named or found selectors, `@media` included; a family inherited from `body`, a `font:` shorthand or a custom property is not seen; text set by an inline style, by script or by a selector the tool cannot read is not seen, so the set is not exact; without `--css` a `text-transform` is not seen, and a transform rule it cannot read is named in the output |
-| `scripts/concepts/build-page.js` + three templates | Rounds 1–3 pages from `concepts.js` + a content JSON; `?face=` switch; `data-fd-*` self-test; the round-2/3 mock slot sizes from `content.slot_sizes`, required for those rounds, every slot left at the default named on stderr | Content is embedded as JSON and rendered with DOM calls; images only from `img/` beside the page; the mock pages' structure (home, article, contents) is fixed and only their sizes follow the content |
+| `scripts/concepts/build-page.js` + three templates | Rounds 1–3 pages from `concepts.js` + a content JSON; `?face=` switch; `data-fd-*` self-test; `--skeletons` splices the face's override after `gen.js` (applied at build time first, `data-fd-skeletons` set in the browser); the round-2/3 mock slot sizes from `content.slot_sizes`, required for those rounds, every slot left at the default named on stderr | Content is embedded as JSON and rendered with DOM calls; images only from `img/` beside the page; the mock pages' structure (home, article, contents) is fixed and only their sizes follow the content |
 | `scripts/bounds.js` | Vertical extents of glyphs from the generator | Alignment check only |
 
 ## 6. Reference index

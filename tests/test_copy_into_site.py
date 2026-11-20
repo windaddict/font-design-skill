@@ -19,18 +19,24 @@ from conftest import REPO, run
 
 NEUTRAL = REPO / "examples" / "neutral"
 SAMPLE = REPO / "tests" / "fixtures" / "site-sample"
+SKELETONS = REPO / "tests" / "fixtures" / "skeletons"
 IGNORE = shutil.ignore_patterns("__pycache__", ".pytest_cache", ".ruff_cache", "*.pyc")
 
 
-def make_site(tmp_path):
+def make_site(tmp_path, skeletons=None):
     """A site at tmp_path/site with tools/sampler/{scripts,font.json,requirements.json,concepts.js} and the
-    face built into tools/sampler/out (font.json's out_dir) with statics in out/static."""
+    face built into tools/sampler/out (font.json's out_dir) with statics in out/static. With `skeletons` (a file
+    under tests/fixtures/skeletons/), font.json is that folder's fixture (the neutral one naming skeletons.js) and
+    the override is copied in beside it as skeletons.js, as a site keeps tools/<face>/skeletons.js."""
     site = tmp_path / "site"
     shutil.copytree(SAMPLE, site)
     face = site / "tools" / "sampler"
     shutil.copytree(REPO / "scripts", face / "scripts", ignore=IGNORE)
     for name in ("font.json", "requirements.json", "concepts.js"):
         shutil.copyfile(NEUTRAL / name, face / name)
+    if skeletons:
+        shutil.copyfile(SKELETONS / "font.json", face / "font.json")
+        shutil.copyfile(SKELETONS / skeletons, face / "skeletons.js")
     # --static is a command-line path, so it resolves from the working directory (the site root here), while the
     # woff2s go to font.json's own out_dir (re-review, docs F007: the two forms must name the same folder)
     r = run([sys.executable, str(face / "scripts" / "build.py"), "--font", str(face / "font.json"), "--static", "tools/sampler/out/static"], cwd=site)
@@ -49,6 +55,25 @@ def test_the_whole_scripts_folder_copied_into_a_site_runs_the_suite_green(tmp_pa
     assert r.returncode == 0, f"the copied suite failed in the site:\n{r.stdout[-3000:]}\n{r.stderr[-800:]}"
     summary = r.stdout.strip().splitlines()[-1]
     assert "passed" in summary and "failed" not in summary and "error" not in summary, summary
+
+
+def test_a_site_whose_face_names_a_skeleton_override_runs_the_suite_green(tmp_path):
+    """0.6.0: a face that names its own skeleton override in font.json (tools/sampler/skeletons.js here, Bract's shoulder fixture)
+    builds with the copied scripts and passes the copied suite, whose manifest test now hashes the override beside the five
+    sources. Then one comment character appended to the override makes that manifest test fail naming the file, so the suite
+    sees an edit to the override as it sees an edit to gen.js. Mutation watched red (references/testing.md section 8, M13):
+    build.py leaving the override out of sources_sha256 (the manifest test then fails on set equality)."""
+    site, face = make_site(tmp_path, "bract-shoulder.js")
+    common = ["-q", "-p", "no:cacheprovider", "--font", "tools/sampler/font.json", "--requirements", "tools/sampler/requirements.json",
+              "--static-dir", "tools/sampler/out/static"]
+    r = run([sys.executable, "-m", "pytest", "tools/sampler/scripts/tests", *common], cwd=site)
+    assert r.returncode == 0, f"the copied suite failed on a face with a skeleton override:\n{r.stdout[-3000:]}\n{r.stderr[-800:]}"
+    manifest = json.loads((face / "out" / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["skeletons"] == "skeletons.js" and "skeletons.js" in manifest["sources_sha256"]
+    with open(face / "skeletons.js", "a", encoding="utf-8") as f:
+        f.write("//\n")
+    r = run([sys.executable, "-m", "pytest", "tools/sampler/scripts/tests", *common, "-k", "shipped_fonts_match_their_manifest"], cwd=site)
+    assert r.returncode != 0 and "skeletons.js changed since the font was built" in r.stdout, r.stdout[-1500:]
 
 
 def test_tests_kept_elsewhere_find_the_scripts_through_the_scripts_option(tmp_path):
