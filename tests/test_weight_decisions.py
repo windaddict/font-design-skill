@@ -259,7 +259,8 @@ def test_quote_glyphs_opening_rule(old_tree):
     """`build.quote_glyphs` on three synthetic apostrophes, held against the 0.5.0 derivation read from git (the outlines of all six
     quote glyphs and the closing quotes' advances are point for point the 0.5.0 ones) and the rule restated here from the input: an
     apostrophe whose slanted body overhangs its advance, in an italic group, gives `quoteleft` and `quotedblleft` the advance
-    `round(xMax + max(xMin, 0))` of their own ink (equal bearings when the ink starts right of the origin, a right bearing of 0 when it starts left of it) and leaves `quoteright`, `quotedblright` and the ticks alone; an apostrophe
+    `round(xMax + max(xMin, 0))` of their own ink, and at least `ceil(xMax)` (equal bearings when the ink starts right of the origin,
+    a right bearing of 0 when it starts left of it) and leaves `quoteright`, `quotedblright` and the ticks alone; an apostrophe
     already inside its advance with a larger right bearing keeps the apostrophe-derived advance (`max()` binds: the only place that
     branch is observable, since on every shipped italic master the rule's value exceeds the old advance); the overhanging one in a
     roman group changes nothing. Mutations: Q1 (red on the roman case), Q1', Q2, Q3, Q4 (red on the second case)."""
