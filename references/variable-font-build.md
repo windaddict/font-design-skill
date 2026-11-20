@@ -183,7 +183,10 @@ as its own file, default `<Family>-Italic-VF.woff2`. Its metadata (plan finding 
 and typographic subfamily "Italic" (and "Bold Italic" for the instance), `post.italicAngle` set
 (negative for a right-leaning slant, as the OpenType specification defines it), the OS/2
 `fsSelection` italic bit, `macStyle` italic, and a slanted straight tick
-derived from the slanted apostrophe. The CSS wires it as a second `@font-face` with
+derived from the slanted apostrophe. The two opening quotes an italic group derives from it grow, since
+0.7.0, to hold their slanted ink (`quoteleft` and `quotedblleft` advance by at least `round(xMax + max(xMin, 0))`
+of their own polygons, so the right side bearing is never negative and equals the left wherever that value sets the advance); the closing quotes keep the
+apostrophe-derived advances, and a roman group's quotes are unchanged (generator.md section 9). The CSS wires it as a second `@font-face` with
 `font-style: italic` and the same family name; a page test checks `document.fonts.check` and the
 computed font in Chrome. Status: pipeline-tested on the neutral example (compatibility, folds,
 hairlines, build); **not design-reviewed in any shipped font** in this form. An unwired italic is

@@ -729,9 +729,10 @@ function teeCut(Lp, Rp, k, sg, T, pts, Ws, tee, ch) {
   tee.side = (nL ? "L" : "") + (nR ? "R" : "") || "=";
 }
 function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, tees, teeIds) {
-  // U carries the same stroke on the UNMAPPED skeleton (the x-height map undone): every geometry-dependent decision below reads pu
-  // and ju and every drawn coordinate reads pts and joins, so xh cannot flip a branch. With the map off U is absent and
-  // pu IS pts, ju IS joins: the 0.1 code path.
+  // U carries the same stroke on the REFERENCE skeleton (the x-height map undone, the weight widening of xf undone and the fit taken at
+  // the Regular's width and hairline: mult 1, xh 500): every geometry-dependent decision below reads pu and ju and every drawn
+  // coordinate reads pts and joins, so neither xh nor weight can flip a branch. At mult 1 and xh 500 U is absent and pu IS pts,
+  // ju IS joins: the 0.1 code path.
   var pu = U ? U.pts : pts, ju = U ? U.joins : joins;
   // the level cuts and squared corners where two stroke ends meet are a serif concept's; `joints: true` gives a sans concept the same pass
   var jointsOn = P.ends.s === "serif" || P.joints === true;
@@ -1077,6 +1078,7 @@ function params(concept, mult, italic) {
   if (P.dropAmt === undefined) P.dropAmt = DROP_AMT_DEFAULT;
   // hairlines grow more slowly than stems (W x mult^thinGrow rather than W x mult), or the Bold's
   // contrast collapses and it reads as another family beside the Regular (Bract round 2 review)
+  P.thin0 = P.thin;  // the hairline at mult 1, before thinGrow scales it: the reference geometry's (glyph(), PU)
   if (P.thinGrow !== undefined) P.thin = concept.thin * Math.pow(mult, P.thinGrow - 1);
   var deg = italic === true ? 10 : italic ? +italic : 0;
   P.italicAngle = deg;
@@ -1096,20 +1098,23 @@ function glyph(key, P) {
   // sample counts come from the unfitted skeleton, so every master gets the same points per segment
   var counts = raw.map(function (st) { return st.d ? sampleCounts(st.d) : null; });
   var src = fitSkeleton(raw, P, key), mapOn = xhMapped(key, P);
+  // decisions read the geometry at mult 1 (the weight widening in xf undone and the fit at the Regular's width) and at xh 500
+  var PU = Object.assign({}, P, { xh: 500, W: P.W0, thin: P.thin0 });
+  var decideOn = mapOn || P.W !== P.W0;
   // the same skeleton fitted at xh 500: with the map on, the decisions read this one (sampled with the same counts, so point for point)
-  var src500 = mapOn ? fitSkeleton(raw, Object.assign({}, P, { xh: 500 }), key) : src;
+  var src500 = decideOn ? fitSkeleton(raw, PU, key) : src;
   var items = [], trace = [];
   // stroke ends that meet another stroke's end (the points of V, W, A) are joints, not terminals
   // each end records the direction its partner stroke leaves the shared point in
   var ends = [], sampled = [];
   // the sampled, transformed points of stroke si on the unmapped skeleton; with the map off they are the drawn points, so the default
   // path is the 0.1 one
-  function unmapped(si) { return samplePath(src500[si].d, counts[si]).map(function (p) { return xf(key, P, p); }); }
+  function unmapped(si) { return samplePath(src500[si].d, counts[si]).map(function (p) { return xf(key, PU, p); }); }
   src.forEach(function (st, si) {
     if (st.dot) { sampled.push(null); return; }
     var q = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); }), m = q.length - 1;
     // directions are taken on the unmapped skeleton (qU), positions on the drawn one: mapped coordinates draw, unmapped decide
-    var qU = mapOn ? unmapped(si) : q;
+    var qU = decideOn ? unmapped(si) : q;
     sampled.push({ q: q, qU: qU, closed: !!st.closed });
     if (st.closed) return;
     ends.push({ p: qU[0], si: si, end: "a", dir: unit(qU[0], qU[Math.min(3, m)]), dirM: unit(q[0], q[Math.min(3, m)]) });
@@ -1201,7 +1206,7 @@ function glyph(key, P) {
       trace.push({ sig: "dot", minw: Infinity });
       return;
     }
-    var pts = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); }), ptsU = mapOn ? unmapped(si) : pts;
+    var pts = samplePath(st.d, counts[si]).map(function (p) { return xf(key, P, p); }), ptsU = decideOn ? unmapped(si) : pts;
     // a ring ends where it began; the repeated point would round onto its twin in some masters and
     // not others, so TTGlyphPen would drop it unevenly. Drop it here, the same way in every master.
     if (st.closed && pts.length > 1 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1]) { pts.pop(); if (ptsU !== pts) ptsU.pop(); }

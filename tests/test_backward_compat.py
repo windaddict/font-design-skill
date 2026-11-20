@@ -6,9 +6,11 @@ concepts gets the same fonts. This is the first property to check after any edit
 compares three digests per example group (export JSON without branch records, the woff2 decompressed to
 a TTF, the manifest without the source hashes, tool versions and brotli-dependent figures) with the ones
 tests/fixtures/baseline.json recorded from the unmodified code of the baseline commit (BASELINE_REV below: 0.1.0's
-0fc4314 from 0.2 to 0.4; since 0.5.0 the commit that redrew the R's leg root, the one deliberate departure, whose
-`supersedes` entry in the fixture names the 0.1.0 record and the test that proves every other glyph stayed:
-tests/test_r_leg_join.py::test_only_the_r_changed_since_0_4_0). How the
+0fc4314 from 0.2 to 0.4; 0.5.0's 788760d, the commit that redrew the R's leg root; since 0.7.0 the commit that widened
+the italic opening quotes, the one deliberate departure from 0.5.0, whose `supersedes` entry in the fixture names the
+0.5.0 record and the test that proves nothing else moved: the TTF digests and woff2 bytes of the two italic groups
+moved and every export digest, every manifest digest and every roman digest did not,
+tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0). How the
 digests are computed, and what each one proves, is in tests/baseline_digest.py.
 
 Exact guarantee: the OUTLINES and TABLES these three configurations build, on the platform AND node major version recorded in
@@ -38,7 +40,7 @@ import pytest
 
 # the commit whose unmodified scripts produced the fixture; a full or abbreviated git sha, never a placeholder, so a
 # fixture written before its commit existed cannot pass (docs/plan-r-leg.md section 6.1 records the two-commit order)
-BASELINE_REV = "788760d"
+BASELINE_REV = "c5b4abb"
 
 
 @pytest.fixture(scope="module")

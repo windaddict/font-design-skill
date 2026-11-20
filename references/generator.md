@@ -205,7 +205,7 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 | `thin` | 0.27–0.82 | the thinnest stroke as a share of `W` (1 = monoline) | the hairline in units is `W × thin`, less `swell/2`, until an optical knob is set (then it is the smallest `minStrokeWidth` the export reports; section 3); see `thinGrow` |
 | `thinGrow` | 0.5–0.6, or unset | with it, `P.thin = thin × mult^(thinGrow − 1)`, so hairlines grow as `mult^thinGrow` instead of in proportion to stems | unset means hairlines thicken as much as stems: Bract round 2 found the Bold's contrast collapsed and it read as another family (0.5 fixed it). The Bold's floor must be recomputed when this changes |
 | `pow` | 1–2.4 | exponent on `|sin|`: higher makes the width fall off the thick direction faster, so more of each curve is near `thin` | raises apparent contrast without changing `thin` |
-| `xs` | 0.86–1.12 | horizontal scale of every skeleton point, multiplied by `1 + 0.16·(W/W0 − 1)` so heavier masters widen slightly (×1.08 at mult 1.5), and by 0.95 for the italic | **a branch flipper**: the serif-kind test `|T[0]| > 0.1` reads the sheared tangent, and on the Example template the italic `w`'s first stroke read `head` at mult 1 and `diag` at mult 1.5 for `xs` 0.86–0.90 at 10°, so the exporter refused the group; 0.92 and above passed (measured here). Change `xs` and re-export every group |
+| `xs` | 0.86–1.12 | horizontal scale of every skeleton point, multiplied by `1 + 0.16·(W/W0 − 1)` so heavier masters widen slightly (×1.08 at mult 1.5), and by 0.95 for the italic | **a branch flipper between concepts, not between weights since 0.6.0**: the serif-kind test `|T[0]| > 0.1` reads the sheared tangent of the italic `w`'s first stroke, which `xs` 0.86–0.90 at 10° puts on `head` and 0.92 and above on `diag` at mult 1 (section 12 has the margins). Until 0.6.0 the test read the DRAWN tangent, so the weight widening alone moved it (the Example template's `w` read `head` at mult 1 and `diag` at mult 1.5 at `xs` 0.86–0.90, and the exporter refused the group; traps row 32); the widening still draws but no longer decides. Change `xs` and re-export every group |
 | `hzThin` | 0.85–1.0 (`params()` refuses outside 0.5–1.5, bounds excluded); default 1 | level strokes are thinned by `1 − hzThin`, weighted by cos²θ (a level bar loses the whole amount, a plumb stem none) | optical correction, section 3. The vertical fit and the corner reach follow it, so a flat bar's outer edge still sits on its line. Values above 1 thicken level strokes (a reverse-contrast concept). Lowers the hairline of a concept whose thin direction is level: re-read `minStrokeWidth` and re-pin the floors |
 | `roundGain` | 1.0–1.08 (refused outside 0.8–1.25, bounds excluded); default 1 | curves are thickened by `roundGain − 1`, weighted per sample by the local curvature (a ring fully, an open curve by `min(1, κ · 2.5 · W0)`, a straight stroke not at all) | optical correction, section 3. `2.5` is a design constant with no source. The fit gives a round extreme the half width of a fully weighted curve (weight 1), so a ring (the `o`) lands exactly at the line plus `overshoot` whatever `roundGain` is (measured: 510 at `overshoot` 10). **An open curve is not exact:** its weight at the extreme is below 1 (about 0.6 on the fitted `c`), so its top sits off the target by up to `hw × |roundGain − 1| × (1 − weight)`, never more than `(W/2) × f(0) × hzThin × |roundGain − 1|` (`f(0)` the pen width at a level tangent, 1 for a monoline concept; `hzThin` multiplies the gain term at a level extreme, so it enters the bound; the sign of `roundGain − 1` does not): measured on the monoline fixture the `c`, `e` and `s` tops moved by up to 2.28 units at `roundGain` 1.05 and `mult` 1.5 (bound 3.75), 5.91 at `roundGain` 0.85 and `mult` 1.5 (bound 11.25), and 4.49 at `roundGain` 1.05 with `hzThin` 1.4 (bound 5.25, where the bound without `hzThin` would be 3.75), and on the neutral example's `text` concept reduced to `nib` 0, `pow` 1, `thin` 0.6 and butt ends by at most 0.36 at `mult` 1 and 1.27 at `mult` 1.5. Fitting each sample with its own weight would be circular (the weight depends on the fitted curve) and was not built |
 | `diagThin` | 0.85–1.0 (refused outside 0.5–1.5, bounds excluded); default 1 | diagonal strokes are thinned by `1 − diagThin`, weighted by sin²2θ (full at 45°, none level or plumb) | optical correction, section 3. Independent of `hzThin`: at 51° both apply. `params()` throws on a value outside the range, naming the knob |
@@ -385,7 +385,15 @@ glyph the generator lacks. Bract emitted 4,100 pairs; the Example template 4,186
   shortened serifs in `serifPoly` only and saw no change.
 - Sidebearings are measured over the band between the baseline and the x-height or cap height
   only (`cMin`/`cMax`), so `f` hooks and tails overhang their neighbours instead of being spaced.
-  `J`'s descender hook may hang only 90 units into the previous letter's space.
+  `J`'s descender hook may hang only 90 units into the previous letter's space. The apostrophe is
+  spaced by the same band, and its tail ends at y 505 with a flare whose ink dips below the x-line, so
+  the band sees only the tail's foot and the sheared body above it runs 30 to 53 units past the advance
+  on the examples' italic masters (measured 2026-11-19). For the apostrophe and the closing quotes
+  that overhang is the italic's normal behaviour (a space or punctuation follows). An opening quote is
+  followed by a letter, so since 0.6.0 the builder gives an italic group's `quoteleft` and
+  `quotedblleft` the advance `max(the apostrophe-derived advance, round(xMax + max(xMin, 0)))` of their own
+  ink: the right side bearing is never negative, and equals the left wherever that value sets the advance (`build.py` `quote_glyphs()`; `variable-font-build.md`
+  section 9). The roman quotes lie inside their advances in every example master and are untouched.
 - `T` loses 6 units.
 - A concept used for an italic must map `x` in `ends` (normally `exit`).
 
@@ -464,6 +472,21 @@ record is not part of it; it gains tokens (section 12), and only a curl end (`cu
 unchanged fixture. A project with it differs from one without in the override's record (two export fields, one manifest key, the sixth
 source hash and `font.json`'s own hash) and in whatever the override draws.
 
+**0.7.0, exactly.** A project on 0.1 to 0.6 that copies 0.7's `scripts/` and rebuilds without touching `concepts.js` or `font.json` gets the
+same outlines and tables as before, **except the advances of `quoteleft` and `quotedblleft` in an italic group**, which grow to hold the slanted
+ink, the right bearing never negative (section 9; no outline, no other advance and no kern moves: `tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0`
+holds every glyph's compiled outline, GPOS and every other advance of every example group to the 0.5.0 build, and the export JSON of every
+group is byte-identical), **and with one condition on the generator's decisions**: since 0.7.0 every branch decision reads the geometry at
+mult 1 and xh 500 of the master's OWN concept (section 12), so a master's record is that concept's mult-1 record. A group whose every master
+keeps its decisions under that reset gets identical output; every shipped group does, because each has a mult-1 master per concept whose
+heavier siblings the exporter had already required to agree with it. A group whose masters all sit at a multiplier other than 1, or that
+mixes concepts so that one concept has no mult-1 master in the group, may see a decision move to the mult-1 one; none of the examples is such
+a group (the bract example's `text` at mult 1 beside its `display` at mult 1.5 is exported before and after in
+`test_a_mixed_concept_group_without_a_mult_1_master_per_concept_exports_as_0_5_0_did` and does not move). The promise covers the decisions the
+rule moved (section 12 lists them); a T-join's pinned edge still reads the drawn geometry and can still differ between weights (section 12). From
+0.7.0 the three examples' digests are held to the 0.7.0 record (`tests/fixtures/baseline.json`, `supersedes` naming the 0.5.0 record `788760d`
+and this departure).
+
 ## 12. The branch record, and why the exporter refuses masters
 
 Each stroke's record reads like
@@ -482,7 +505,12 @@ feature (review finding F001 is what added the record, which narrows but does no
 When it refuses, the fix is in the concept or the skeleton, never in the exporter: change the
 parameter that moved a decision across its threshold (`xs` and the `0.1` serif-kind test,
 section 4; the `0.03` teardrop-side test; the `0.06` curl test; the 3-unit `curved` test), or
-redraw the stroke so the decision is not marginal in any master.
+redraw the stroke so the decision is not marginal in any master. Since 0.6.0 weight is not among the
+movers: two masters of one concept at different multipliers cannot be refused for a decision in the
+list below, because every such decision reads the mult-1 geometry (the rule at the end of this
+section). What a heavier master can still be refused for is a T-join whose pinned edge differs (the
+`tee` token, next paragraph but one), and what still differs between CONCEPTS (`xs`, the skeleton) is
+unchanged.
 
 **The `crotch` token.** When `crotch` is set (> 0), every open stroke's record carries `… ends=A/B crotch=a/b`, `a` and `b` being 1 where that end is a joint
 between arms at an acute angle (decided on the unmapped skeleton, like every decision here) and 0 otherwise, so masters whose geometry puts a joint on different
@@ -504,9 +532,9 @@ and is not recorded, like the fold pin's reach (section 3). For the `R` the toke
 one (measured 2026-11-19 over the five concept files, `tests/test_r_leg_join.py`), and the leg meets the bar at 54° against the 14.5° refusal, so
 no shipped `xs`, weight or slant is near a threshold. Only a stroke with an `i` end writes the token.
 
-**The audit of mapped coordinates inside decisions** (Impasse review of 0.2, G1 and G2). Every geometry-dependent branch of `glyph()`,
+**The audit of drawn coordinates inside decisions** (Impasse review of 0.2, G1 and G2; extended to weight in 0.6.0). Every geometry-dependent branch of `glyph()`,
 `strokePolys()` and `fitSkeleton()`, and what it reads: `fitSkeleton`'s flat and round tests (literal skeleton coordinates, unmapped by
-construction); the dot rule (the unmapped `dy`); the partner pairing (`partner()`, the unmapped endpoints `qU` and `ptsU`, fixed in 0.2: it
+construction; the fit that feeds the decisions runs at `PU`, the Regular's width and hairline, and the fit that draws at `P`); the dot rule (the unmapped `dy`); the partner pairing (`partner()`, the unmapped endpoints `qU` and `ptsU`, fixed in 0.2: it
 read the drawn ones, so two ends 1.8 apart at `xh` 500 were 2.16 apart at 600); the partner directions (unmapped; the drawn ones feed
 only the reach of a corner); the beak gate, level strokes only (`pu`, fixed in 0.2: it read the drawn points, so a stroke 0.45 units off
 level at `xh` 500 was 0.54 at 600); `curved`, the teardrop side and its `n > 30` test, the curl test, `vert`, the serif kind, the corner and joint
@@ -515,16 +543,32 @@ tests, the beak side and the crotch test (`pu`, `TU`, `pdU`). What still reads d
 those changes coordinates only, never a point count or a record, so a master at another `xh` stays compatible. `test_no_decision_reads_a_mapped_coordinate`
 holds the list: 500 synthetic glyphs placed on the thresholds, in five concepts, compared at three `xh`.
 
-**The decision rule for `xh`: unmapped coordinates decide, mapped coordinates draw.** The x-height
+**The decision rule: the geometry at mult 1 and `xh` 500 decides, the drawn geometry draws.** The x-height
 map changes a stroke's tangents (the band between the x-line and the ascender scales by 0.58 to 1.42),
-and the thresholds above are tangents. So `glyph()` also fits every mapped skeleton at `xh` 500
-(`src500`, sampled with the same counts, point for point) and `strokePolys()` takes the `curved` chord
-test, the teardrop side, the curl test, `vert` (`|T[1]| > 0.5`), the serif kind (`|T[0]| > 0.1`),
-the corner and joint tests (with the partner's unmapped direction) and the beak side on those points;
-widths, cuts, serifs, terminals and the fold pin read the drawn ones. The branch record at any legal
-`xh` is therefore the `xh` 500 record. `test_xh_does_not_change_any_branch_record` draws every key of every master of the
-project's groups, and a variant of each master with every end a curl, at `xh` 500, 400 and 600 and
-compares the records.
+and so does weight: `xf` widens every x by `1 + 0.16·(W/W0 − 1)` in a heavier master, and the vertical
+fit moves a flat stroke's ends inward by half the stroke width (`hwFlat`, which follows `W` and `thin`),
+so a short stroke's drawn tangent follows the weight. The thresholds above are tangents. So `glyph()` also
+fits every skeleton at the reference parameters `PU` (`xh` 500, `W` = `W0`, `thin` = the concept's `thin`
+before `thinGrow`; `src500`, sampled with the same counts, point for point) whenever the master is mapped
+or at a multiplier other than 1, transforms those points with `xf` at `PU` (so the widening is undone), and
+`strokePolys()` takes the `curved` chord test, the teardrop side, the curl test and the spiral's
+handedness, `vert` (`|T[1]| > 0.5`), the serif kind (`|T[0]| > 0.1`), the corner and joint tests (with
+the partner's reference direction), the beak gate and side, the partner pairing and the crotch test on
+those points; widths, cuts, serifs, terminals, the fold pin and the T-join (its cut, its burial check and
+the edges `clipPast` pins) read the drawn ones. The branch record at any legal `xh` and any multiplier is
+therefore the `xh` 500, mult-1 record of the master's concept (0.2 set the rule for `xh`; 0.6.0 extended it
+to weight after an italic group refused a Bold master, `docs/plan-italic-bold.md`: 44 (glyph, concept,
+slant) cases over the five concept files changed structure or record between mult 1 and some multiplier
+from 0.8 to 2.0, 27 of them the serif kind of the italic `w` or `W`, the rest the curl test (12), the beak gate (2), the
+`crotch` test (1) and the `curved` test (1) on fit-moved strokes). A serif chosen from the reference geometry is drawn on the master's own
+stroke: at the Driftwood example's x1.65 the `w`'s head serif joins a stem whose drawn tangent would have
+said `diag` (inspected 2026-11-19 on a before/after picture kept outside the repository, which publishes no images;
+`test_every_serif_chosen_from_the_reference_sits_on_its_drawn_stroke` holds every such terminal on its
+body). `test_xh_does_not_change_any_branch_record` and `test_weight_does_not_change_any_branch_record`
+draw every key of every master of the project's groups, and a variant of each master with every end a
+curl, at `xh` 500, 400 and 600 and at mult 0.8, 1, 1.25, 1.5, 1.65 and 2, and compare the records;
+`tests/test_weight_decisions.py` does the same for every concept of the five concept files at 24
+multipliers (220,080 comparisons on 2026-11-19, 0 flips).
 
 The first version recovered the unmapped points by applying the inverse map to the drawn ones. It is
 exact for a curve whose control points lie in one band and approximate for one that straddles the
@@ -538,10 +582,13 @@ the italic `w`'s first stroke, serif kind `|T[0]| > 0.1`: **0.0028** (value 0.10
 the 3-unit `curved` test: 0.0060 (windswept `x`, `mult` 1.5); the curl test `|cross| < 0.06`: 0.0010
 (bract `bine`); `vert`: 0.047 (the `š` caron arm, bract `blind`); the teardrop side `|cross| < 0.03`: 0.030;
 the beak side: 11.7 units from 450. Every one of those decisions reads the same value at `xh` 400
-and 600, and no record changed in the 16,768 glyph comparisons. **The italic `w`'s serif-kind margin is a
-pre-existing fragility, not caused by `xh`:** the neutral example's `xs` 0.92 reads 0.1028 in the
-Regular against the 0.1 threshold, so a change to `xs`, the italic narrowing or the `w` skeleton can
-flip it and the exporter will refuse the italic group (the Bold's widening lifts it to 0.123).
+and 600, and no record changed in the 16,768 glyph comparisons. **The italic `w`'s serif-kind margin is an
+`xs` margin, the same at every weight since 0.6.0:** the neutral example's `xs` 0.92 reads 0.1028 against
+the 0.1 threshold in every master (the value is `(160 · 0.95 · xs − 88.2) / 500` with the shear nearly
+cancelling the stroke's own slope; `xs` 0.90 reads 0.0968, `head`), so a change to `xs`, the italic
+narrowing or the `w` skeleton can flip it and the exporter will refuse the italic group. Weight cannot:
+until 0.6.0 the Bold's widening lifted the drawn value to 0.123 at mult 1.5 and took the Driftwood
+example's `xs` 0.86 from `head` to `diag` at mult 1.4.
 
 
 ## 13. Designed, not built: `apex`

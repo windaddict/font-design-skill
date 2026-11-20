@@ -1,6 +1,6 @@
 {
-  "baseline_rev": "788760d",
-  "baseline_version": "0.5.0",
+  "baseline_rev": "c5b4abb",
+  "baseline_version": "0.7.0",
   "by_platform_node": {
     "darwin/20": {
       "brotli": "1.2.1",
@@ -13,7 +13,7 @@
         "driftwood/italic": {
           "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
           "manifest_sha256": "1efefd6d4feecdf4793d518e466c69ac82058528c4f19e2f2346fdf260085661",
-          "ttf_sha256": "786677eb83a46023a9f69e8ca57d3296737c1754b57c67ab13f8738dcd1f9759"
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
         },
         "driftwood/roman": {
           "export_sha256": "d34596e0a4f0b2f9d7f4458222c262bc7fc388c22955854e729f4c790a16529c",
@@ -23,7 +23,7 @@
         "neutral/italic": {
           "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
           "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
-          "ttf_sha256": "dd9cf60d612e4f867a6264587b190015fc944732fe2d24442e0bfc02ce1dcc4d"
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
         },
         "neutral/roman": {
           "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
@@ -33,9 +33,9 @@
       },
       "woff2": {
         "bract/roman": "4160b29efa0cfd9582645e2745c8d2598b5fc46472a56694a211257774b32566",
-        "driftwood/italic": "54284eeeccb655a2311a8d2f5d0e68940a52ab3881b3f395be5b0e78e9574e38",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
         "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
-        "neutral/italic": "4dd1c142de466d5ff31273f5c931479624e5c740ba9c72aa60e1950df6d6ba4d",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
         "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
       }
     },
@@ -50,7 +50,7 @@
         "driftwood/italic": {
           "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
           "manifest_sha256": "1efefd6d4feecdf4793d518e466c69ac82058528c4f19e2f2346fdf260085661",
-          "ttf_sha256": "786677eb83a46023a9f69e8ca57d3296737c1754b57c67ab13f8738dcd1f9759"
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
         },
         "driftwood/roman": {
           "export_sha256": "d34596e0a4f0b2f9d7f4458222c262bc7fc388c22955854e729f4c790a16529c",
@@ -60,7 +60,7 @@
         "neutral/italic": {
           "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
           "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
-          "ttf_sha256": "dd9cf60d612e4f867a6264587b190015fc944732fe2d24442e0bfc02ce1dcc4d"
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
         },
         "neutral/roman": {
           "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
@@ -70,9 +70,9 @@
       },
       "woff2": {
         "bract/roman": "4160b29efa0cfd9582645e2745c8d2598b5fc46472a56694a211257774b32566",
-        "driftwood/italic": "54284eeeccb655a2311a8d2f5d0e68940a52ab3881b3f395be5b0e78e9574e38",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
         "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
-        "neutral/italic": "4dd1c142de466d5ff31273f5c931479624e5c740ba9c72aa60e1950df6d6ba4d",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
         "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
       }
     },
@@ -87,7 +87,7 @@
         "driftwood/italic": {
           "export_sha256": "9fd5cbf3ef3f70e060e2d5f3422ca4364e44ed9855339f94b0f469b901b3065d",
           "manifest_sha256": "5df18d0c6bb4b213a1f2de2f28c87fddd7c9c1887528eddb00500bc16cf433cf",
-          "ttf_sha256": "7684a79c1e3aefd669803d7fe74c1ddbb3f38e9bc2b7e42aaf7c7039ffd006a1"
+          "ttf_sha256": "f0fc53cf1aec5e58a34dcd1930dbb4104eb1dde38f766528d931be92ed41be1d"
         },
         "driftwood/roman": {
           "export_sha256": "d34596e0a4f0b2f9d7f4458222c262bc7fc388c22955854e729f4c790a16529c",
@@ -97,7 +97,7 @@
         "neutral/italic": {
           "export_sha256": "2062820bc86dbec1646e0d31c8b97fd475536f8af34021b9dd737cd74f571cba",
           "manifest_sha256": "50f479b1b31a710b2302c6cda0d1a4ccc02a2b082ead60450715b4c31fce59fc",
-          "ttf_sha256": "2c293d0fdbddf2ecb208a6b4dc9700837cd73ed8b053b0d0c985ddec289386b2"
+          "ttf_sha256": "8b70e2fcca8a7d372dea0d8a1655874b824445c1e9392d8edf03b7ee4670271b"
         },
         "neutral/roman": {
           "export_sha256": "2b8c5b50e77c7a63ccc6647a571f6792970ce1af180be0d9b9069efa089d01ab",
@@ -107,9 +107,9 @@
       },
       "woff2": {
         "bract/roman": "0bbdd81484782d8c1bf6feae47f0cc3804a6f755f3484f9eeed46b1de8c8a980",
-        "driftwood/italic": "3572fd8a5ad3817a0c663b35db3a8fa2be27281dc4ceb076f216c5a556ec5fa2",
+        "driftwood/italic": "fdf614dbda2a2b29e845fbaefaa81628d967cef0acdf2d027df70a8fef0ac854",
         "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
-        "neutral/italic": "86594a775eb9c966b2022ede8868a440807cbddb3e4e76f7e8e5b5012d94d81b",
+        "neutral/italic": "f804f4fbb75185d1836f254cbdb458fe4b491a0dfe5f2882f5cc4a2e3e3b630b",
         "neutral/roman": "f1fb9d8162800c11e5f8b570165e2519dafaf075d0574b12e06f3d657b6b1d06"
       }
     },
@@ -124,7 +124,7 @@
         "driftwood/italic": {
           "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
           "manifest_sha256": "aceb9818f2f8a68886ea5b71edb8426a1dd2a4aed61fc884b1e1bf372bc556d7",
-          "ttf_sha256": "786677eb83a46023a9f69e8ca57d3296737c1754b57c67ab13f8738dcd1f9759"
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
         },
         "driftwood/roman": {
           "export_sha256": "85e4e3b0a173bd538f708869496f8f8c5258a601c07266df95e3f416a432e339",
@@ -134,7 +134,7 @@
         "neutral/italic": {
           "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
           "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
-          "ttf_sha256": "dd9cf60d612e4f867a6264587b190015fc944732fe2d24442e0bfc02ce1dcc4d"
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
         },
         "neutral/roman": {
           "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
@@ -144,9 +144,9 @@
       },
       "woff2": {
         "bract/roman": "b7fa0eabd0000b4a86f9c14b0d12b6417b478a5d50489d6a4fb5d8e81a99641e",
-        "driftwood/italic": "54284eeeccb655a2311a8d2f5d0e68940a52ab3881b3f395be5b0e78e9574e38",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
         "driftwood/roman": "45692301439696b9ec39c51eefc91a2db893f76eddd938d3b52374198273c99f",
-        "neutral/italic": "4dd1c142de466d5ff31273f5c931479624e5c740ba9c72aa60e1950df6d6ba4d",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
         "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
       }
     },
@@ -161,7 +161,7 @@
         "driftwood/italic": {
           "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
           "manifest_sha256": "aceb9818f2f8a68886ea5b71edb8426a1dd2a4aed61fc884b1e1bf372bc556d7",
-          "ttf_sha256": "786677eb83a46023a9f69e8ca57d3296737c1754b57c67ab13f8738dcd1f9759"
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
         },
         "driftwood/roman": {
           "export_sha256": "85e4e3b0a173bd538f708869496f8f8c5258a601c07266df95e3f416a432e339",
@@ -171,7 +171,7 @@
         "neutral/italic": {
           "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
           "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
-          "ttf_sha256": "dd9cf60d612e4f867a6264587b190015fc944732fe2d24442e0bfc02ce1dcc4d"
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
         },
         "neutral/roman": {
           "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
@@ -181,17 +181,17 @@
       },
       "woff2": {
         "bract/roman": "b7fa0eabd0000b4a86f9c14b0d12b6417b478a5d50489d6a4fb5d8e81a99641e",
-        "driftwood/italic": "54284eeeccb655a2311a8d2f5d0e68940a52ab3881b3f395be5b0e78e9574e38",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
         "driftwood/roman": "45692301439696b9ec39c51eefc91a2db893f76eddd938d3b52374198273c99f",
-        "neutral/italic": "4dd1c142de466d5ff31273f5c931479624e5c740ba9c72aa60e1950df6d6ba4d",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
         "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
       }
     }
   },
   "schema": "font-design/baseline-digests/v2",
   "supersedes": {
-    "baseline_rev": "0fc4314",
-    "baseline_version": "0.1.0",
-    "why": "0.5.0 redrew the R's leg root (docs/plan-r-leg.md): the export and TTF digests of every group moved, the manifest digests did not; tests/test_r_leg_join.py::test_only_the_r_changed_since_0_4_0 holds every other glyph, advance, spacing profile and kern to the 0.4.0 generator"
+    "baseline_rev": "788760d",
+    "baseline_version": "0.5.0",
+    "why": "0.7.0 widened the italic opening quotes (docs/plan-italic-bold.md): the TTF digests and woff2 bytes of the two italic groups moved; every export and manifest digest and every roman digest did not; tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0 holds every glyph outline, every other advance and every kern to the 0.5.0 build. The darwin/26 entry was taken from the fixed tree before its commit existed (--print) and is re-recorded under the --record guard at commit A; the other platforms are recorded by the record-baseline workflow from commit A"
   }
 }

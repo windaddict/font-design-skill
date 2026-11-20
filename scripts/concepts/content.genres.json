@@ -130,7 +130,7 @@
     "scotch": {
       "desc": "Vertical stress, bracketed serifs, high contrast, brass-foil sharp",
       "cost": "Not costed",
-      "risk": "reaches (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15). The italic is refused (section 4)",
+      "risk": "reaches (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15).. Its italic exported since 0.7.0 (section 4)",
       "pick": false
     },
     "clarendon": {

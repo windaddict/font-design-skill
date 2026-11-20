@@ -43,7 +43,7 @@ var CONCEPTS = [
 
   // Scotch roman / transitional: Bract's "foil", unchanged apart from the id and the labels.
   { id: "scotch", name: "Scotch roman", from: "Vertical stress, bracketed serifs, high contrast, brass-foil sharp",
-    desc: "Reaches (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15). The italic is refused (section 4)",
+    desc: "Reaches (2026-11-19): A near-twin of the Didone at these sizes; the bracket and the a terminal are what differ. Also shipped and reviewed as Bract's foil on hopsafari.com (2026-11-15).. Its italic exported since 0.7.0 (section 4)",
     W: 110, nib: 0, thin: 0.27, pow: 2.4, xs: 0.9, swell: 0, track: 0,
     ends: SERIF_ENDS, flareLen: 90, serifLen: 0.72, serifH: 0.13, dot: 0.5, overshoot: 10, beak: true, tear: true },
 

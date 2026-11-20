@@ -368,7 +368,13 @@ def quote_glyphs(ap_polys, ap_adv, italic_angle=0.0):
     whenever the apostrophe is. For an italic group the tick is slanted about its middle (y = 610) by
     tan(angle), as Driftwood's build did; the curly marks come from the already slanted apostrophe.
     quotedblleft advances by the apostrophe's advance plus the gap between its two marks, like
-    quotedblright (Driftwood carried the straight quotes' advance there and the second mark overhung)."""
+    quotedblright (Driftwood carried the straight quotes' advance there and the second mark overhung).
+    In an italic group (italic_angle set) the two OPENING quotes grow, since 0.7.0, to hold their ink: the
+    generator spaces an italic apostrophe over the x-height band only, so its slanted body overhangs the
+    advance by 30 to 53 units on the examples, and an opening quote is followed by a letter, which that
+    overhang touched. Their advance becomes max(the apostrophe-derived advance, round(xMax + max(xMin, 0)) of the
+    glyph's own polygons), so the right side bearing is never negative and equals the left wherever that value wins; nothing else changes (the roman is
+    inside its advance in every master, and the closing quotes' overhang is the italic's normal spacing)."""
     axs = [x for p in ap_polys for x, y in p]
     aw = max(axs) - min(axs)
     dbl_gap = aw * 1.45  # the second mark sits one mark-width plus a clear gap to the right
@@ -389,12 +395,20 @@ def quote_glyphs(ap_polys, ap_adv, italic_angle=0.0):
     cx, cy = (min(axs) + max(axs)) / 2, (min(ys) + max(ys)) / 2
     turned = [[(2 * cx - x, 2 * cy - y) for x, y in p] for p in ap_polys]
     shifted = lambda polys: [[(x + dbl_gap, y) for x, y in p] for p in polys]
+    def opening(adv, polys):
+        # an italic group spaces the apostrophe over the x-height band, so its slanted ink overhangs the advance on the right; an
+        # opening quote is followed by a letter, so it grows to hold its ink with a right side bearing equal to the left, or 0 where the
+        # ink starts left of the origin (that overhang falls on the space before the quote); roman: unchanged
+        if italic_angle:
+            xs = [x for p in polys for x, y in p]
+            adv = max(adv, round(max(xs) + max(min(xs), 0)), math.ceil(max(xs)))  # ceil: rounding never cuts into the ink
+        return {"adv": adv, "polys": polys}
     return {
         "quotesingle": {"adv": tick_adv, "polys": [tick(tc)]},
         "quotedbl": {"adv": round(tick_adv + aw * 0.8), "polys": [tick(tc), tick(tc + aw * 0.8)]},
         "quotedblright": {"adv": round(ap_adv + dbl_gap), "polys": [[tuple(q) for q in p] for p in ap_polys] + shifted(ap_polys)},
-        "quoteleft": {"adv": ap_adv, "polys": turned},
-        "quotedblleft": {"adv": round(ap_adv + dbl_gap), "polys": turned + shifted(turned)},
+        "quoteleft": opening(ap_adv, turned),
+        "quotedblleft": opening(round(ap_adv + dbl_gap), turned + shifted(turned)),
     }
 
 

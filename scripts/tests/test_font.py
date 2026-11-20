@@ -200,10 +200,21 @@ def expected_quote_glyphs(ap_polys, ap_adv, italic_angle=0.0):
     a 13-point half-round over a two-point base, width 0.64 of the apostrophe's plus 70 each side, slanted
     about y=610 by tan(angle) in an italic group; double marks sit 0.8 (ticks) or 1.45 (curly)
     apostrophe-widths apart and the advance grows by the same gap; opening quotes are the apostrophe
-    turned 180 degrees about its box centre."""
+    turned 180 degrees about its box centre. Since 0.7.0, in an italic group only, an opening quote's
+    advance is at least the sum of its ink's two x extremes, so its right side bearing equals its left
+    (the italic apostrophe is spaced over the x-height band and its slanted body overhangs the advance,
+    and an opening quote is followed by a letter); the turn keeps the apostrophe's x extent, so the sum
+    is written here from the apostrophe's own extremes, not from the turned points. The roman and the
+    closing quotes are untouched."""
     xs = [x for p in ap_polys for x, y in p]
     ys = [y for p in ap_polys for x, y in p]
     aw = max(xs) - min(xs)
+    lo, hi = min(xs), max(xs)
+
+    def holds_ink(adv, right_extreme):
+        # the italic rule: the advance grows to the ink's left extreme (0 when the ink starts left of the origin) plus its right
+        # extreme, and never shrinks
+        return max(adv, round(max(lo, 0) + right_extreme), math.ceil(right_extreme)) if italic_angle else adv
     tick_adv = round(aw * 0.64 + 140)
     tc = tick_adv / 2
     slant = math.tan(math.radians(italic_angle)) if italic_angle else 0.0
@@ -219,11 +230,11 @@ def expected_quote_glyphs(ap_polys, ap_adv, italic_angle=0.0):
     curly = [[tuple(q) for q in p] for p in ap_polys]
     return {
         "quoteright": (ap_adv, curly),
-        "quoteleft": (ap_adv, turned),
+        "quoteleft": (holds_ink(ap_adv, hi), turned),
         "quotesingle": (tick_adv, [tick(tc)]),
         "quotedbl": (round(tick_adv + aw * 0.8), [tick(tc), tick(tc + aw * 0.8)]),
         "quotedblright": (round(ap_adv + gap), curly + shift(curly, gap)),
-        "quotedblleft": (round(ap_adv + gap), turned + shift(turned, gap)),
+        "quotedblleft": (holds_ink(round(ap_adv + gap), hi + gap), turned + shift(turned, gap)),
     }
 
 
@@ -242,6 +253,60 @@ def test_quote_glyphs_follow_the_apostrophe_in_every_master(group, master, expor
         assert len(got) == len(expected), f"{group} {master} {name}: {len(got)} points, expected {len(expected)}"
         worst = max(max(abs(a[0] - b[0]), abs(a[1] - b[1])) for a, b in zip(got, expected))
         assert worst <= 2, f"{group} {master} {name}: outline is {worst} units from the apostrophe-derived shape"
+
+
+def ink_bearings(static, name):
+    """(left side bearing, right side bearing, xMin, xMax) of a glyph in a static instance, from its drawn outline and hmtx."""
+    from fontTools.pens.boundsPen import BoundsPen
+    gs = static.getGlyphSet()
+    pen = BoundsPen(gs)
+    gs[name].draw(pen)
+    assert pen.bounds is not None, f"{name} has no ink"
+    # the instancer leaves interpolated coordinates as floats; a saved static rounds them to whole units, which is what a reader's font holds
+    xmin, xmax = otRound(pen.bounds[0]), otRound(pen.bounds[2])
+    adv = static["hmtx"][name][0]
+    return xmin, adv - xmax, xmin, xmax
+
+
+def test_opening_quotes_lie_inside_their_advance(group, instance_name, instance, req):
+    """At every named instance (the masters and the intermediates, from the instanced woff2's outlines and hmtx): in an italic group
+    `quoteleft` and `quotedblleft` have a right side bearing of at least 0, and where the ink sets the advance (the sum of the ink's x
+    extremes is at least the apostrophe-derived advance, which `quoteright`'s and `quotedblright`'s advances still carry) the two bearings
+    are equal within a unit at a master and within two at an intermediate; where it does not, the apostrophe-derived advance is kept within
+    the same tolerance (review F004: `max()` may keep a larger old advance, and equal bearings would then be wrong). The tolerances are the
+    rounding arithmetic, not a measurement: at a master the advance is `round(xMin + xMax)` of float coordinates the font stores rounded,
+    three roundings of at most 0.5 on an integer result, so at most 1; at an intermediate the masters' own discrepancies interpolate and the
+    three values round again, so at most 2 (the neutral `Medium Italic` reads 12 / 11 at wght 500 in whole units, 12.00 / 10.60 before
+    rounding). The closing quotes keep the apostrophe-derived advances: `quotedblright` is the apostrophe's advance plus 1.45 of its ink
+    width within a unit. In a roman group all four curly quotes have a right side bearing of at least 0 (a control, green before and after).
+    Red at 0.5.0 at every italic master and the intermediate (rsb -30 to -47).
+    Mutations: `quote-opening-unslanted` (the rule removed, red on every italic instance); Q2 the advance `round(xMax)` (red on the
+    bearings); Q3 the rule applied to `quotedblright` too (red on the closing quote)."""
+    R = req["groups"][group]
+    location = R["instances"][instance_name]
+    static = instance(group, location)
+    where = f"{group} {instance_name}"
+    tol = 1 if location in R["masters"].values() else 2
+    for name in ("quoteleft", "quotedblleft", "quoteright", "quotedblright"):
+        assert name in static.getGlyphOrder(), f"{where}: no {name}"
+    ap_lsb, ap_rsb, ap_min, ap_max = ink_bearings(static, "quoteright")
+    ap_adv = static["hmtx"]["quoteright"][0]
+    dbl_adv = static["hmtx"]["quotedblright"][0]
+    assert abs(dbl_adv - round(ap_adv + 1.45 * (ap_max - ap_min))) <= 1, \
+        f"{where}: quotedblright advances {dbl_adv}, expected the apostrophe's {ap_adv} plus 1.45 ink widths ({round(ap_adv + 1.45 * (ap_max - ap_min))})"
+    if "italic_angle" not in R:
+        for name in ("quoteleft", "quotedblleft", "quoteright", "quotedblright"):
+            lsb, rsb, _, _ = ink_bearings(static, name)
+            assert rsb >= 0, f"{where}: {name} overhangs its advance by {-rsb} (bearings {lsb:.1f} / {rsb:.1f})"
+        return
+    for name, derived in (("quoteleft", ap_adv), ("quotedblleft", dbl_adv)):
+        lsb, rsb, xmin, xmax = ink_bearings(static, name)
+        adv = static["hmtx"][name][0]
+        assert rsb >= 0, f"{where}: {name} overhangs its advance by {-rsb} (advance {adv}, ink {xmin}..{xmax})"
+        if round(xmin + xmax) >= derived:
+            assert abs(lsb - rsb) <= tol, f"{where}: {name} bearings {lsb} / {rsb} should be equal (within {tol}) where the ink sets the advance (advance {adv})"
+        else:
+            assert abs(adv - derived) <= tol, f"{where}: {name} advance {adv} should stay the apostrophe-derived {derived}, whose right bearing is already larger"
 
 
 def test_avar_maps_the_reviewed_intermediate_weights(group, font, req):
@@ -1239,6 +1304,56 @@ def test_xh_does_not_change_any_branch_record(cfg):
     out = json.loads(r.stdout)
     assert out["compared"] > 1000, f"only {out['compared']} glyph records were compared; the fixture is not drawing the project's masters"
     assert not out["flips"], "xh changed a branch record:\n  " + "\n  ".join(out["flips"])
+
+
+WEIGHT_FIXTURE = r"""
+const fs = require("fs"), path = require("path");
+const m = require(process.argv[1]);
+const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const concepts = m.loadConcepts(path.resolve(path.dirname(process.argv[2]), cfg.concepts));
+let compared = 0; const flips = [];
+for (const [gname, group] of Object.entries(cfg.groups)) {
+  const italic = group.italic ? (group.italic_angle || 10) : false;
+  for (const [mname, spec] of Object.entries(group.masters)) {
+    const c0 = m.conceptById(concepts, spec.concept);
+    // the two variants of the xh test: as drawn, and with every end but the serif a curl (the curl decision is otherwise never exercised)
+    const curl = Object.assign({}, c0.ends); for (const k of Object.keys(curl)) if (k !== "s") curl[k] = "curl";
+    for (const [vn, c] of [["as drawn", c0], ["curls", Object.assign({}, c0, { ends: curl, tear: false, dropAmt: undefined })]]) {
+     const sigs = {};
+     for (const mult of [1, 0.8, 1.25, 1.5, 1.65, 2]) {
+      const P = m.params(Object.assign({}, c, { id: c.id + "|weight" + vn }), mult, italic);
+      for (const k of Object.keys(m.G).concat(italic ? Object.keys(m.GI) : [])) {
+        const g = m.glyph(k, P); if (!g) continue;
+        const s = JSON.stringify([g.polys.map(p => p.length), g.runs, g.sig]);
+        if (mult === 1) { sigs[k] = s; continue; }
+        compared++;
+        if (sigs[k] !== s && flips.length < 8) flips.push(gname + "/" + mname + " (" + vn + ") mult " + mult + " " + k + ": " + sigs[k] + " -> " + s);
+      }
+     }
+    }
+  }
+}
+console.log(JSON.stringify({ compared, flips }));
+"""
+
+
+def test_weight_does_not_change_any_branch_record(cfg):
+    """The weight counterpart of the xh test above (docs/plan-italic-bold.md): a heavier master must not flip a geometry-dependent
+    decision, or the exporter refuses the group. At 0.5.0 the decisions read the DRAWN tangent, which `xf`'s weight widening
+    (`1 + 0.16 (W/W0 - 1)`) and the fit's half-width move with weight; the italic `w` of the Driftwood example flipped its serif kind
+    at mult 1.4 and the neutral example's at mult 0.9. Since 0.7.0 the decisions read the geometry at mult 1 and xh 500. This draws
+    every master's concept of the project's groups, at that master's slant, as drawn and with every end but the serif a curl, at mult
+    0.8, 1, 1.25, 1.5, 1.65 and 2, and compares each glyph's polygon count, point counts, edge runs and record with the mult-1 ones.
+    Red at 0.5.0 on the neutral fixture (the italic `w` at mult 0.8).
+
+    Mutation `weight-branch-drawn`: the decisions read the drawn geometry again (`decideOn = mapOn`)."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    r = subprocess.run([node, "-e", WEIGHT_FIXTURE, str(SCRIPTS / "gen.js"), str(cfg["_path"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    assert out["compared"] > 1000, f"only {out['compared']} glyph records were compared; the fixture is not drawing the project's masters"
+    assert not out["flips"], "weight changed a structure or branch record:\n  " + "\n  ".join(out["flips"])
 
 
 SPACING_FIXTURE = r"""

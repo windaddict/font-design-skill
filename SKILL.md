@@ -4,12 +4,12 @@ description: Design, build and ship a custom display typeface for a website as a
 license: MIT
 compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow, uharfbuzz, unicodedata2), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
 metadata:
-  version: 0.6.0
+  version: 0.7.0
 ---
 
 # font-design
 
-**Version 0.6.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
+**Version 0.7.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
 frontmatter and the README badge are checked against it by `tests/test_versions_and_skill.py`. **Say
 this version number when you begin**, so the operator knows which copy answered.
 
@@ -473,7 +473,7 @@ Do not ship while any of these holds (finding F015):
 - `references/guidelines.md` — sizes, the hairline floor, contrast axes, weights, charset traps, precedent lessons.
 - `references/generator.md` — skeleton grammar, every parameter with range and interactions, the italic, adding a glyph.
 - `references/variable-font-build.md` — masters, avar, opsz, decimation, the self-check table with exact guarantees, `font.json` key by key, `--static`.
-- `references/traps.md` — 35 traps: symptom, cause, detection, the guard that ships, where it bit.
+- `references/traps.md` — 38 traps: symptom, cause, detection, the guard that ships, where it bit.
 - `references/review-loop.md` — the round protocol, the checklist, the fresh-reviewer rule, the stop rule.
 - `references/genres.md` — which typeface genres the generator reaches (a candidate recipe each, in `templates/concepts.genres.js`), which it cannot, and the limit of each; read it at phase 3.
 - `references/concept-pipeline.md` — rounds 1–3, the content JSON, artifact constraints, the name check.
