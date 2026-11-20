@@ -3,6 +3,68 @@
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
 file, repeated in `SKILL.md` and the README badge and checked by the tests.
 
+## [0.6.0] — 2026-11-19
+
+An italic group can carry a master much heavier than its Regular, and the italic opening quotes hold their ink.
+Two small defects a user's italic met when it needed a Bold master; the compatibility baseline moved for the
+second time. Planned by Fable (`docs/plan-italic-bold.md`), the operator's first proposal (a skeleton nudge on
+the `w`) measured and not taken because it moved the threshold rather than off it, the plan reviewed before
+code by an independent cross-provider reviewer (Impasse, 6 findings, all accepted: the promise narrowed to
+the decisions the rule moved, a mixed-concept fixture, a near-perpendicular T-join pin, a serif-on-stroke
+check, the quote test's `max()` case and its expectation from export polygons, a separate `thin` mutation),
+then implemented test-first.
+
+### Fixed
+- **A branch decision could flip with weight, so an italic group refused a Bold master.** `strokePolys` read
+  every geometry-dependent decision (the serif kind `|T[0]| > 0.1`, `vert`, `curved`, the teardrop side, the
+  curl test, the partner pairing) from the DRAWN tangent, and the drawn geometry moves with weight: `xf`
+  widens heavier masters by `1 + 0.16 (W/W0 − 1)` and the vertical fit pulls a flat stroke's ends in by half
+  the stroke width. Over the five concept files, 44 (glyph, concept, slant) cases changed structure or record
+  between mult 1 and some multiplier from 0.8 to 2.0 (the italic `w` of 19 concepts, the italic `W` of 8, the
+  curl, beak, `crotch` and `curved` tests of fit-moved strokes for the rest), and the Driftwood example's italic at mult 1 and
+  1.65 was refused on the `w` (`serifA=head` against `serifA=diag`). Every decision now reads the geometry at
+  mult 1 and `xh` 500 of the master's own concept (`PU` in `glyph()`: the widening undone, the fit at the
+  Regular's width and hairline), the rule 0.2 set for the x-height map extended to weight. 0 of 220,080
+  comparisons flip; the Driftwood example's italic exports at mult 1 and 1.65 (the `w` keeps its head serif in
+  both, the operator's choice) and at 1 and 2.0. **No shipped output moved:** the export JSON of every example
+  group is byte-identical to the 0.5.0 generator's, decisions included, because every shipped group has a
+  mult-1 master per concept whose heavier siblings the exporter had already required to agree with it
+  (`tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0`, which reads the
+  0.5.0 tree from git). The `scotch` genre recipe's italic, refused since 0.2, exports.
+- **The italic opening quotes overhung the letter after them.** The generator spaces an italic glyph over the
+  band between the baseline and the x-height, and the apostrophe's flare dips below the x-line, so its
+  slanted body ran 30 to 53 units past its advance; `quote_glyphs()` gave `quoteleft` and `quotedblleft`
+  that advance, and a user's build saw the second mark touch a following capital. In an italic group both
+  opening quotes now advance by at least `round(xMax + max(xMin, 0))` of their own ink, so the right side
+  bearing is never negative and equals the left wherever that value sets the advance: the Driftwood example's italic Regular `quoteleft` 81 → 133 and `quotedblleft` 246 → 299,
+  its Medium 91 → 146 and 280 → 335; the neutral italic Regular 143 → 188 and 371 → 416, its Bold 161 → 205
+  and 434 → 478. The closing quotes, the apostrophe, the straight quotes and every roman glyph are unchanged.
+
+### Added
+- `tests/test_weight_decisions.py` with `tests/weight_flips.js`: every concept of the five concept files,
+  roman and italic, at 24 multipliers against mult 1 (at least 200,000 comparisons); an italic group at mult 1
+  and 1.65 and at 1 and 2.0 through the real exporter; a `thinGrow` fixture whose fit-moved serif kind reads
+  the Regular's width and hairline; a near-perpendicular T-join whose pinned edge still differs between weights
+  (what the rule does not cover, pinned); the builder's opening-quote rule on synthetic apostrophes against the
+  0.5.0 derivation read from git, the `max()` case included; the 0.5.0-versus-0.6.0 build comparison; a
+  mixed-concept group without a mult-1 master per concept; every serif chosen from the reference geometry
+  overlapping its drawn stroke (skia-pathops). In the font suite: `test_weight_does_not_change_any_branch_record`
+  and `test_opening_quotes_lie_inside_their_advance` (every named instance, the intermediates included);
+  `mutate.py` gains `weight-branch-drawn` and `quote-opening-unslanted`. Every mutation in the file's header
+  was watched red by hand, and the two that stay green are recorded as such (`references/testing.md` section 8).
+
+### Changed
+- **The decision rule** (`references/generator.md` section 12): the geometry at mult 1 and `xh` 500 decides,
+  the drawn geometry draws. The promise is exact about its reach: a group whose masters all sit at a multiplier
+  other than 1, or that mixes concepts so one concept has no mult-1 master in the group, may see a decision
+  move to the mult-1 one (none of the examples does), and a T-join's pinned edge still reads the drawn geometry.
+- **The compatibility baseline is the 0.6.0 record** (`tests/fixtures/baseline.json`, `supersedes` naming the
+  0.5.0 record `788760d` and the one departure: the TTF digests and woff2 bytes of the two italic groups). The
+  promise is restated in `generator.md` section 11. The genre review record does not move (its digests draw
+  the roman `G`); the `scotch` note in `genres.md`, the recipe and the page content say its italic exports.
+- `references/traps.md` row 32 is rewritten as fixed, with the general cause; row 37 records the opening
+  quotes' overhang and what of the italic's spacing deliberately stays.
+
 ## [0.5.0] — 2026-11-19
 
 The capital `R`'s leg leaves its bowl without a lump. One glyph, one new end type, and the compatibility

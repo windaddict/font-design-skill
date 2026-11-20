@@ -53,9 +53,9 @@ jobs:
         # ModuleNotFoundError before uploading anything (the first PR run of 0.5.0)
         run: pip install -r requirements.txt pytest
       - name: a worktree at the baseline commit
-        run: git worktree add ../baseline 788760d
+        run: git worktree add ../baseline COMMIT_A
       - name: record the baseline digests (the tool is this branch's, the code built is the worktree's)
-        run: python tests/baseline_digest.py --record --rev 788760d --repo ../baseline --out entry-baseline.json
+        run: python tests/baseline_digest.py --record --rev COMMIT_A --repo ../baseline --out entry-baseline.json
       - name: the digests of this branch's code
         run: python tests/baseline_digest.py --print --out entry-head.json
       - name: the genre recipes' outline digests under this node (for docs/reviews/genres-<date>.md by_node_major)
