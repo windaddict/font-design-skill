@@ -2,6 +2,80 @@
   "baseline_rev": "c5b4abb",
   "baseline_version": "0.6.0",
   "by_platform_node": {
+    "darwin/20": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "6f069db6994abf5c46057dc99e8d435e7c3690596b5bbcc597f0036b1ad0660a",
+          "manifest_sha256": "6b5208562b8be1b2deae81a2705b3dcf227493e5617db25da876503079c5c22f",
+          "ttf_sha256": "31d95bd4c614402c5c6ad02062b913b450275bb116bc6c2746df8b5baf054f87"
+        },
+        "driftwood/italic": {
+          "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
+          "manifest_sha256": "1efefd6d4feecdf4793d518e466c69ac82058528c4f19e2f2346fdf260085661",
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
+        },
+        "driftwood/roman": {
+          "export_sha256": "d34596e0a4f0b2f9d7f4458222c262bc7fc388c22955854e729f4c790a16529c",
+          "manifest_sha256": "1efefd6d4feecdf4793d518e466c69ac82058528c4f19e2f2346fdf260085661",
+          "ttf_sha256": "4cc3e97111ff78ceb50db5ba10e14c6d206e0d1e12c597d2314a147b9e6b74b1"
+        },
+        "neutral/italic": {
+          "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
+        },
+        "neutral/roman": {
+          "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "886f66848a06abe39e6ea04c25cf403fec6ac9856115db49e54d8d8d9a6c00b9"
+        }
+      },
+      "woff2": {
+        "bract/roman": "4160b29efa0cfd9582645e2745c8d2598b5fc46472a56694a211257774b32566",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
+        "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
+        "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
+      }
+    },
+    "darwin/22": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "6f069db6994abf5c46057dc99e8d435e7c3690596b5bbcc597f0036b1ad0660a",
+          "manifest_sha256": "6b5208562b8be1b2deae81a2705b3dcf227493e5617db25da876503079c5c22f",
+          "ttf_sha256": "31d95bd4c614402c5c6ad02062b913b450275bb116bc6c2746df8b5baf054f87"
+        },
+        "driftwood/italic": {
+          "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
+          "manifest_sha256": "1efefd6d4feecdf4793d518e466c69ac82058528c4f19e2f2346fdf260085661",
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
+        },
+        "driftwood/roman": {
+          "export_sha256": "d34596e0a4f0b2f9d7f4458222c262bc7fc388c22955854e729f4c790a16529c",
+          "manifest_sha256": "1efefd6d4feecdf4793d518e466c69ac82058528c4f19e2f2346fdf260085661",
+          "ttf_sha256": "4cc3e97111ff78ceb50db5ba10e14c6d206e0d1e12c597d2314a147b9e6b74b1"
+        },
+        "neutral/italic": {
+          "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
+        },
+        "neutral/roman": {
+          "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "886f66848a06abe39e6ea04c25cf403fec6ac9856115db49e54d8d8d9a6c00b9"
+        }
+      },
+      "woff2": {
+        "bract/roman": "4160b29efa0cfd9582645e2745c8d2598b5fc46472a56694a211257774b32566",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
+        "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
+        "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
+      }
+    },
     "darwin/26": {
       "brotli": "1.2.1",
       "digests": {
@@ -37,6 +111,80 @@
         "driftwood/roman": "369ea43465178ca7e87dda0274be1868e3275144e92d01c78db02f79d02df583",
         "neutral/italic": "f804f4fbb75185d1836f254cbdb458fe4b491a0dfe5f2882f5cc4a2e3e3b630b",
         "neutral/roman": "f1fb9d8162800c11e5f8b570165e2519dafaf075d0574b12e06f3d657b6b1d06"
+      }
+    },
+    "linux/20": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "ee800b2ec5bd8d0b1d8f3051f507c96071805cc53a7d9dfc33a222a5fbc91043",
+          "manifest_sha256": "731f685995608c2caf43872b21bd6cb65a1c09ad76572fe70d5a1c98dcafef01",
+          "ttf_sha256": "4d0e1d34d57746040d38ad6dbeaa11fe9402fde787670d1966ccceefb89f6ff3"
+        },
+        "driftwood/italic": {
+          "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
+          "manifest_sha256": "aceb9818f2f8a68886ea5b71edb8426a1dd2a4aed61fc884b1e1bf372bc556d7",
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
+        },
+        "driftwood/roman": {
+          "export_sha256": "85e4e3b0a173bd538f708869496f8f8c5258a601c07266df95e3f416a432e339",
+          "manifest_sha256": "aceb9818f2f8a68886ea5b71edb8426a1dd2a4aed61fc884b1e1bf372bc556d7",
+          "ttf_sha256": "2521a4d1ed7ca63f29556af6274826772b7b6de64cf1be10b0b823c1fe142626"
+        },
+        "neutral/italic": {
+          "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
+        },
+        "neutral/roman": {
+          "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "886f66848a06abe39e6ea04c25cf403fec6ac9856115db49e54d8d8d9a6c00b9"
+        }
+      },
+      "woff2": {
+        "bract/roman": "b7fa0eabd0000b4a86f9c14b0d12b6417b478a5d50489d6a4fb5d8e81a99641e",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
+        "driftwood/roman": "45692301439696b9ec39c51eefc91a2db893f76eddd938d3b52374198273c99f",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
+        "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
+      }
+    },
+    "linux/22": {
+      "brotli": "1.2.1",
+      "digests": {
+        "bract/roman": {
+          "export_sha256": "ee800b2ec5bd8d0b1d8f3051f507c96071805cc53a7d9dfc33a222a5fbc91043",
+          "manifest_sha256": "731f685995608c2caf43872b21bd6cb65a1c09ad76572fe70d5a1c98dcafef01",
+          "ttf_sha256": "4d0e1d34d57746040d38ad6dbeaa11fe9402fde787670d1966ccceefb89f6ff3"
+        },
+        "driftwood/italic": {
+          "export_sha256": "ae2378d77eb2c6ea8a622d237ea5d7e72739abf9304e5ef92886034b51b0c528",
+          "manifest_sha256": "aceb9818f2f8a68886ea5b71edb8426a1dd2a4aed61fc884b1e1bf372bc556d7",
+          "ttf_sha256": "d7543ab5a746dfda9c70149aeb41c4c7f3fd09e440ea78619d73f68971bb4b46"
+        },
+        "driftwood/roman": {
+          "export_sha256": "85e4e3b0a173bd538f708869496f8f8c5258a601c07266df95e3f416a432e339",
+          "manifest_sha256": "aceb9818f2f8a68886ea5b71edb8426a1dd2a4aed61fc884b1e1bf372bc556d7",
+          "ttf_sha256": "2521a4d1ed7ca63f29556af6274826772b7b6de64cf1be10b0b823c1fe142626"
+        },
+        "neutral/italic": {
+          "export_sha256": "731b1afd52db1f90249bd727ed7e8417ef9e06eeb71738c12337187486c28fb5",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "6e29d7f2d7635c7a1aa42c77cfbdf9cca9245d81d61bf3df1ee1073e83b90a74"
+        },
+        "neutral/roman": {
+          "export_sha256": "f05d9d17e332ad64973a04e20eadd5ab16296f1bc05f162bc669d45da84ccd1f",
+          "manifest_sha256": "ae1266456ab7fe8774c8d346bf0f211c0118091fa33ca40b9e004b31b6bffbc0",
+          "ttf_sha256": "886f66848a06abe39e6ea04c25cf403fec6ac9856115db49e54d8d8d9a6c00b9"
+        }
+      },
+      "woff2": {
+        "bract/roman": "b7fa0eabd0000b4a86f9c14b0d12b6417b478a5d50489d6a4fb5d8e81a99641e",
+        "driftwood/italic": "9c5fdd4a741bdcfe1a24ae9545bbb4b2d60d2ae3d8df4d083412fb02d220bbc9",
+        "driftwood/roman": "45692301439696b9ec39c51eefc91a2db893f76eddd938d3b52374198273c99f",
+        "neutral/italic": "f13ad22776db6a0e62890b5d4ab60d96fe063e629c88dc8bdf6a10fb01c2dffa",
+        "neutral/roman": "5353e40116b3339620c237d9aca7b22c6777414f18ec5aa3e70a0ea79d9dfe6b"
       }
     }
   },
