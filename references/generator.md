@@ -683,8 +683,8 @@ listing or drawing any glyph, and prints one stderr line, for example
 `skeletons skeletons.js: overrides G h, G m, G n, G r; re-derives G ñ` (with `adds ...` for new keys, or
 `changes nothing`). It writes `skeletons` (the name) and `skeletonsSha256` (the file's sha256) into the
 export JSON, only when the key is set. `build.py` hashes the file into `sources_sha256` under its name and
-records `skeletons` in the manifest, again only when set, so `--check`, the site suite's manifest test and a
-site's font-diff see an edit to it as they see an edit to `gen.js`. `build-page.js --skeletons PATH` does
+records `skeletons` in the manifest, again only when set, so `--check` and the site suite's manifest test see an
+edit to it as they see an edit to `gen.js`, and `update-check.py`'s drift check reports one as drift. `build-page.js --skeletons PATH` does
 the same for a concept page (`references/concept-pipeline.md` section 8). A second `applySkeletons` call in
 one process throws.
 
