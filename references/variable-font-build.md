@@ -160,6 +160,12 @@ which it does). The build sorts everything it emits; there is no timestamp in th
 `head`. `--check` is the proof and the test suite runs it. The interpreter is `sys.executable`,
 never a hard-coded venv path.
 
+Since 0.8.0 the manifest also records `skill_version`, the text of `VERSION` in the folder above `scripts/`, so a face
+folder that carries no scripts still says which skill built it. A `build.py` whose folder has no `VERSION` refuses to build,
+naming the path, before any export runs; `--check` against a manifest built by another version reports the difference.
+The manifest's schema is `templates/manifest.schema.json` (`skill_version` is optional there: a manifest built before
+0.8.0 has none). `references/face-folder.md` section 3 has the rest.
+
 Budget: Bract shipped 86,580 bytes against 102,400 (Bodoni Moda 400 + 700 had been 53,980). The
 biggest tables are `gvar` and `glyf`; GPOS carried 4,100 variable pairs. Lower `decimation_eps`
 or widen `kerning.set` and the size follows; the budget test says when.
@@ -329,7 +335,14 @@ node scripts/export.js --font font.json [--group roman] [--eps 1] [--requirement
 .venv/bin/python3 scripts/check-env.py                                  # is the toolchain here; the fix command for each missing piece
 .venv/bin/python3 scripts/fontbakery-gate.py --font font.json --requirements requirements.json   # FontBakery on each group's TTF; fails on a finding not accepted
 .venv/bin/python3 scripts/fallback-metrics.py --font font.json --location opsz=72   # size-adjust and overrides for a local() fallback face
+.venv/bin/python3 scripts/diff.py work/diff --font font.json --before work/round-3   # renders AND values; --after defaults to the shipped files where font.json puts them
+.venv/bin/python3 scripts/fetch-version.py 0.7.1 work/skill-0.7.1   # the skill's own code at a released version, from the git tag or the GitHub tag archive
+.venv/bin/python3 scripts/update-check.py work/update --font font.json   # what the installed skill would change in a shipped face; writes update.md, never the face folder
 ```
+
+These lines are typed from the skill folder for a face kept beside it. For a face in a site they are typed from the site
+root with `<skill>/.venv/bin/python3 <skill>/scripts/<tool>.py` and `--font tools/<face>/font.json`
+(`references/face-folder.md`, section 2).
 
 `.venv/bin/python3` is the skill venv's interpreter, run from the skill folder (`SKILL.md`, "Finding the skill folder"); the scripts themselves use `sys.executable`
 for anything they run in turn. Node ≥ 20.

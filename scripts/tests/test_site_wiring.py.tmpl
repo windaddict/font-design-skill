@@ -2,8 +2,9 @@
 files it names, the leftovers of the face it replaced, the preload, and the CSS rules the axes rely on.
 
 WHAT IT'S FOR: this is a TEMPLATE. Fill every double-brace slot below and copy the file into the site repo's
-test directory; the font file itself is covered by scripts/tests/test_font.py, this file covers the
-page around it. Each guard covers one way the wiring could break while every page still looks
+test directory; the font itself is covered by the skill's suite (scripts/tests/test_font.py), run from the skill
+when the font changes (SKILL.md Phase 7), and this file covers the page around it. This file needs no skill code and
+stays in the site. Each guard covers one way the wiring could break while every page still looks
 plausible, because a fallback face sits behind the custom one in every stack: a stylesheet pointing at
 a file that is not there or not tracked; a stack that still names the old face; a title using a
 character the font lacks, which then renders that one character in the fallback; a fluid size that

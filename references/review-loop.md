@@ -32,22 +32,26 @@ protocol was written down.
 ## 2. The tools
 
 - **`scripts/build.py --font font.json`** writes the woff2 the pages load.
-- **`scripts/diff.py`** pixel-diffs two builds, so a round's reviewer is told where the words moved instead of
+- **`scripts/diff.py`** compares two builds by value (tables and shaping, the `## By value` section) and by pixel, so a round's reviewer is told where the words moved instead of
   finding it out. Before each build the host copies `out/` to `work/round-N/` (`cp -R`, never `rm`); after
   the build, `.venv/bin/python3 scripts/diff.py work/diff-N --font font.json --before work/round-N` renders every
   title (and `review.wordmark`) at every size in `review.sizes` and every named instance of every group, from the old and the new
   files, and writes `diff.md` (the changed renders, largest share of moved ink first, then "N of M renders
   unchanged"), `diff.json` and a before / after / diff PNG for each changed render (red: more ink after, blue:
   less). Use a fresh directory per round; a PNG from an earlier run is not removed. It exits 0 whether or not
-  anything changed, and 2 when either folder lacks a group's file. What it proves: what FreeType drew on
+  anything changed, and 2 when either folder lacks a group's file or two groups share a file name. `--before` and `--after` hold each
+  group's file under its file name (the name part of the group's `file` key), and without `--after` the after side is the shipped
+  files where `font.json` puts them. For a face in a site the command is typed from the site root with the skill's interpreter and
+  script (`references/face-folder.md`, section 2). What the renders prove: what FreeType drew on
   this machine from the two files, unhinted, laid out with GPOS kerning (raqm), at these sizes; not CoreText, not
   Chrome and not the page's CSS. It renders through the one-instruction `fpgm` that `build.py`'s raster checks
   use, because FreeType autohints the shipped fonts as they are (the neutral roman's `prep` does not prevent
   it: removing it changed nothing, adding the `fpgm` changed `B` at 16 px by 212 grey levels, measured
   2026-11-16, trap 2), and the autohinter would add pixel jumps of its own to a diff. A render also counts as changed when the title's advance width moves by more than 0.02 CSS px (a
   last glyph's advance can move with no ink moving); `diff.md` lists the two widths. A glyph none of the
-  titles uses does not show. To compare the font tables themselves, `ttx -s` the two files and diff the
-  folders; `diff.py` does not.
+  titles uses does not show in the renders. The `## By value` section covers what the renders cannot: glyph
+  order and cmap, every glyph's outlines and metrics, the layout tables, the platform-3 name records and the kerning HarfBuzz applies to two-character
+  strings; it does not cover contextual features or longer strings.
 - **`scripts/specimen.py`** renders `scripts/specimen.html.tmpl` from `font.json`: the project's
   real titles at every size in `review.sizes`, weights as the site uses them (Medium under
   `medium_below_px`), every surface in `review.surfaces`, the comparison faces (local woff2 or a

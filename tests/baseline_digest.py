@@ -19,8 +19,9 @@ The three digests, per example group:
                    shows up in the coordinates anyway.
   ttf_sha256       over the woff2 decompressed by fontTools and re-serialised as a plain TTF
                    (flavor None, timestamps not recalculated). It does not depend on the brotli build.
-  manifest_sha256  over the manifest with `sources_sha256` and `tools` removed (the source files
-                   change by definition, and the tool versions differ between machines), each
+  manifest_sha256  over the manifest with `sources_sha256`, `tools` and `skill_version` removed (the source files
+                   change by definition, the tool versions differ between machines, and `skill_version`, added in 0.8.0,
+                   changes with every release and is absent from the 0.7.0 baseline's manifests), each
                    group's `woff2_sha256` and `woff2_bytes` removed (they follow brotli), and each
                    group's `file` cut to its file name (a build with --out-dir records the absolute
                    output path, which differs per run).
@@ -70,7 +71,7 @@ FIXTURE = REPO / "tests" / "fixtures" / "baseline.json"
 EXAMPLES = {"neutral": [], "bract": ["--no-requirements"], "driftwood": ["--no-requirements"]}
 GLYPH_FIELDS = ("adv", "polys", "raw", "runs", "keptIdx", "minw")
 MASTER_FIELDS = ("kerns", "space", "titles", "minStrokeWidth")
-MANIFEST_DROP = ("sources_sha256", "tools")
+MANIFEST_DROP = ("sources_sha256", "tools", "skill_version")
 GROUP_DROP = ("woff2_sha256", "woff2_bytes")
 
 

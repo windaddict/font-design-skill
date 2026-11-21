@@ -4,12 +4,12 @@ description: Design, build and ship a custom display typeface for a website as a
 license: MIT
 compatibility: Needs Node.js 20 or newer, Python 3.10 or newer with a venv made from requirements.txt (fonttools, brotli, skia-pathops, pillow, uharfbuzz, unicodedata2), Google Chrome or Chromium for the screenshots, and a POSIX shell with bash. Supported on macOS and Linux; native Windows is not supported, WSL is. Network access is needed for the independent review (Impasse) and the typeface name check.
 metadata:
-  version: 0.7.1
+  version: 0.8.0
 ---
 
 # font-design
 
-**Version 0.7.1** — the single source of truth is the `VERSION` file at the repo root; this line, the
+**Version 0.8.0** — the single source of truth is the `VERSION` file at the repo root; this line, the
 frontmatter and the README badge are checked against it by `tests/test_versions_and_skill.py`. **Say
 this version number when you begin**, so the operator knows which copy answered.
 
@@ -73,8 +73,8 @@ supervision between gates and stops at every gate.
    budget; whether the concept pages may be published as claude.ai artifacts; consent to send artifacts to Impasse (a third-party provider); who deploys
    and when. Decide where the project files will live (the convention is `tools/<face>/` in the
    site repo), but create nothing yet: each file is created in the phase that produces its inputs —
-   `requirements.json` in phase 2, `concepts.js` in phase 3, `font.json` and the copy of `scripts/`
-   in phase 7, once the plan of phase 6 has settled the masters and axes. **During a project nothing
+   `requirements.json` in phase 2, `concepts.js` in phase 3, `font.json` in
+   phase 7, once the plan of phase 6 has settled the masters and axes. **During a project nothing
    is written into the installed skill folder**: scratch files (the plan's export, the charset
    pre-check, measurements) go under the project's `tools/<face>/work/`, which the site's
    `.gitignore` names.
@@ -95,8 +95,9 @@ Every command in this file is written in the short form typed from the skill fol
 `.venv/bin/python3 scripts/<tool>.py ...`. To run one from another directory, put the skill folder's
 absolute path in front of both `.venv/bin/python3` and `scripts/`, or start the Bash call with
 `cd "<skill folder>" &&`; give the project's own files (`font.json`, the site root) as absolute
-paths. A project's copy of the scripts, `tools/<face>/scripts/`, is run the same way, with the skill's
-interpreter: `<skill folder>/.venv/bin/python3 tools/<face>/scripts/...`.
+paths. A site carries no copy of the scripts: a command for a face in a site is typed from the site root as
+`<skill folder>/.venv/bin/python3 <skill folder>/scripts/<tool>.py ... --font tools/<face>/font.json`; below, `<skill>`
+stands for the skill folder. The contract is `references/face-folder.md`.
 
 ## 2. The nine phases
 
@@ -266,11 +267,12 @@ to the operator.
 
 ### Phase 7 — Build (`references/variable-font-build.md`, `references/testing.md`)
 
-1. Copy `scripts/` into the site's `tools/<face>/` **after `smoke.sh` has finished**, never while it
-   runs: the mutation step edits `gen.js`, `export.js` and `build.py` in place and restores them by
-   digest, so a copy taken mid-run carries a mutated file (the manifest's source hashes caught one).
-   Then compare the copy with the skill: `diff -r <skill dir>/scripts tools/<face>/scripts` must print
-   nothing; the face's own letters live in `tools/<face>/skeletons.js`, outside the copy (the phase 2
+Every command in steps 1 to 7 is typed from the site root.
+
+1. Create the face folder, `tools/<face>/` in the site (`references/face-folder.md`); the scripts stay in the
+   skill and nothing is copied. Run the suite and the mutation step **after `smoke.sh` has finished**, never
+   while it runs: the mutation step edits `gen.js`, `export.js` and `build.py` in place and restores them by
+   digest. The face's own letters live in `tools/<face>/skeletons.js` (the phase 2
    gate, item 1). Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
    and floors, and, when the face has an override, `"skeletons": "skeletons.js"`; the build log's
    `skeletons skeletons.js: overrides ...` line names every key it changed. **Path rule:** paths written inside `font.json` (`out_dir`, `concepts`, a group's
@@ -281,12 +283,12 @@ to the operator.
    directory, as the shell that typed it expects, so one spelling names one folder in every tool;
    under `--out-dir` the manifest goes into that directory whatever the `manifest` key says. Then the charset pre-check,
    per group (an italic is a second group and a second file):
-   `node scripts/export.js --font font.json --group roman --requirements requirements.json work/roman-check.json`.
+   `node <skill>/scripts/export.js --font tools/<face>/font.json --group roman --requirements tools/<face>/requirements.json tools/<face>/work/roman-check.json`.
    This explicit export is **only** the `--requirements` pre-check: it names any required character
    without a skeleton and refuses masters whose point structure or branch record differ. `build.py`
    runs the export itself, into a temporary directory, so no masters JSON lands in the committed
    `out_dir`; do not commit `work/roman-check.json` either.
-2. `.venv/bin/python3 scripts/build.py --font font.json` — read every `SELF-CHECK ok:` line; a refused build
+2. `<skill>/.venv/bin/python3 <skill>/scripts/build.py --font tools/<face>/font.json` — read every `SELF-CHECK ok:` line; a refused build
    writes nothing. The build also writes the tables a web font needs and the format expects:
    `OS/2.fsType` from `names.fs_type` (a config without it is refused), hhea and OS/2 typo metrics equal
    with a line gap of 0 and `USE_TYPO_METRICS` set, STAT axis values for every named instance, the
@@ -305,11 +307,10 @@ to the operator.
    (`@font-face` with the weight range, `font-optical-sizing: auto`, preload with `crossorigin`
    before the stylesheet, `font-weight: 500` where the guidelines say, no `letter-spacing` on a cut
    that carries its own `track`).
-4. The font suite came with the copy of `scripts/` (`tools/<face>/scripts/tests/`): it needs
-   `gen.js`, `export.js` and `build.py` beside it, so leave it there and run it from the site root,
-   `.venv/bin/python3 -m pytest tools/<face>/scripts/tests -q --font tools/<face>/font.json --requirements tools/<face>/requirements.json --static-dir tools/<face>/out/static`
+4. The font suite stays in the skill and runs from it against the face folder, typed from the site root:
+   `<skill>/.venv/bin/python3 -m pytest <skill>/scripts/tests/test_font.py -q --font tools/<face>/font.json --requirements tools/<face>/requirements.json --static-dir tools/<face>/out/static`
    (`--static-dir none` when no statics ship; a site that keeps the tests elsewhere passes
-   `--scripts=tools/<face>/scripts`, with the equals sign). Fill `scripts/tests/test_site_wiring.py.tmpl`
+   `--scripts=<skill>/scripts`, with the equals sign). Fill `scripts/tests/test_site_wiring.py.tmpl`
    into the site's own tests directory; its header says how it reads the stylesheet. Two of its guards
    are optional and skip, with the reason printed, while their slot is empty: a fallback face
    with the vertical metrics held to the font (`fallback_family`; the guard does not hold the horizontal match, `size-adjust`
@@ -317,7 +318,7 @@ to the operator.
    headline size>` prints the `size-adjust` and the three overrides from the built font and each
    fallback font file) and `text-wrap: balance` declared on the listed display selectors (`balance_selectors`; the cascade
    is not computed, so a later rule on another selector that overrides it is not seen).
-5. **Watch every guard fail**: `.venv/bin/python3 scripts/tests/mutate.py --font font.json --requirements requirements.json --static-dir none`
+5. **Watch every guard fail**: `<skill>/.venv/bin/python3 <skill>/scripts/tests/mutate.py --font tools/<face>/font.json --requirements tools/<face>/requirements.json --static-dir none`
    runs every mutation (`--only NAME` for a subset, `--list` to see them; `--static-dir DIR` when
    statics were built, `--static-dir none` when none ship, which skips the static mutations and
    prints `SKIPPED` with the reason; with neither, a missing `<out_dir>/static` refuses the run). Every
@@ -325,8 +326,8 @@ to the operator.
    cannot exercise (no digit in its titles, no `opsz` axis) is `SKIPPED`, never silently green. Choose
    the weakest mutation that breaks the property, not the one your fix already handles. A mutation
    that stays GREEN is a finding about the test: record it and fix the test.
-6. `.venv/bin/python3 scripts/build.py --font font.json --check` must report byte-identical.
-7. **The FontBakery gate:** `.venv/bin/python3 scripts/fontbakery-gate.py --font font.json --requirements requirements.json`
+6. `<skill>/.venv/bin/python3 <skill>/scripts/build.py --font tools/<face>/font.json --check` must report byte-identical.
+7. **The FontBakery gate:** `<skill>/.venv/bin/python3 <skill>/scripts/fontbakery-gate.py --font tools/<face>/font.json --requirements tools/<face>/requirements.json`
    builds each group's variable TTF into a temporary folder, runs `fontbakery check-universal` on it
    and exits 1 on any FAIL, ERROR or FATAL whose check id is not in `requirements.json`
    `accepted_qa_findings` (each `{id, reason}`, a required key, `[]` when nothing is accepted). The
@@ -402,11 +403,17 @@ Nothing of the font change has been committed yet. In this order:
    material fix, rerun the affected tests and smoke steps (finding F015) and update the record's
    "what changed after the review" line.
 3. **Then commit everything together** in one commit: the woff2, the manifest, the sources
-   (`font.json`, `requirements.json`, `concepts.js`, the copied `scripts/`), the stylesheet and
+   (`font.json`, `requirements.json`, `concepts.js`, `skeletons.js` when there is one), the stylesheet and
    templates, the tests and the docs.
 
 Deploy only on the operator's word, then check live: the font served 200, the preload present, one
 headless shot of the live page with `--family` and `--font-url`.
+
+### Later: a new skill version under a shipped face
+
+`manifest.json` records `skill_version`. When `VERSION` of the installed skill differs, run, from the site root,
+`<skill>/.venv/bin/python3 <skill>/scripts/update-check.py work/update --font tools/<face>/font.json` and read `update.md`.
+It changes nothing in the face folder. The operator approves by running the `build.py` line it prints; commit the woff2 and manifest.
 
 ## 3. Working with little supervision
 
@@ -459,7 +466,9 @@ Do not ship while any of these holds (finding F015):
 | `scripts/shoot_playwright.py` | The Playwright launcher behind `shoot.py --browser firefox` (Playwright's own Firefox) and `--launcher playwright` (the Chrome `shoot.py` found, driven by Playwright, which lays the page out at exactly the shot's width; Chrome's command line on Windows does not): it opens the shot's tokenised URL at the same viewport and scale; optional (`requirements-platform.txt`, `playwright==1.64.1`); without it `shoot.py` exits 3, SKIPPED, NOT PASSED. WebKit is designed, not built | The proofs are `shoot.py`'s server records, as for Chrome; Playwright's Firefox build, not the Firefox a reader installs |
 | `scripts/compare-shots.py` | One PNG per row from several `shoot.py --rows --meta` legs (one OS and one browser each): the row cropped from every leg, zoomed nearest-neighbour, labelled from the meta, stacked; `compare.md` (smallest sizes first), `compare.json` (`.venv/bin/python3 scripts/compare-shots.py OUT LEG_DIR LEG_DIR --min-legs 2`) | Pairs a row only when its key, text and computed style match in every accepted leg; refuses a leg without meta, a PNG without rows, a file of the wrong JSON shape, a scrolled shot, a shot laid out at another width and a PNG whose size is not the shot its rows describe, and compares the rest; exit 1 below `--min-legs`, exit 0 at or above it even when some shots failed (the workflow fails the run on a failed leg separately). It shows, it does not judge; the ink share is a hint, the PNG the evidence; a runner is not a reader's machine (`references/review-loop.md` section 9) |
 | `scripts/opsz.py` + `opsz.html` | Which `opsz` the browser applies under `font-optical-sizing: auto` | Chrome headless on this machine; Safari and Firefox unmeasured |
-| `scripts/diff.py` | Which renders of the titles changed between two builds, at every review size and named instance: `diff.md`, `diff.json` and a before/after/diff PNG per changed render (`.venv/bin/python3 scripts/diff.py OUT --font font.json --before DIR`) | FreeType through Pillow with the `fpgm` that stops autohinting, on one machine; not a browser render |
+| `scripts/diff.py` | What changed between two builds, by value (tables, outlines, metrics, HarfBuzz kerning of two-character strings) and by render at every review size and named instance: `diff.md`, `diff.json`, a PNG per changed render. `--before`/`--after` hold each group's file under its file name; no `--after` means the shipped files (`.venv/bin/python3 scripts/diff.py OUT --font font.json --before DIR`) | Renders: FreeType through Pillow with the `fpgm` that stops autohinting, on one machine, not a browser. Values: the listed tables and two-character shaping, not contextual features or longer strings |
+| `scripts/fetch-version.py` | The skill's code at a released version in a folder: `git archive` of tag `v<version>`, else the GitHub tag archive; moved into place only after its `VERSION` matches; refuses 0.6.0 | The tree at the tag as the remote serves it, not a signature; version 0.6.0 names two sources and is refused |
+| `scripts/update-check.py` | Whether the installed skill changes a shipped face: drift check, rebuild into a temporary folder, `update.md` and `update.json` (exit 0 same, 3 differs, 1 error) | The drift check proves the shipped files match `manifest.json`, not that the recorded version built them; attribution to the update is reported as unverified; it never writes into the face folder |
 | `scripts/specimen.py` | The review specimen from `font.json`: real titles, sizes, surfaces, comparison faces, spacing control strings and the legibility row (only characters the font maps); italic rows marked `data-fd-probe="italic"`; refuses a page that shows a character the built font's cmap lacks (`--allow-missing` writes it with a footer note) | What it shows is what one renderer drew; the charset check covers the family's own rows, only when the font file is found |
 | `scripts/narrow.html` | 360 px overflow check inside an iframe, measured at the inner load event and again once the inner fonts settled, after a HEAD request for the inner page's status, a count of failed faces and (with `?family=`) a loaded face of the family | `scrollWidth` vs `clientWidth` of a page served 200 with every face loaded; only a `data-fd-narrow-stage="fonts"` reading counts, and a 404, a failed face or a missing family reads `error`, never `false` |
 | `scripts/mine-sizes.py`, `scripts/mine-charset.py` | Sizes and floor from the CSS; the character set of the text the display selectors set in the built pages, with its traps; `--family` finds every selector whose rule sets the family first; `mine-charset.py --css` adds the characters any `text-transform` rule makes the browser draw inside that text (the selector's own rule, a descendant's or a class's) | Reads `clamp()`, `rem`, `px` rules and the named or found selectors, `@media` included; a family inherited from `body`, a `font:` shorthand or a custom property is not seen; text set by an inline style, by script or by a selector the tool cannot read is not seen, so the set is not exact; without `--css` a `text-transform` is not seen, and a transform rule it cannot read is named in the output |
@@ -468,6 +477,7 @@ Do not ship while any of these holds (finding F015):
 
 ## 6. Reference index
 
+- `references/face-folder.md` — the face-folder contract: what a site keeps, the working directory of every command, the version record, `update-check.py`, `fetch-version.py`, the migration note.
 - `references/process.md` — the nine phases in detail: inputs, outputs, gates, who does what, stop rules.
 - `references/site-audit.md` — the AI-tells list, the calibration traits, the guard pattern, the 360 px method.
 - `references/guidelines.md` — sizes, the hairline floor, contrast axes, weights, charset traps, precedent lessons.

@@ -4,7 +4,7 @@ WHAT IT'S FOR: every parameter added in 0.2 has a default under which the genera
 expression, so a site that copies the new scripts over its old ones and rebuilds without touching its
 concepts gets the same fonts. This is the first property to check after any edit of scripts/gen.js. It
 compares three digests per example group (export JSON without branch records, the woff2 decompressed to
-a TTF, the manifest without the source hashes, tool versions and brotli-dependent figures) with the ones
+a TTF, the manifest without the source hashes, tool versions, skill version and brotli-dependent figures; `skill_version` is left out since 0.8.0) with the ones
 tests/fixtures/baseline.json recorded from the unmodified code of the baseline commit (BASELINE_REV below: 0.1.0's
 0fc4314 from 0.2 to 0.4; 0.5.0's 788760d, the commit that redrew the R's leg root; since 0.7.0 the commit that widened
 the italic opening quotes, the one deliberate departure from 0.5.0, whose `supersedes` entry in the fixture names the
