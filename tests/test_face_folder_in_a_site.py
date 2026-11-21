@@ -208,8 +208,9 @@ def test_the_documented_commands_run_from_the_site_root(tmp_path):
     site root: build.py, diff.py (its --before folder is a copy of the build, so nothing differs), update-check.py (the manifest
     is made to record 0.0.1 just before it, so it rebuilds and compares: nothing differs, exit 0) and the font suite. Each must be documented at
     least once in that form and exit as documented (0; update-check.py 0 or 3). A doc line changed to a site-relative
-    `scripts/build.py` is no longer collected, so the test fails on the missing form. Weakest mutation to watch red: the build.py
-    line in face-folder.md changed to `.venv/bin/python3 scripts/build.py ...`."""
+    `scripts/build.py` is no longer collected, so the test fails when no line in the `<skill>` form is left. That is all it holds:
+    one doc changed to the site-relative form passes while the other still carries the `<skill>` line. Mutation watched red: the
+    build.py lines in both face-folder.md and SKILL.md changed to `.venv/bin/python3 scripts/build.py ...`."""
     site, face = make_site(tmp_path)
     shutil.copytree(face / "out", site / "work" / "round-3", ignore=shutil.ignore_patterns("static"))
     ran = []
@@ -223,6 +224,10 @@ def test_the_documented_commands_run_from_the_site_root(tmp_path):
         assert lines, f"no documented `<skill>/.venv/bin/python3 ... <skill>/{script} ...` line found in {DOC_FILES}"
         for line in lines:
             argv = shlex.split(line)
+            # The docs name the skill's venv; CI installs the packages into its setup-python interpreter and has no .venv, so the
+            # command runs under the interpreter running this test. The line's documented form was already checked by DOC_COMMAND.
+            if argv[0] == str(REPO / ".venv" / "bin" / "python3"):
+                argv[0] = sys.executable
             if "--before" in argv:
                 argv[argv.index("--before") + 1] = "work/round-3"
             r = run(argv, cwd=site)
