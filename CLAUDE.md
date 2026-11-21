@@ -29,7 +29,7 @@ Which layer a change needs:
 |---|---|
 | Prose only: `CHANGELOG.md`, a README, `references/`, `SKILL.md`, `docs/` | `tests/test_docs_commands.py`, `tests/test_hygiene.py`; add `tests/test_versions_and_skill.py` for `SKILL.md` or `VERSION` |
 | A workflow in `.github/workflows/` or `templates/platform-shots.yml` | `tests/test_ci_workflow.py`, `tests/test_hygiene.py` |
-| One tool that draws no glyph: `shoot*.py`, `compare-shots.py`, `specimen.py`, `diff.py`, `check-env.py`, `fontbakery-gate.py`, `fallback-metrics.py`, `opsz.py`, `bounds.js`, `mine-*.py`, `scripts/concepts/` | that tool's test files (find them with `grep -l <script name> tests/test_*.py`), plus `tests/test_hygiene.py` |
+| One tool that draws no glyph: `shoot*.py`, `compare-shots.py`, `specimen.py`, `diff.py`, `fetch-version.py`, `update-check.py`, `versions.py`, `check-env.py`, `fontbakery-gate.py`, `fallback-metrics.py`, `opsz.py`, `bounds.js`, `mine-*.py`, `scripts/concepts/` | that tool's test files (find them with `grep -l <script name> tests/test_*.py`), plus `tests/test_hygiene.py` |
 | What draws or builds a glyph: `gen.js`, `export.js`, `build.py`, `render.js`, or an example's `font.json` | layer 4, `scripts/smoke.sh`: a geometry change can break a fixture no unit test looks at |
 | The font suite or its harness: `scripts/tests/` | layer 3 on the neutral fixture, then layer 4 for the mutations |
 | A shared helper: `tests/conftest.py`, `requirements*.txt`, `pytest.ini` | layer 2 |
@@ -41,3 +41,18 @@ change reaches, run layer 2.
 
 Narrowing the run does not relax the rule on new tests: a new or changed guard must still be watched
 going red under a mutation, as `references/testing.md` section 1 says.
+
+## Version discipline
+
+Two installs with one `VERSION` produce the same font output. That is the exact guarantee, and these rules keep it:
+
+- A change that alters font output (`scripts/gen.js`, `scripts/export.js`, `scripts/build.py`, or the defaults they read) bumps `VERSION`
+  in the same change. Later commits under one `VERSION` may change CI, docs or tests, never font output.
+- Every CHANGELOG entry carries a line `Font output: unchanged` or `Font output: changes: <what>`.
+  `tests/test_versions_and_skill.py` holds it for the current version.
+- Every released version gets a tag `v<version>` on the first `main` commit that carries it, pushed after the merge.
+  `scripts/fetch-version.py` fetches the code at that tag.
+- `manifest.json` records `skill_version`, so a face folder says which version built it (`references/face-folder.md`).
+
+The 0.6.0 entry in the CHANGELOG is the counter-example: two different font sources carried that one number, so
+`fetch-version.py` refuses it. The rule forbids a repeat.

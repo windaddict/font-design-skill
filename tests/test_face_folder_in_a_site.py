@@ -1,17 +1,21 @@
-"""The font suite runs from where a site is told to put it.
+"""A face folder inside a site is served by the skill's scripts, which the site does not carry.
 
-WHAT IT'S FOR: dry-run finding W1. A cold run of the skill copied test_font.py and conftest.py alone
-into a site's tests directory, and the suite broke at once: conftest resolved the scripts folder as the
-parent of its own directory, which in the site was the repository root. The rule is now: copy the WHOLE
-scripts/ folder (tests included) to tools/<face>/scripts/ and run pytest on tools/<face>/scripts/tests;
-a site that keeps the tests elsewhere points --scripts (or FD_SCRIPTS) at the scripts folder. This test
-builds that layout from the repo's fixtures in a temp dir, builds the neutral face there with the copied
-build.py, and runs the copied suite from the SITE's root. Nothing here reads examples/neutral/out, so it
-holds in CI before the neutral build step.
+WHAT IT'S FOR: the face-folder contract. A site holds only the face (`tools/<face>/` with font.json, concepts.js,
+requirements.json, optionally skeletons.js, and the build output); every skill command runs from the skill install and takes the
+path to font.json, and the font suite runs FROM THE SKILL against that face. These tests build a sample site from the repo's
+fixtures, build the neutral face in it with the repo's `scripts/build.py` (the site gets no copy of `scripts/`), and run the suite,
+the mutation harness and the documented commands from the SITE ROOT. Nothing here reads examples/neutral/out, so it holds in CI
+before the neutral build step.
+
+History (kept): dry-run finding W1 was the earlier design, in which a site copied the whole scripts/ folder to tools/<face>/scripts/
+because the suite resolved the scripts folder as the parent of its own directory. That design is gone; `--scripts=DIR` and
+FD_SCRIPTS stay, for a site that keeps a copy of conftest.py and test_font.py in its own tests folder.
 """
 import json
 import os
 import pathlib
+import re
+import shlex
 import shutil
 import sys
 
@@ -19,19 +23,19 @@ from conftest import REPO, run
 
 NEUTRAL = REPO / "examples" / "neutral"
 SAMPLE = REPO / "tests" / "fixtures" / "site-sample"
+SCRIPTS = REPO / "scripts"
 SKELETONS = REPO / "tests" / "fixtures" / "skeletons"
-IGNORE = shutil.ignore_patterns("__pycache__", ".pytest_cache", ".ruff_cache", "*.pyc")
 
 
 def make_site(tmp_path, skeletons=None):
-    """A site at tmp_path/site with tools/sampler/{scripts,font.json,requirements.json,concepts.js} and the
+    """A site at tmp_path/site with tools/sampler/{font.json,requirements.json,concepts.js} (and no scripts folder) and the
     face built into tools/sampler/out (font.json's out_dir) with statics in out/static. With `skeletons` (a file
     under tests/fixtures/skeletons/), font.json is that folder's fixture (the neutral one naming skeletons.js) and
     the override is copied in beside it as skeletons.js, as a site keeps tools/<face>/skeletons.js."""
     site = tmp_path / "site"
     shutil.copytree(SAMPLE, site)
     face = site / "tools" / "sampler"
-    shutil.copytree(REPO / "scripts", face / "scripts", ignore=IGNORE)
+    face.mkdir(parents=True)
     for name in ("font.json", "requirements.json", "concepts.js"):
         shutil.copyfile(NEUTRAL / name, face / name)
     if skeletons:
@@ -39,46 +43,47 @@ def make_site(tmp_path, skeletons=None):
         shutil.copyfile(SKELETONS / skeletons, face / "skeletons.js")
     # --static is a command-line path, so it resolves from the working directory (the site root here), while the
     # woff2s go to font.json's own out_dir (re-review, docs F007: the two forms must name the same folder)
-    r = run([sys.executable, str(face / "scripts" / "build.py"), "--font", str(face / "font.json"), "--static", "tools/sampler/out/static"], cwd=site)
-    assert r.returncode == 0, f"the copied build.py did not build the face in the site:\n{r.stderr[-1500:]}"
+    r = run([sys.executable, str(SCRIPTS / "build.py"), "--font", str(face / "font.json"), "--static", "tools/sampler/out/static"], cwd=site)
+    assert r.returncode == 0, f"the skill's build.py did not build the face in the site:\n{r.stderr[-1500:]}"
+    assert not (face / "scripts").exists() and not (site / "scripts").exists(), "the sample site must hold no scripts folder"
     assert (face / "out" / "Sampler-VF.woff2").is_file(), "the build wrote the woff2 somewhere other than font.json's out_dir"
     assert (face / "out" / "static").is_dir() and not (site / "out").exists(), "--static did not resolve from the working directory"
     return site, face
 
 
-def test_the_whole_scripts_folder_copied_into_a_site_runs_the_suite_green(tmp_path):
-    """Layout 1, the documented one: tools/sampler/scripts/tests beside gen.js, export.js and build.py.
-    The suite must pass from the site's root with only --font, --requirements and --static-dir."""
+def test_the_suite_run_from_the_skill_passes_on_a_face_in_a_site(tmp_path):
+    """The documented layout: the suite lives in the skill (scripts/tests/test_font.py) and the face folder holds no scripts. Run from
+    the site's root, it must pass with only --font, --requirements and --static-dir."""
     site, face = make_site(tmp_path)
-    r = run([sys.executable, "-m", "pytest", "tools/sampler/scripts/tests", "-q", "-p", "no:cacheprovider",
+    r = run([sys.executable, "-m", "pytest", str(SCRIPTS / "tests" / "test_font.py"), "-q", "-p", "no:cacheprovider",
              "--font", "tools/sampler/font.json", "--requirements", "tools/sampler/requirements.json", "--static-dir", "tools/sampler/out/static"], cwd=site)
-    assert r.returncode == 0, f"the copied suite failed in the site:\n{r.stdout[-3000:]}\n{r.stderr[-800:]}"
+    assert r.returncode == 0, f"the skill's suite failed on the face in the site:\n{r.stdout[-3000:]}\n{r.stderr[-800:]}"
     summary = r.stdout.strip().splitlines()[-1]
     assert "passed" in summary and "failed" not in summary and "error" not in summary, summary
 
 
 def test_a_site_whose_face_names_a_skeleton_override_runs_the_suite_green(tmp_path):
     """0.6.0: a face that names its own skeleton override in font.json (tools/sampler/skeletons.js here, Bract's shoulder fixture)
-    builds with the copied scripts and passes the copied suite, whose manifest test now hashes the override beside the five
+    builds with the skill's scripts and passes the skill's suite run from the site root, whose manifest test now hashes the override beside the five
     sources. Then one comment character appended to the override makes that manifest test fail naming the file, so the suite
     sees an edit to the override as it sees an edit to gen.js. Mutation watched red (references/testing.md section 8, M13):
     build.py leaving the override out of sources_sha256 (the manifest test then fails on set equality)."""
     site, face = make_site(tmp_path, "bract-shoulder.js")
     common = ["-q", "-p", "no:cacheprovider", "--font", "tools/sampler/font.json", "--requirements", "tools/sampler/requirements.json",
               "--static-dir", "tools/sampler/out/static"]
-    r = run([sys.executable, "-m", "pytest", "tools/sampler/scripts/tests", *common], cwd=site)
-    assert r.returncode == 0, f"the copied suite failed on a face with a skeleton override:\n{r.stdout[-3000:]}\n{r.stderr[-800:]}"
+    r = run([sys.executable, "-m", "pytest", str(SCRIPTS / "tests" / "test_font.py"), *common], cwd=site)
+    assert r.returncode == 0, f"the skill's suite failed on a face with a skeleton override:\n{r.stdout[-3000:]}\n{r.stderr[-800:]}"
     manifest = json.loads((face / "out" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["skeletons"] == "skeletons.js" and "skeletons.js" in manifest["sources_sha256"]
     with open(face / "skeletons.js", "a", encoding="utf-8") as f:
         f.write("//\n")
-    r = run([sys.executable, "-m", "pytest", "tools/sampler/scripts/tests", *common, "-k", "shipped_fonts_match_their_manifest"], cwd=site)
+    r = run([sys.executable, "-m", "pytest", str(SCRIPTS / "tests" / "test_font.py"), *common, "-k", "shipped_fonts_match_their_manifest"], cwd=site)
     assert r.returncode != 0 and "skeletons.js changed since the font was built" in r.stdout, r.stdout[-1500:]
 
 
 def test_tests_kept_elsewhere_find_the_scripts_through_the_scripts_option(tmp_path):
-    """Layout 2: only conftest.py and test_font.py live in the site's own tests folder, and --scripts names
-    the folder holding the scripts. Without the option the fixtures must refuse to start, naming the
+    """Only conftest.py and test_font.py live in the site's own tests folder, and --scripts names
+    the skill's scripts folder. Without the option the fixtures must refuse to start, naming the
     scripts the wrong folder lacks; with it, the manifest test (which hashes gen.js, export.js and
     build.py under the scripts folder) passes, proving the resolution."""
     site, face = make_site(tmp_path)
@@ -92,12 +97,12 @@ def test_tests_kept_elsewhere_find_the_scripts_through_the_scripts_option(tmp_pa
     assert r.returncode != 0, "the suite ran although the scripts folder it assumed (tests/) holds no gen.js"
     assert "lacks" in r.stderr + r.stdout and "gen.js" in r.stderr + r.stdout, f"the refusal does not name the missing scripts:\n{(r.stderr + r.stdout)[-800:]}"
     # --scripts=DIR with the equals sign: a space-separated value is read by pytest as a test path before the
-    # option exists, and tools/sampler/scripts has a tests/ child whose conftest would then load a second time
-    r = run([sys.executable, "-m", "pytest", "tests/font", *common, "--scripts=tools/sampler/scripts"], cwd=site)
+    # option exists, and the skill's scripts folder has a tests/ child whose conftest would then load a second time
+    r = run([sys.executable, "-m", "pytest", "tests/font", *common, f"--scripts={SCRIPTS}"], cwd=site)
     assert r.returncode == 0, f"--scripts did not make the suite find the scripts:\n{r.stdout[-2000:]}\n{r.stderr[-800:]}"
     assert "passed" in r.stdout.strip().splitlines()[-1]
-    assert pathlib.Path(face / "scripts" / "gen.js").is_file()  # what --scripts pointed at
-    r = run([sys.executable, "-m", "pytest", "tests/font", *common], cwd=site, env={**os.environ, "FD_SCRIPTS": "tools/sampler/scripts"})
+    assert pathlib.Path(SCRIPTS / "gen.js").is_file()  # what --scripts pointed at
+    r = run([sys.executable, "-m", "pytest", "tests/font", *common], cwd=site, env={**os.environ, "FD_SCRIPTS": str(SCRIPTS)})
     assert r.returncode == 0, f"FD_SCRIPTS did not make the suite find the scripts:\n{r.stdout[-2000:]}\n{r.stderr[-800:]}"
 
 
@@ -109,7 +114,7 @@ def test_mutate_skips_the_static_mutations_under_static_dir_none_and_refuses_a_m
     naming both ways out, instead of building statics anywhere. Mutation watched red: `none` resolved as
     a path again (the refusal then names .../none)."""
     site, face = make_site(tmp_path)
-    mutate = str(face / "scripts" / "tests" / "mutate.py")
+    mutate = str(SCRIPTS / "tests" / "mutate.py")
     common = ["--font", "tools/sampler/font.json", "--requirements", "tools/sampler/requirements.json"]
     r = run([sys.executable, mutate, *common, "--static-dir", "none", "--only", "static"], cwd=site)
     assert r.returncode == 0, f"mutate.py --static-dir none exited {r.returncode}:\n{r.stdout[-2000:]}\n{r.stderr[-800:]}"
@@ -135,7 +140,7 @@ def test_build_out_dir_holds_the_manifest_even_when_the_manifest_key_points_else
     cfg["manifest"] = "../stray/manifest.json"
     (face / "font.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     out = tmp_path / "build" / "o"
-    r = run([sys.executable, str(face / "scripts" / "build.py"), "--font", str(face / "font.json"), "--group", "roman", "--out-dir", str(out)], cwd=site)
+    r = run([sys.executable, str(SCRIPTS / "build.py"), "--font", str(face / "font.json"), "--group", "roman", "--out-dir", str(out)], cwd=site)
     assert r.returncode == 0, r.stderr[-1500:]
     assert (out / "manifest.json").is_file() and (out / "Sampler-VF.woff2").is_file(), sorted(p.name for p in out.iterdir())
     assert not (tmp_path / "build" / "stray").exists(), "the manifest was written outside --out-dir"
@@ -156,7 +161,7 @@ def test_mutate_lists_its_mutations_on_a_project_with_one_instance_and_on_an_ita
     serves the static-missing mutation and the first group stands in for the roman one. Mutations watched
     red: `instances[1]` restored (IndexError); `next(...)` without the default restored (StopIteration)."""
     site, face = make_site(tmp_path)
-    mutate = str(face / "scripts" / "tests" / "mutate.py")
+    mutate = str(SCRIPTS / "tests" / "mutate.py")
     cfg = json.loads((face / "font.json").read_text(encoding="utf-8"))
     one = json.loads(json.dumps(cfg))
     one["groups"]["roman"]["instances"] = one["groups"]["roman"]["instances"][:1]
@@ -172,3 +177,61 @@ def test_mutate_lists_its_mutations_on_a_project_with_one_instance_and_on_an_ita
              "--static-dir", "none", "--list"], cwd=site)
     assert r.returncode == 0, f"mutate.py --list failed on an italic-only project:\n{r.stderr[-800:]}"
     assert "F013: Bold's outlines shifted 3 units" in r.stdout, r.stdout[-1500:]
+
+
+DOC_FILES = ("references/face-folder.md", "SKILL.md")
+DOC_COMMAND = re.compile(r"<skill>/\.venv/bin/python3 (?:-m pytest )?<skill>/scripts/[^`\n]+")
+
+
+def documented_lines(script):
+    """Every command line the docs give for `script` in the `<skill>`-rooted site form, with `<skill>` replaced by this repository and
+    `<face>` by `sampler`; a line that still holds a `<placeholder>` after that is left out (it needs a value only the operator has).
+    `script` is a `scripts/<name>.py` tail, or `scripts/tests/test_font.py` for the suite."""
+    lines = []
+    for doc in DOC_FILES:
+        text = (REPO / doc).read_text(encoding="utf-8")
+        for m in DOC_COMMAND.finditer(text):
+            line = m.group(0).strip().rstrip(".,;")
+            if f"<skill>/{script}" not in line:
+                continue
+            line = line.replace("<skill>", str(REPO)).replace("<face>", "sampler")
+            if "<" in line:
+                continue
+            lines.append(line)
+    return lines
+
+
+def test_the_documented_commands_run_from_the_site_root(tmp_path):
+    """F004: a site has no scripts/, so every documented command names the skill's interpreter and script by `<skill>` and every
+    face path relative to the SITE ROOT. This builds a face in a sample site (no scripts folder anywhere in it), reads the
+    command lines out of references/face-folder.md and SKILL.md, replaces `<skill>` with this repository, and runs each from the
+    site root: build.py, diff.py (its --before folder is a copy of the build, so nothing differs), update-check.py (the manifest
+    is made to record 0.0.1 just before it, so it rebuilds and compares: nothing differs, exit 0) and the font suite. Each must be documented at
+    least once in that form and exit as documented (0; update-check.py 0 or 3). A doc line changed to a site-relative
+    `scripts/build.py` is no longer collected, so the test fails when no line in the `<skill>` form is left. That is all it holds:
+    one doc changed to the site-relative form passes while the other still carries the `<skill>` line. Mutation watched red: the
+    build.py lines in both face-folder.md and SKILL.md changed to `.venv/bin/python3 scripts/build.py ...`."""
+    site, face = make_site(tmp_path)
+    shutil.copytree(face / "out", site / "work" / "round-3", ignore=shutil.ignore_patterns("static"))
+    ran = []
+    for script, allowed in (("scripts/build.py", {0}), ("scripts/diff.py", {0}), ("scripts/tests/test_font.py", {0}), ("scripts/update-check.py", {0, 3})):
+        if script.endswith("update-check.py"):
+            manifest = face / "out" / "manifest.json"
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["skill_version"] = "0.0.1"
+            manifest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        lines = documented_lines(script)
+        assert lines, f"no documented `<skill>/.venv/bin/python3 ... <skill>/{script} ...` line found in {DOC_FILES}"
+        for line in lines:
+            argv = shlex.split(line)
+            # The docs name the skill's venv; CI installs the packages into its setup-python interpreter and has no .venv, so the
+            # command runs under the interpreter running this test. The line's documented form was already checked by DOC_COMMAND.
+            if argv[0] == str(REPO / ".venv" / "bin" / "python3"):
+                argv[0] = sys.executable
+            if "--before" in argv:
+                argv[argv.index("--before") + 1] = "work/round-3"
+            r = run(argv, cwd=site)
+            assert r.returncode in allowed, f"documented command failed from the site root: {line}\n{r.stdout[-1500:]}\n{r.stderr[-800:]}"
+            ran.append(line)
+    assert not (site / "scripts").exists() and not (face / "scripts").exists()
+    assert len(ran) >= 4, ran

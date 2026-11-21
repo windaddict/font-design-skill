@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "font-design/manifest/v1",
+  "title": "manifest.json: the record of one build of a face",
+  "description": "Written by scripts/build.py beside the woff2 files and read by build.py --check, update-check.py and the font suite. It is the face folder's only record of what built its fonts: the hashes of the inputs and of the skill's font sources, the tool versions, and per group the measurements the build took. `skill_version` (0.8.0) is the VERSION of the skill that built it and is optional here because a manifest built before 0.8.0 has none. Keys not listed here are allowed, at the top level and in each group entry, so a later skill can add one and a v1 reader stays valid; each group entry must carry its file, italic flag, woff2 hash and size, axes, instances and masters.",
+  "type": "object",
+  "required": ["schema", "family", "version", "font_json", "concepts", "requirements", "sources_sha256", "tools", "source_date_epoch",
+               "size_budget_bytes", "raster_budget", "raster_sizes", "fold_units", "charset", "groups"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "font-design/manifest/v1" },
+    "skill_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "the VERSION of the skill that built this face; absent in a manifest built before 0.8.0" },
+    "family": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$", "description": "the face's own version (font.json `version`), not the skill's" },
+    "font_json": { "type": "string", "minLength": 1 },
+    "concepts": { "type": "string", "minLength": 1 },
+    "skeletons": { "type": "string", "description": "the face's skeleton override, present only when font.json names one" },
+    "requirements": { "type": ["string", "null"], "description": "the requirements file the build ran with, relative to font.json where it can be; null for a --no-requirements build" },
+    "sources_sha256": {
+      "type": "object",
+      "description": "sha256 of each source: the skill's gen.js, export.js and build.py, the face's font.json and concepts.js, and its skeletons file by name",
+      "required": ["gen.js", "export.js", "build.py", "font.json", "concepts.js"],
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "tools": { "type": "object", "additionalProperties": { "type": "string" }, "description": "versions of node, fontTools, brotli, skia-pathops, Pillow and Python on the machine that built it" },
+    "source_date_epoch": { "type": "integer" },
+    "size_budget_bytes": { "type": "integer", "minimum": 1 },
+    "raster_budget": { "type": "object", "additionalProperties": { "type": "number" } },
+    "raster_sizes": { "type": "array", "items": { "type": "number" } },
+    "fold_units": { "type": "object", "additionalProperties": { "type": "number" } },
+    "charset": { "type": "object" },
+    "groups": {
+      "type": "object", "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["file", "italic", "woff2_sha256", "woff2_bytes", "axes", "instances", "masters"],
+        "properties": {
+          "file": { "type": "string", "minLength": 1 },
+          "italic": { "type": "boolean" },
+          "woff2_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "woff2_bytes": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

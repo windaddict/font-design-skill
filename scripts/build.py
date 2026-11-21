@@ -26,6 +26,10 @@ path the file is passed to export.js, which exits 1 naming every character witho
 apostrophes and the four quotes derived from the apostrophe are not glyph keys) is applied here to the
 loaded glyph keys. The manifest records the path used, relative to font.json, or null.
 
+Skill version (0.8.0): the manifest's top-level `skill_version` is the text of the VERSION file in the folder above scripts/,
+read from the script's own location, so a face folder that carries no scripts still says which skill built it. A skill folder with
+no readable VERSION (N.N.N) refuses to build, naming the path.
+
 Paths: the keys INSIDE font.json (out_dir, `manifest`, `concepts`, a group's `file`) resolve relative to
 the DIRECTORY OF font.json, so the same font.json works from a site's root and from inside the face's
 folder. Every path given on the COMMAND LINE (--static, --out-dir, --masters, --ttf, --keep-masters,
@@ -1321,7 +1325,22 @@ def tool_versions():
             "skia-pathops": pathops.__version__, "pillow": PIL.__version__, "python": platform.python_version()}
 
 
-def compose_manifest(cfg, entries, previous, requirements_path=None):
+def read_skill_version():
+    """The skill's own version, read from the VERSION file in the folder above scripts/ (so the skill finds its own file wherever it is
+    installed). It goes into the manifest as `skill_version`, which is how a face folder, which carries no scripts, says what built it.
+    Raises CheckFailed naming the path when the file is missing or does not read N.N.N: nothing is built with an unknown version."""
+    path = HERE.parent / "VERSION"
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise CheckFailed(f"cannot read the skill's version file {path} ({exc}); build.py records the skill version in the manifest and "
+                          "will not build without it. Run the copy of the skill that has its VERSION file beside scripts/") from exc
+    if not re.fullmatch(r"\d+\.\d+\.\d+", text):
+        raise CheckFailed(f"the skill's version file {path} reads {text!r}, not N.N.N; build.py will not record an unreadable version")
+    return text
+
+
+def compose_manifest(cfg, entries, previous, requirements_path=None, skill_version=None):
     """The manifest for this build: top-level facts plus one entry per group. A partial (--group) build
     keeps the previous manifest's entries for the groups it did not build, and says so. `requirements`
     records the requirements file the build ran with, relative to font.json's directory where it can
@@ -1344,7 +1363,8 @@ def compose_manifest(cfg, entries, previous, requirements_path=None):
         rp = pathlib.Path(requirements_path).resolve()
         req_record = rp.relative_to(cfg["_dir"]).as_posix() if rp.is_relative_to(cfg["_dir"]) else rp.as_posix()
     # the override's name only when font.json names one: an unconditional "skeletons": null would move every project's manifest
-    head = {"schema": MANIFEST_SCHEMA, "family": cfg["family"], "version": cfg["version"], "font_json": cfg["_path"].name, "concepts": cfg["concepts"]}
+    head = {"schema": MANIFEST_SCHEMA, "skill_version": skill_version, "family": cfg["family"], "version": cfg["version"], "font_json": cfg["_path"].name,
+            "concepts": cfg["concepts"]}
     if cfg.get("_skeletons"):
         head["skeletons"] = cfg["skeletons"]
     return {
@@ -1405,6 +1425,7 @@ def main(argv=None):
                 raise CheckFailed(f"no requirements file at {requirements_path}; pass --requirements PATH, or --no-requirements to build without the "
                                   "required-character check (the manifest then records requirements: null)")
             requirements = load_requirements(requirements_path)
+        skill_version = read_skill_version()
     except CheckFailed as exc:
         log(f"build.py: {exc}")
         return 1
@@ -1434,7 +1455,7 @@ def main(argv=None):
                 built[g], entries[g] = woff2_bytes, entry
                 if args.static:
                     statics[g] = build_statics(cfg, cfg["groups"][g], woff2_bytes, tmp)
-            manifest = compose_manifest(cfg, entries, previous, requirements_path)
+            manifest = compose_manifest(cfg, entries, previous, requirements_path, skill_version)
         except CheckFailed as exc:
             log(f"build.py: SELF-CHECK FAILED: {exc}")
             return 1

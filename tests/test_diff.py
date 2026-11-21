@@ -427,3 +427,211 @@ def test_diff_advance_tolerance_is_compared_before_rounding(tmp_path, folders, m
     data = json.loads((tmp_path / "o" / "diff.json").read_text(encoding="utf-8"))
     assert len(data["entries"]) == 8 and all(e["advance_changed"] is flagged for e in data["entries"]), [e["advance_changed"] for e in data["entries"]]
     assert all(e["changed_px"] == 0 for e in data["entries"]), "the fixture changes the reported advance only"
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
+# 0.8.0: the file-name lookup (issue 17), the shared-name refusal and the by-value section. Each test below fails on the 0.7.1
+# tree on the assertion named by its message prefix; the weakest mutations to watch go red are named in each docstring.
+# ---------------------------------------------------------------------------------------------------------------------------
+
+EXAMPLES = REPO / "examples"
+
+
+def site_face(tmp_path, files):
+    """A face inside a sample site: tmp_path/site/tools/face/font.json is the neutral font.json with out_dir "." and only the
+    groups named in `files` ({group: file key}); returns the font.json path. The woff2 files are the caller's to place."""
+    face = tmp_path / "site" / "tools" / "face"
+    face.mkdir(parents=True)
+    cfg = json.loads((NEUTRAL / "font.json").read_text(encoding="utf-8"))
+    cfg["out_dir"] = "."
+    cfg["groups"] = {g: dict(cfg["groups"][g], file=f) for g, f in files.items()}
+    (face / "font.json").write_text(json.dumps(cfg), encoding="utf-8")
+    shutil.copyfile(NEUTRAL / "concepts.js", face / "concepts.js")
+    return face / "font.json"
+
+
+def run_diff(out, font, *extra):
+    r = run([sys.executable, str(DIFF), str(out), "--font", str(font), *extra])
+    data = json.loads((out / "diff.json").read_text(encoding="utf-8")) if (out / "diff.json").is_file() else None
+    return r, data
+
+
+def test_diff_finds_a_group_file_by_its_name_under_before_and_after(tmp_path, built):
+    """Issue 17: a group whose `file` is `../../static/F-VF.woff2` (a site that ships its font outside the face folder) is looked
+    up as `F-VF.woff2` under --before and --after, which is what `build.py --out-dir` writes, instead of walking out of the folder.
+    Second run, no --after: the after side is the shipped file where font.json puts it (resolved), recorded in diff.json. The
+    expected entry count is groups x instances x titles x sizes counted from font.json. Weakest mutation to watch red: `group_files()`
+    keeping the relative path under --before (the run exits 2 naming a path outside the folder)."""
+    font = site_face(tmp_path, {"roman": "../../static/F-VF.woff2"})
+    for d in ("site/static", "before", "after"):
+        (tmp_path / d).mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(built[0], tmp_path / d / "F-VF.woff2")
+    r, data = run_diff(tmp_path / "o1", font, "--before", str(tmp_path / "before"), "--after", str(tmp_path / "after"), "--sizes", "16")
+    assert r.returncode == 0, f"issue-17 basename lookup: diff.py exited {r.returncode} on a group whose file is ../../static/F-VF.woff2: {r.stderr}"
+    assert len(data["entries"]) == len(CFG["groups"]["roman"]["instances"]) * len(CFG["titles"]) * 1, len(data["entries"])
+    r2, data2 = run_diff(tmp_path / "o2", font, "--before", str(tmp_path / "before"), "--sizes", "16")
+    assert r2.returncode == 0, f"issue-17 basename lookup, default after side: diff.py exited {r2.returncode}: {r2.stderr}"
+    assert data2["files"]["roman"]["after"].endswith("static/F-VF.woff2"), data2["files"]
+    assert data2["files"]["roman"]["before"].endswith("before/F-VF.woff2"), data2["files"]
+
+
+def test_diff_refuses_two_groups_whose_files_share_a_name(tmp_path, built):
+    """Two groups whose `file` keys end in the same name would be one file under --before and --after, so one group would be compared
+    with the other's font and the run would read as 'unchanged'. Exit 2, both groups and the name in stderr, nothing written. The
+    files exist under both folders, so the missing-file refusal cannot be what answers. Weakest mutation to watch red: the
+    shared-name check removed (the run compares roman with itself and exits 0)."""
+    font = site_face(tmp_path, {"roman": "a/F-VF.woff2", "italic": "b/F-VF.woff2"})
+    for d in ("before", "after"):
+        (tmp_path / d).mkdir()
+        shutil.copyfile(built[0], tmp_path / d / "F-VF.woff2")
+    r, data = run_diff(tmp_path / "o", font, "--before", str(tmp_path / "before"), "--after", str(tmp_path / "after"), "--sizes", "16")
+    assert r.returncode == 2 and "share the file name F-VF.woff2" in r.stderr, f"same-name groups: exit {r.returncode}: {r.stderr}"
+    assert "roman" in r.stderr and "italic" in r.stderr, r.stderr
+    assert data is None and not (tmp_path / "o" / "diff.md").exists()
+
+
+def test_diff_by_value_reports_no_difference_between_a_font_and_itself(tmp_path, folders):
+    """The identity run: the neutral build against a copy of itself. diff.json has a `values` entry per group with no differences,
+    some strings shaped, and the group's named-instance locations from font.json; diff.md says `<group>: no difference by value`
+    for each group. Weakest mutation to watch red: `value_diff` returning one fixed difference line for every pair."""
+    before, after = folders
+    r, out, data = diff(tmp_path, before, after, "--sizes", "16")
+    assert r.returncode == 0, r.stderr
+    assert data.get("values"), "by-value section missing from diff.json (identity)"
+    assert set(data["values"]) == set(CFG["groups"]), sorted(data["values"])
+    for g, v in data["values"].items():
+        assert v["differences"] == [], (g, v["differences"][:3])
+        assert v["strings_shaped"] > 0, (g, v["strings_shaped"])
+        assert v["locations"] == [i["location"] for i in CFG["groups"][g]["instances"]], (g, v["locations"])
+    md = (out / "diff.md").read_text(encoding="utf-8")
+    assert "## By value" in md
+    for g in CFG["groups"]:
+        assert f"{g}: no difference by value" in md, g
+
+
+def test_diff_by_value_names_what_moved_in_the_roman_and_nothing_in_the_italic(tmp_path, folders):
+    """The after roman is doctored here with fontTools: `o` shifted +30 in x with its lsb, the advance of `four` raised by 60, one
+    GPOS PairValueRecord raised by 80 (a pair of two letters the cmap maps), name ID 5 rewritten. diff.json's roman differences hold
+    a line for each (the outline, the hmtx record, the GPOS pair, HarfBuzz shaping of the pair, the instanced outline, the name),
+    the italic holds none, and diff.md lists them under `## By value`. Weakest mutation to watch red: the roman compared with
+    itself in `run()`'s value pass (every line vanishes)."""
+    from fontTools.ttLib import TTFont
+    before, after = folders
+    font = TTFont(str(after / "Sampler-VF.woff2"))
+    glyph = font["glyf"]["o"]
+    glyph.coordinates.translate((30, 0))
+    glyph.recalcBounds(font["glyf"])
+    font["hmtx"].metrics["o"] = (font["hmtx"].metrics["o"][0], glyph.xMin)
+    adv, lsb = font["hmtx"].metrics["four"]
+    font["hmtx"].metrics["four"] = (adv + 60, lsb)
+    reverse = {g: c for c, g in font.getBestCmap().items()}
+    pairpos = font["GPOS"].table.LookupList.Lookup[0].SubTable[0]
+    assert pairpos.Format == 1
+    moved = None
+    for first, pset in zip(pairpos.Coverage.glyphs, pairpos.PairSet):
+        for rec in pset.PairValueRecord:
+            if first in reverse and rec.SecondGlyph in reverse and rec.Value1 is not None and getattr(rec.Value1, "XAdvance", 0):
+                moved = rec
+                break
+        if moved:
+            break
+    assert moved, "the fixture has no kerned pair of two mapped glyphs"
+    moved.Value1.XAdvance += 80
+    font["name"].setName("Version 9.99 doctored by the test", 5, 3, 1, 0x409)
+    save_woff2(font, after / "Sampler-VF.woff2")
+    r, out, data = diff(tmp_path, before, after, "--sizes", "16")
+    assert r.returncode == 0, r.stderr
+    assert data.get("values"), "by-value section missing from diff.json (moved)"
+    lines = data["values"]["roman"]["differences"]
+    assert any(line.startswith("glyph o: default outline differs") for line in lines), lines[:12]
+    assert any(re.match(r"glyph four: hmtx", line) for line in lines), lines[:12]
+    assert any(line.startswith("GPOS pair") for line in lines), lines[:12]
+    assert any(line.startswith("shaped '") for line in lines), lines[:12]
+    assert any("glyph o @ (" in line for line in lines), lines[:12]
+    assert any(line.startswith("name 5 (") for line in lines), lines[:12]
+    assert data["values"]["italic"]["differences"] == []
+    md = (out / "diff.md").read_text(encoding="utf-8")
+    assert "## By value" in md and md.index("## By value") < md.index("glyph o: default outline differs")
+    assert "italic: no difference by value" in md
+
+
+@pytest.fixture(scope="module")
+def example_builds(tmp_path_factory):
+    """{name: build folder}: examples/<name> built by `build.py --out-dir` into a temp folder, once per module."""
+    cache = {}
+
+    def get(name):
+        if name not in cache:
+            out = tmp_path_factory.mktemp(f"build-{name}") / "out"
+            extra = ["--no-requirements"] if name == "bract" else []
+            r = run([sys.executable, str(REPO / "scripts" / "build.py"), "--font", str(EXAMPLES / name / "font.json"), "--out-dir", str(out), *extra])
+            assert r.returncode == 0, f"the {name} example did not build:\n{r.stderr[-1500:]}"
+            cache[name] = out
+        return cache[name]
+    return get
+
+
+@pytest.mark.parametrize("name", ["bract", "driftwood"])
+def test_diff_by_value_runs_on_the_bract_and_driftwood_examples_against_copies_of_themselves(tmp_path, example_builds, name):
+    """Bract has two axes (wght and opsz) and Driftwood's roman and italic each have one avar-mapped axis, which the group's own
+    named-instance locations must handle: each example's build is compared with a copy of itself and every group reports no
+    difference by value and no render changed. Weakest mutation to watch red: the instance locations fixed to `wght` and `opsz`
+    (a one-axis group then fails to instance)."""
+    built_dir = example_builds(name)
+    before = tmp_path / "before"
+    shutil.copytree(built_dir, before)
+    cfg = json.loads((EXAMPLES / name / "font.json").read_text(encoding="utf-8"))
+    r, data = run_diff(tmp_path / "o", EXAMPLES / name / "font.json", "--before", str(before), "--after", str(built_dir), "--sizes", "16")
+    assert r.returncode == 0, r.stderr
+    assert data.get("values"), "by-value section missing from diff.json (examples)"
+    assert set(data["values"]) == set(cfg["groups"]), sorted(data["values"])
+    for g, v in data["values"].items():
+        assert v["differences"] == [], (name, g, v["differences"][:3])
+        assert v["locations"] == [i["location"] for i in cfg["groups"][g]["instances"]], (name, g)
+    assert f"0 of {len(data['entries'])} renders changed" in (tmp_path / "o" / "diff.md").read_text(encoding="utf-8")
+
+
+def test_diff_by_value_sees_a_change_that_shows_only_at_a_named_instance(tmp_path, folders):
+    """The instanced check exists for a difference the default outline does not show. Here one gvar delta of `o` is moved in the
+    after roman, so the default outline is unchanged and only the instanced outline differs. value_diff, at the axis maximum,
+    must report `glyph o @ (...): instanced outline differs` at the axis maximum, must NOT report it at the axis default (where
+    every delta is scaled by zero), and must NOT report the default outline. Weakest mutation to watch red: the instanced
+    comparison replaced by an echo of the default comparison, or by a line per location whenever the gvar tuples differ."""
+    from fontTools.ttLib import TTFont
+    before, after = folders
+    path = after / "Sampler-VF.woff2"
+    font = TTFont(str(path))
+    axis = font["fvar"].axes[0]
+    tv = next(v for v in font["gvar"].variations["o"] if any(c is not None for c in v.coordinates))
+    i = next(k for k, c in enumerate(tv.coordinates) if c is not None)
+    tv.coordinates[i] = (tv.coordinates[i][0] + 40, tv.coordinates[i][1])
+    save_woff2(font, path)
+    mod = load_diff_module()
+    rest, peak = {axis.axisTag: axis.defaultValue}, {axis.axisTag: axis.maxValue}
+    lines, _ = mod.value_diff(before / "Sampler-VF.woff2", path, [rest, peak])
+    assert f"glyph o @ {mod.where_text(peak)}: instanced outline differs" in lines, lines[:12]
+    # At the default location every delta is scaled by zero, so the outline there is the same: a line there would mean the
+    # check reports the changed tuple, not the instanced outline.
+    assert f"glyph o @ {mod.where_text(rest)}: instanced outline differs" not in lines, lines[:12]
+    assert not any(ln.startswith("glyph o: default outline differs") for ln in lines), lines[:12]
+
+
+def test_diff_by_value_keeps_name_records_that_share_an_id_and_language_apart(tmp_path, folders):
+    """Two platform-3 name records can share a name ID and a language and differ only in encoding (Unicode BMP, encoding 1, and
+    full repertoire, encoding 10). Both fonts get the same encoding-10 record for name ID 5; the after font's encoding-1 record is
+    then rewritten. The difference must be reported. Weakest mutation to watch red: name records keyed by (name ID, language)
+    only, so the encoding-10 record overwrites the changed encoding-1 one in both fonts and the change vanishes."""
+    from fontTools.ttLib import TTFont
+    before, after = folders
+    paths = []
+    for folder, v1 in ((before, None), (after, "Version 9.99 rewritten by the test")):
+        p = folder / "Sampler-VF.woff2"
+        font = TTFont(str(p))
+        font["name"].setName("Version full repertoire", 5, 3, 10, 0x409)
+        if v1:
+            font["name"].setName(v1, 5, 3, 1, 0x409)
+        save_woff2(font, p)
+        paths.append(p)
+    lines, _ = load_diff_module().value_diff(paths[0], paths[1], [])
+    assert any(ln.startswith("name 5") and "rewritten by the test" in ln for ln in lines), lines[:12]
+

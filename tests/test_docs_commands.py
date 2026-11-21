@@ -19,7 +19,10 @@ from conftest import REPO
 
 DOCS = [REPO / "SKILL.md", REPO / "README.md", *sorted((REPO / "references").rglob("*.md")), *sorted((REPO / "examples").glob("*/README.md")),
         REPO / "scripts" / "concepts" / "README.md", *sorted((REPO / "templates").glob("*.md"))]
-SCRIPT = re.compile(r"(?:^|[\s`(])(?:bash\s+|node\s+|\S*python3?\s+(?:-m\s+pytest\s+)?)?"
+# `<skill>/` is the documented prefix of a command typed from a site root (the site has no scripts/): the skill-root form
+# `<skill>/.venv/bin/python3 <skill>/scripts/build.py --font tools/<face>/font.json` is checked against the real script's flags
+# exactly as the repository-root form is. Without the optional prefix such a line would match nothing and go unchecked, silently.
+SCRIPT = re.compile(r"(?:^|[\s`(])(?:bash\s+|node\s+|\S*python3?\s+(?:-m\s+pytest\s+)?)?(?:<skill>/)?"
                     r"((?:scripts/[A-Za-z0-9_./-]+\.(?:py|js|sh)(?![\w.]))|(?:scripts/tests(?![\w.])))(\s[^`\n]*)?")
 HEDGE = re.compile(r"confirm (?:the|this) flag|written concurrently|re-verify (?:the|this) (?:flag|CLI)|flags? (?:was|were) written", re.I)
 

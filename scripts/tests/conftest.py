@@ -1,7 +1,7 @@
 """Fixtures for the font test-suite template (test_font.py): which project, which expectations, and the
 built things under test.
 
-WHAT IT'S FOR: the suite is a template a project copies beside its font.json. This file is where it
+WHAT IT'S FOR: the suite runs from the skill against a project's face folder. This file is where it
 learns which font.json to read and which requirements.json to hold it to, and it parametrises every
 test over the groups, masters and instances the REQUIREMENTS name (review finding F002), never the ones
 font.json or the manifest name, so a font.json that drops an axis, a master or a character goes red
@@ -17,16 +17,16 @@ instead of shrinking the suite to match.
                             folder has a tests/ child it loads that conftest too and fails with
                             "option names {'--font'} already added"
 
-WHERE THE SUITE LIVES IN A SITE (dry-run finding W1): the suite needs the generator, the exporter and
-the builder beside it, so a site copies the WHOLE scripts/ folder, tests included, to something like
-tools/<face>/scripts/ and runs
+WHERE THE SUITE LIVES FOR A FACE IN A SITE: in the skill, not in the site. The suite runs from the skill install against a face
+folder, typed from the site root with the skill's interpreter and test file:
 
-    pytest tools/<face>/scripts/tests --font tools/<face>/font.json --requirements tools/<face>/requirements.json
+    <skill>/.venv/bin/python3 -m pytest <skill>/scripts/tests/test_font.py -q --font tools/<face>/font.json --requirements tools/<face>/requirements.json
 
-Copying test_font.py and conftest.py alone into the site's own tests directory breaks the default
-(`SCRIPTS = HERE.parent` would then be the site's root); a site that wants the tests elsewhere all the
-same points `--scripts=DIR` or `FD_SCRIPTS` at the folder holding gen.js, export.js and build.py, and the
-fixtures refuse to start when that folder lacks them, naming the missing file.
+(`<skill>` is the folder holding scripts/ and VERSION; the face folder holds no scripts and no copy of this suite). The default
+`SCRIPTS = HERE.parent` is then the skill's own scripts folder, which is the documented layout. A face's own tests, such as the
+filled site-wiring template, stay in the site and need no skill code. A site that keeps a copy of this file and test_font.py
+elsewhere points `--scripts=DIR` or `FD_SCRIPTS` at the skill's scripts folder (the one holding gen.js, export.js and build.py),
+and the fixtures refuse to start when that folder lacks them, naming the missing file.
 
 Exact guarantee: what the fixtures read from font.json is only WHERE the built things are (out_dir,
 file names, the concepts path for a fresh export); every expected VALUE comes from requirements.json.
@@ -53,7 +53,7 @@ SCRIPT_FILES = ("gen.js", "export.js", "build.py")
 
 def scripts_dir():
     """The folder holding gen.js, export.js and build.py: FD_SCRIPTS when set, else the parent of this
-    file's directory (the layout of the skill repo and of a whole-folder copy into a site)."""
+    file's directory (the layout of the skill install, which the suite runs from)."""
     env = os.environ.get("FD_SCRIPTS")
     return pathlib.Path(env).resolve() if env else HERE.parent
 
@@ -80,7 +80,8 @@ def pytest_configure(config):
         SCRIPTS = pathlib.Path(value).resolve()
     missing = [f for f in SCRIPT_FILES if not (SCRIPTS / f).is_file()]
     if missing:
-        raise pytest.UsageError(f"the scripts folder {SCRIPTS} lacks {missing}; copy the whole scripts/ folder of the skill, or pass --scripts DIR / set FD_SCRIPTS")
+        raise pytest.UsageError(f"the scripts folder {SCRIPTS} lacks {missing}; run the suite from the skill install, "
+                                "or pass --scripts=DIR / set FD_SCRIPTS to the skill's scripts folder")
     config._font_design_scripts = SCRIPTS
 
 

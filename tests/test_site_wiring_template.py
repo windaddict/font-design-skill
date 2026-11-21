@@ -4,7 +4,7 @@ and still catches a character the font lacks.
 WHAT IT'S FOR: dry-run finding W12. The first template read one quote style around the family name,
 one selector per rule and clamp() sizes only, and refused a stylesheet written any other way; it also
 required a replaced face to name. This builds the neutral face into a copy of tests/fixtures/site-sample
-(as test_copy_into_site does), wires the Sampler font into the fixture's stylesheet in two styles, fills
+(as test_face_folder_in_a_site does), wires the Sampler font into the fixture's stylesheet in two styles, fills
 scripts/tests/test_site_wiring.py.tmpl for that site and runs the filled suite there with pytest.
 Style A: single quotes, one selector per rule, a clamp() size, an old face named. Style B: double
 quotes, a selector list (`h3, .plate-title`), a plain rem size inside an @media block, font-synthesis
@@ -25,7 +25,7 @@ import sys
 
 import pytest
 from conftest import REPO, run
-from test_copy_into_site import make_site
+from test_face_folder_in_a_site import make_site
 
 TMPL = REPO / "scripts" / "tests" / "test_site_wiring.py.tmpl"
 PRELOAD = '<link rel="preload" href="/fonts/Sampler-VF.woff2" as="font" type="font/woff2" crossorigin>'

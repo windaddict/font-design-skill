@@ -32,6 +32,7 @@ def test_the_readme_build_and_test_lines_name_the_same_static_folder(tmp_path):
     static tests fail on "no static instances at")."""
     skill = tmp_path / "skill"
     shutil.copytree(REPO / "scripts", skill / "scripts", ignore=IGNORE)
+    shutil.copy2(REPO / "VERSION", skill / "VERSION")  # build.py refuses to build without it (0.8.0)
     shutil.copytree(REPO / "examples" / "neutral", skill / "examples" / "neutral", ignore=IGNORE)
     cmds = readme_commands()
     build = next(c for c in cmds if "scripts/build.py" in c)

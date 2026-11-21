@@ -1,6 +1,6 @@
 # font-design — a Claude Code skill for making a website its own typeface
 
-![version](https://img.shields.io/badge/version-0.7.1-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
+![version](https://img.shields.io/badge/version-0.8.0-blue) ![licence](https://img.shields.io/badge/licence-MIT-green)
 
 A skill that designs, builds and ships a custom display typeface for a website as a self-hosted
 variable web font. The face is generated from centre-line skeletons by a parametric generator, chosen
@@ -28,7 +28,7 @@ Everything learned from both — including the bugs found afterwards — is in t
 5. **Round 3** — finalists head to head, the reviewer's verdict in the page; the operator picks and names.
 6. **Plan the build**, then have the plan reviewed independently (Impasse) before writing code.
 7. **Build** one variable font per group (roman; italic as a second file) with self-checks that fail
-   the build; wire the CSS; copy the test suite; watch every guard fail under its mutation.
+   the build; wire the CSS; run the skill's test suite against the face folder; watch every guard fail under its mutation.
 8. **Design-review loop**, at most six rounds, each with a fresh reviewer reading real-page screenshots.
 9. **Ship**: independent review of the finished diff, one re-review, the record, deploy on the operator's word.
 
@@ -43,9 +43,15 @@ cd ~/.claude/skills/font-design
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
-A site can also carry the skill as a git submodule pinned to a commit (hopsafari.com does, at
-`tools/font-design`). The site then keeps its own `font.json`, `concepts.js` and tests, and a skill change
-reaches its font only when the site moves the pin and rebuilds.
+A site keeps only a face folder (`tools/<face>/`: `font.json`, `concepts.js`, `requirements.json`, optionally
+`skeletons.js`, and the build output); every skill command runs from the skill's install and takes the path to
+`font.json`, so no scripts are copied into the site. `manifest.json` records the skill version that built the face, and
+`scripts/update-check.py` tells the operator what a newer skill would change before the face is rebuilt.
+`references/face-folder.md` is the contract.
+
+**Releases.** Each released version is tagged `v<version>` on the first `main` commit that carries it, and one `VERSION`
+means the same font output. `scripts/fetch-version.py` puts the skill's code at a released version into a folder, so an
+old build can be reproduced (the CHANGELOG's `## Releases` section lists the tags).
 
 Requirements: Node ≥ 20; Python ≥ 3.10 with `fonttools==4.68.*`, `brotli`, `skia-pathops`, `pillow`, `uharfbuzz`, `unicodedata2`
 (CI runs 3.12; 3.10 and 3.11 are not run by anything here); Chrome or Chromium for the review tools
@@ -100,10 +106,10 @@ concepts in round 1 and sets its floors from its own measurements.
 |---|---|
 | `SKILL.md` | The skill: phases, gates, blockers, tool table, reference index |
 | `scripts/` | Generator, exporter, builder, review tools, concept-page builder and templates, the test templates |
-| `references/` | The process in detail, the traps, the generator parameters, the build, the review loop, testing, fallbacks, the Bract worked example and the Driftwood precedent |
-| `templates/` | `font.json` and `requirements.json` examples and schemas, `concepts.js` skeleton, record and plan templates, reviewer briefs, Impasse instructions, `platform-shots.yml` (the short caller of the cross-platform rendering workflow a site copies) |
+| `references/` | The face-folder contract, the process in detail, the traps, the generator parameters, the build, the review loop, testing, fallbacks, the Bract worked example and the Driftwood precedent |
+| `templates/` | `font.json` and `requirements.json` examples, the `font.json` and manifest schemas, `concepts.js` skeleton, record and plan templates, reviewer briefs, Impasse instructions, `platform-shots.yml` (the short caller of the cross-platform rendering workflow a site copies) |
 | `examples/` | `neutral/` (the smoke fixture), `bract/`, `driftwood/` (parameters and configuration only, under neutral name tables; MIT like the rest of the repo) |
-| `tests/` | The repo's own tests: hygiene, versions, schemas and concepts, the review tools on fixtures (`shoot.py`'s server and sentinel in real Chrome where one is found), the whole-`scripts/`-folder copy into a sample site, the site-wiring template filled against that site, every documented command's flags, a smoke build |
+| `tests/` | The repo's own tests: hygiene, versions, schemas and concepts, the review tools on fixtures (`shoot.py`'s server and sentinel in real Chrome where one is found), a face folder inside a sample site served by the skill's scripts, the site-wiring template filled against that site, every documented command's flags, a smoke build |
 | `docs/plan.md` | The plan this repo was built from and its independent review |
 
 ## Screenshots

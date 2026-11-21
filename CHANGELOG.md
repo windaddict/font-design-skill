@@ -1,9 +1,42 @@
 # Changelog
 
 All notable changes to this skill. The format follows Keep a Changelog; the version is the `VERSION`
-file, repeated in `SKILL.md` and the README badge and checked by the tests.
+file, repeated in `SKILL.md` and the README badge and checked by the tests. Each entry states whether font
+output changes (a line starting `Font output:`), and `## Releases` at the end lists the tags.
 
-## [Unreleased]
+## [0.8.0] — 2026-11-20
+
+Font output: unchanged. Every example rebuilds byte-identically (`tests/test_backward_compat.py`); the manifest gains one key,
+`skill_version`, which the compatibility baseline's manifest digest leaves out.
+
+A site now keeps only a face folder and runs the skill's own scripts against it, instead of carrying a submodule and a copy of
+`scripts/`. The three tools below make that folder self-describing and let a site see what a newer skill would change before it
+rebuilds.
+
+### Added
+- **The face-folder contract** (`references/face-folder.md`): the files a site keeps (`font.json`, `concepts.js`,
+  `requirements.json`, optionally `skeletons.js`, the build output), the working directory of every command (the site root,
+  with the skill's interpreter and script by `<skill>`), the version record, the migration from a copied `scripts/` folder.
+  The font suite and the mutation harness run from the skill against a face folder; `test_site_wiring.py.tmpl` stays the site's.
+- **`skill_version` in `manifest.json`**, read from the `VERSION` beside `scripts/`. `build.py` refuses to build when that file is
+  missing. The schema string stays `font-design/manifest/v1`; `templates/manifest.schema.json` describes the manifest, with
+  `skill_version` optional because earlier manifests have none.
+- **`scripts/fetch-version.py VERSION DIR`** puts the skill's code at a released version into `DIR`, from `git archive` of the tag
+  or from the GitHub tag archive, through a temporary folder moved into place only after its `VERSION` matches. It refuses 0.6.0
+  (see Releases).
+- **`scripts/update-check.py OUT --font font.json`** compares the recorded and installed versions; on a difference it checks the
+  shipped files against the manifest (drift), rebuilds with the installed skill into a temporary folder, and writes `update.md`
+  and `update.json`. It never writes into the face folder, refuses an OUT inside it or one holding files it did not write, compares the
+  shipped and rebuilt woff2 bytes, and removes the report of an earlier run when it fails for any reason. A clean drift check proves manifest consistency only, so the report calls attribution to the update unverified.
+- **`diff.py` compares by value** as well as by render: glyph order and cmap, each glyph's outline and metrics at the default and at
+  every named instance, the layout tables, GPOS pairs, the name records, `head`, `hhea`, `OS/2`, and the kerning HarfBuzz applies
+  to two-character strings. It is folded in from a site's own comparison tool.
+- **The version-discipline rule** (`CLAUDE.md`): a change to font output bumps `VERSION`, every entry carries a `Font output:`
+  line (held by `tests/test_versions_and_skill.py`), every release is tagged `v<version>`.
+- **`CLAUDE.md`: how much to test for a change.** Rules for an agent developing the skill: five layers from one
+  test file to CI by hand, a table saying which layer each kind of change needs, and the rule that the commit or
+  pull request names the layer it ran.
+- `smoke.sh` step 2b runs `diff.py` on all three fixtures against copies of themselves.
 
 ### Changed
 - **CI's long jobs run only by hand.** The test matrix and the `chrome` job took 47 to 81 minutes each, and the
@@ -15,10 +48,9 @@ file, repeated in `SKILL.md` and the README badge and checked by the tests.
   `test_ci_lints_pull_request_pushes_that_touch_linted_files_and_runs_the_long_jobs_only_by_hand` holds the triggers,
   and `test_the_lint_path_filter_covers_every_file_eslint_lints` holds the filter to the ESLint config.
 
-### Added
-- **`CLAUDE.md`: how much to test for a change.** Rules for an agent developing the skill: five layers from one
-  test file to CI by hand, a table saying which layer each kind of change needs, and the rule that the commit or
-  pull request names the layer it ran.
+### Fixed
+- **`diff.py --before` and `--after` walked out of their folder** for a group whose `file` key has a directory part (issue #17).
+  Each group's file is now found by its file name under both folders; two groups with one name are refused.
 
 ## [0.7.1] — 2026-11-20
 
@@ -949,3 +981,26 @@ else from their later lists is.
 - The round-1 comparison row of the neutral example shows the built fixture font itself; a real
   round 1 compares against the site's current face (`content.minimal.json`).
 - Statics from `--static` keep overlapping contours and are for modern renderers.
+
+## Releases
+
+A released version is tagged `v<version>` on the first `main` commit whose `VERSION` reads it. One `VERSION` guarantees the same
+font output for the same face folder, not identical repository files: later commits under one version may change CI, docs or tests.
+
+| Tag | Commit | Note |
+|---|---|---|
+| v0.1.0 | 0fc4314 | the first commit |
+| v0.2.0 | 183560f | merge of PR #2; the later commit 3c4e8d9 (PR #4, lint) changed none of `gen.js`, `export.js`, `build.py` |
+| v0.3.0 | 7cbb3e4 | merge of PR #5 |
+| v0.3.1 | 4538c4c | merge of PR #6 |
+| v0.4.0 | 598044b | merge of PR #8 |
+| v0.5.0 | 5d0b29f | merge of PR #11 |
+| v0.6.0 | 1c032ad | merge of PR #13; see the note below |
+| v0.7.0 | aa4b9ae | merge of PR #14 |
+| v0.7.1 | b09faa9 | merge of PR #15; the later commits 47ce908 and 852fd96 (CI, CLAUDE.md) changed none of the three font sources |
+| v0.8.0 | the merge commit of the release branch | tagged after the merge |
+
+**0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and
+its `gen.js` and `export.js` differ from the tag's; it reached `main` only inside 0.7.0 (aa4b9ae), so it has no tag. A face built by it
+cannot be rebuilt from the tag. `fetch-version.py` refuses 0.6.0 and `update-check.py` prints a notice for a face recorded at 0.6.0. The
+version-discipline rule exists so this cannot happen again.

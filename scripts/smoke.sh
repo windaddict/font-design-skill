@@ -70,11 +70,17 @@ if want 2; then
   # since 0.7.1, so the font suite runs on a second face (step 4)
   "$PY" "$HERE/build.py" --font "$ROOT/examples/bract/font.json" --no-requirements
   "$PY" "$HERE/build.py" --font "$ROOT/examples/driftwood/font.json"
-  # 2b. diff.py: the neutral build against a copy of itself must report no change (a renderer that differs
-  # between two loads of one file would make every round's "what changed" noise)
-  mkdir -p "$OUT/diff-before" && cp -R "$NEUTRAL/out/." "$OUT/diff-before/"
-  "$PY" "$HERE/diff.py" "$OUT/diff0" --font "$NEUTRAL/font.json" --before "$OUT/diff-before" --sizes 16 40
-  grep -Eq '^\*\*0 of [0-9]+ renders changed\*\*' "$OUT/diff0/diff.md" || { echo "diff.py reported a change between a font and its copy" >&2; exit 1; }
+  # 2b. diff.py on all three fixtures: each build against a copy of itself must report no change, by render and by value (a
+  # renderer that differs between two loads of one file would make every round's "what changed" noise, and the by-value section
+  # must see no difference in any group: neutral has two groups, bract one, driftwood two, with one- and two-axis, avar-mapped locations)
+  for ex in neutral bract driftwood; do
+    mkdir -p "$OUT/diff-before-$ex" && cp -R "$ROOT/examples/$ex/out/." "$OUT/diff-before-$ex/"
+    "$PY" "$HERE/diff.py" "$OUT/diff-$ex" --font "$ROOT/examples/$ex/font.json" --before "$OUT/diff-before-$ex" --sizes 16 40
+    grep -Eq '^\*\*0 of [0-9]+ renders changed\*\*' "$OUT/diff-$ex/diff.md" || { echo "diff.py reported a render change between the $ex build and its copy" >&2; exit 1; }
+    groups="$("$PY" -c "import json,sys; print(len(json.load(open(sys.argv[1]))['groups']))" "$ROOT/examples/$ex/font.json")"
+    found="$(grep -c 'no difference by value' "$OUT/diff-$ex/diff.md" || true)"
+    if [ "$found" != "$groups" ]; then echo "diff.py: $ex has $groups group(s) but diff.md reports no difference by value for $found" >&2; exit 1; fi
+  done
 fi
 
 if want 3; then

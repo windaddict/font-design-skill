@@ -1,10 +1,10 @@
 # Testing a generated font: the suite template, its mutations, and the survivors
 
-WHAT IT'S FOR: the reference for phase 7's "watch every guard fail". The skill copies the whole
-`scripts/` folder into the site repo (`tools/<face>/scripts/`), `test_font.py`, `conftest.py` and
-`mutate.py` included, because the suite needs `gen.js`, `export.js` and `build.py` beside it (the
-conftest header says how a site that keeps the tests elsewhere points `--scripts` at them), and
-fills `scripts/tests/test_site_wiring.py.tmpl` into the site's own tests. This file explains each test, the
+WHAT IT'S FOR: the reference for phase 7's "watch every guard fail". The skill does not copy `scripts/` into the
+site. The font suite (`test_font.py`, `conftest.py`) and `mutate.py` stay in the skill and run from it against a face
+folder, given by `--font` (`references/face-folder.md`); a site that keeps the tests elsewhere points `--scripts` at the
+skill's `scripts/` (the conftest header says how). The skill fills `scripts/tests/test_site_wiring.py.tmpl` into the
+site's own tests, and that file stays the site's. This file explains each test, the
 exact property it pins, the mutation that must turn it red, how to choose a mutation that proves
 the property rather than the fix, the three survivor shapes from Bract's first mutation run, and
 the harness rules. Read it before running `mutate.py` and whenever a mutation stays green.
@@ -47,6 +47,7 @@ Contents
 6. The site-wiring template
 7. Harness rules
 8. The repository's own guards for the added tools, and the survivors they showed
+9. The face-folder guards (0.8.0)
 
 ## 1. Why a green test proves nothing until it has failed
 
@@ -269,7 +270,9 @@ the first run that day was 118 RED with two UNPROVEN, both catalogue entries the
 
 ## 6. The site-wiring template
 
-`scripts/tests/test_site_wiring.py.tmpl` carries the tests that live in the **site** repo, with
+What stays in the site is this template's output, which needs no skill code: the stylesheet and font-URL guards,
+and the page-character guard that no title uses a character the font lacks. The font itself is not tested here: the
+skill's suite runs from the skill. `scripts/tests/test_site_wiring.py.tmpl` carries the tests that live in the **site** repo, with
 `{{ }}` slots for the stylesheet path, the templates glob, the preload tag, the font URLs (an italic
 URL left empty when no italic group is built), the display, text-cut and Medium selectors, the opsz maximum,
 the old face's name and files (both left empty when the old face stays in use elsewhere or shipped
@@ -356,12 +359,11 @@ and watched turn that test red (2026-11-16, both dry runs).
   to `tmp_path` by an autouse fixture.
 - **A mutation that needs the exporter** rebuilds without `--masters`, so a fresh export runs.
 - Keep the run's log; the record quotes the count and names the survivors.
-- **Copy `scripts/` into a site only after `smoke.sh` has finished.** The mutation step edits
-  `gen.js`, `export.js` and `build.py` in place and restores them by digest; a copy taken mid-run
-  carries a mutated file, which the manifest's source hashes catch later and nothing catches at
-  copy time. `diff -r <skill dir>/scripts tools/<face>/scripts` after the copy must print nothing
-  (second dry run, finding 14). Since 0.6.0 there is no exception: a face's own letters are in
-  `tools/<face>/skeletons.js`, beside `font.json` and outside the copy, and the manifest hashes that file
+- **Run the suite from the skill only after `smoke.sh` has finished.** The mutation step edits
+  `gen.js`, `export.js` and `build.py` in place and restores them by digest; a suite run while it is
+  mid-run reads a mutated file, which the manifest's source hashes catch later. Since 0.8.0 nothing is
+  copied into the site, so there is no copy to compare (second dry run, finding 14, concerned the old copy). A face's own
+  letters are in `tools/<face>/skeletons.js`, beside `font.json`, and the manifest hashes that file
   as a sixth source.
 
 ## 8. The repository's own guards for the added tools, and the survivors they showed
@@ -618,8 +620,8 @@ restored by sha256, with `__pycache__` cleared:
 | the italic-only refusal widened to every new `GI` key | `test_a_glyph_added_to_both_tables_exports_in_both_groups` |
 | export.js's name and existence checks deleted | (e, key cases) the `.json`, `sub/` and missing-file cases |
 | build.py's name, hashed-name and existence checks deleted | **survived the first form** for the name and existence checks: with build.py's check gone, build.py ran export.js, which refuses in the same words, and the test matched the message anywhere in the log (two guards on one fixture). The test now requires `build.py: <message>` and no export.js line; all three red |
-| M13 the override left out of `sources_sha256` | (f) the source set; the copy-into-site variant (the copied suite fails) |
-| the site suite's `sources` entry for the override deleted (`scripts/tests/test_font.py`) | the copy-into-site variant |
+| M13 the override left out of `sources_sha256` | (f) the source set; the face-in-a-site variant (`tests/test_face_folder_in_a_site.py`: the suite run from the skill fails) |
+| the site suite's `sources` entry for the override deleted (`scripts/tests/test_font.py`) | the face-in-a-site variant |
 | M14 the override hashed as `concepts.js` | (f) on the sha256 |
 | M14' / M14'' `load_masters`'s comparison dropped / its hash half dropped | (f, `--masters`) the stale export builds |
 | M15 the call without the splice | (g) the marker count; the Chrome shot (the page script throws `SKELETONS is not defined`) |
@@ -692,3 +694,24 @@ glyph's advance and outline at each (the 2-unit `o` mutation above stays RED). F
 `thinGrow` scales it, not `concept.thin`, so the reference never falls back to the master's `thin`: mutation, `thin: P.thin` in `PU`
 → RED (the fit fixture's `fit1` reads `head` at mult 1.5 and 2 against `diag` at 1). F004, the test module's header no longer states
 equal bearings unconditionally.
+
+## 9. The face-folder guards (0.8.0)
+
+Every test below asserts behaviour that did not exist on the 0.7.1 tree, so each was written to fail first, on the
+assertion named in the last column (the run proves only the first failing assertion, so each names that one). The
+`<skill>/scripts` command lines in the docs are held by `tests/test_docs_commands.py`, which accepts the `<skill>/` prefix.
+
+| Guard | File | First assertion it fails on |
+|---|---|---|
+| a group `file` such as `../../static/F-VF.woff2` is found by its name under `--before` and `--after` (issue #17) | `tests/test_diff.py` | `issue-17 basename lookup` |
+| two groups with one file name are refused, naming both | `tests/test_diff.py` | `same-name groups` |
+| by value, a font against itself shows no difference; a moved glyph, advance, kern pair and name are each named; the Bract and Driftwood examples (two axes, an avar-mapped axis) | `tests/test_diff.py` | `by-value section missing from diff.json` |
+| the manifest records `skill_version` and validates against `templates/manifest.schema.json`; a `scripts/` copy with no `VERSION` above it refuses to build | `tests/test_manifest_version.py` | `manifest records no skill_version`, `build without VERSION` |
+| `fetch-version.py`: the download route, the git-tag route, neither route, a wrong-version archive, a truncated archive leaving nothing, the 0.6.0 refusal | `tests/test_fetch_version.py` | `no-git fetch`, `git-tag fetch`, `neither route`, `wrong-version archive`, `partial archive`, `0.6.0 refusal` |
+| `update-check.py`: up to date, a mismatch reported without overwriting, drift labelled, the 0.6.0 notice, no recorded version, a failed build or diff leaving no stale report, an OUT inside the face folder | `tests/test_update_check.py` | `up-to-date`, `mismatch report`, `drift label`, `0.6.0 notice`, `no recorded version`, `failing diff`, `out inside face` |
+| the CHANGELOG entry of the current version states whether font output changes | `tests/test_versions_and_skill.py` | `does not state whether font output changes` |
+| the suite, the mutation harness and every documented command run from a site root that holds no `scripts/` | `tests/test_face_folder_in_a_site.py` | a documented line changed to a site-relative `scripts/build.py` |
+
+The manifest digest of the compatibility baseline (`tests/baseline_digest.py`) leaves `skill_version` out, because the
+0.7.0 baseline was recorded before the key existed and the key changes on every release; the woff2 bytes and the other
+digests are unchanged, which is the proof that no font output moved.

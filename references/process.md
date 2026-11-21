@@ -56,7 +56,7 @@ Impasse, the frontend-design plugin, the strongest model. For anything missing r
 
 **Project files.** Decide where they will live (the convention is `tools/<face>/` in the site repo)
 and create nothing yet. Each file is created in the phase that produces its inputs:
-`requirements.json` in phase 2, `concepts.js` in phase 3, `font.json` and the copy of `scripts/` in
+`requirements.json` in phase 2, `concepts.js` in phase 3, `font.json` in
 phase 7, after the plan of phase 6 has settled the masters and axes.
 
 **Stop rule.** No consent to Impasse and no agreed substitute: stop before phase 6.
@@ -220,10 +220,12 @@ is the operator's to settle.
 **Inputs.** The amended plan. **Reference:** `references/variable-font-build.md`,
 `references/testing.md`, `references/generator.md`.
 
-**Do.** Copy `scripts/` into the site's `tools/<face>/`, after `smoke.sh` has finished (its mutation
-step edits the scripts in place and restores them by digest, so a copy taken mid-run carries a
-mutated file), and check the copy with `diff -r <skill dir>/scripts tools/<face>/scripts` (no
-output: the face's own letters are in `tools/<face>/skeletons.js`, outside the copy). Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
+**Do.** Create the face folder, `tools/<face>/` in the site (`references/face-folder.md`); the scripts stay in the
+skill and nothing is copied. Every site command below is typed from the SITE ROOT as
+`<skill>/.venv/bin/python3 <skill>/scripts/<tool>.py ... --font tools/<face>/font.json`, where `<skill>` is the skill folder
+(SKILL.md, "Finding the skill folder"): the interpreter and the script are the skill's, every face path is relative to the site
+root. Run the font suite and the mutation step only after `smoke.sh` has finished: the mutation step edits `gen.js`, `export.js`
+and `build.py` in place and restores them by digest, so a run that overlaps it reads a mutated file. Create `font.json` there from `templates/font.example.json` with the plan's masters, axes
 and floors, plus `"skeletons": "skeletons.js"` when the face has an override, and finish `requirements.json`. Paths written inside `font.json` (`out_dir`, `concepts`,
 a group's `file`) resolve relative to the `font.json`'s directory; the manifest lands at
 `<out_dir>/manifest.json` unless the `manifest` key moves it; every path given on the command line
@@ -244,9 +246,10 @@ are reviewed and pinned in `requirements.json` `vertical_metrics`), the `fsType`
 after every build; the file the stylesheet names must be the file the manifest hashes. Wire the
 stylesheet (one `@font-face` with the weight range, `font-optical-sizing: auto`, weight 500 on the
 small titles, no `letter-spacing` on display rules) and the preload in every template. Run the
-font suite where the copy put it (`tools/<face>/scripts/tests`, which needs the scripts beside
-it) with `--font`, `--requirements` and `--static-dir` (`none` when no statics ship), and fill
-`test_site_wiring.py.tmpl` into the site's own tests directory. Run
+font suite from the skill, typed from the site root:
+`<skill>/.venv/bin/python3 -m pytest <skill>/scripts/tests/test_font.py -q --font tools/<face>/font.json --requirements tools/<face>/requirements.json --static-dir tools/<face>/out/static`
+(`--static-dir none` when no statics ship), and fill
+`test_site_wiring.py.tmpl` into the site's own tests directory; that file needs no skill code and stays in the site. Run
 `scripts/tests/mutate.py` with the same `--static-dir` (`none` skips the static mutations and says
 so; every expected text is derived from the project's own `requirements.json`) and **watch every
 guard fail**; choose the weakest mutation; record survivors as findings and fix the tests, not the
@@ -287,7 +290,7 @@ back to the concept, not to the budget.
 **Reference:** `references/review-loop.md`.
 
 Keep each round's `out/` (`cp -R` to `work/round-N/`) and run `scripts/diff.py` against it after the
-next build; give the reviewer `diff.md`, so "what changed" arrives as pictures, not as the host's summary.
+next build (from the site root: `<skill>/.venv/bin/python3 <skill>/scripts/diff.py work/diff --font tools/<face>/font.json --before work/round-N`); give the reviewer `diff.md`, so "what changed" arrives as pictures, not as the host's summary.
 
 **Do.** build → `specimen.py --font font.json --requirements requirements.json --font-url /fonts/<file> <site root>/review/specimen.html`
 → `shoot.py OUT --serve <site root> --pages ... --family <Family> --font-url /fonts/<file>` (pages ×
@@ -334,7 +337,7 @@ Verify each finding; fix; `git add` the fixes; **one re-review** of the staged d
 re-review instruction naming the previous findings; fix its findings without a third review. After
 material fixes rerun the affected tests and smoke steps, say so, and note the post-review fixes in
 the record. **Then commit everything together** in one commit: the woff2, the manifest, the sources
-(`font.json`, `requirements.json`, `concepts.js`, the copied `scripts/`), the stylesheet and
+(`font.json`, `requirements.json`, `concepts.js`, `skeletons.js` when the face has one), the stylesheet and
 templates, the tests and the docs. **Deploy only on the operator's word.** Live checks: the font
 served 200, the preload present, a headless shot of the live page with `--family` and `--font-url`.
 
@@ -343,6 +346,13 @@ and what the smallest rows showed, or "not checked on Windows" with the claim it
 not a publication blocker and is not in section 11's list.
 
 **Gate.** The operator says deploy. Bract's diff review: 8 findings; re-review: 5; all fixed.
+
+**Later: a new skill version under a shipped face.** `manifest.json` records `skill_version`. When the installed skill's
+`VERSION` differs, run, from the site root,
+`<skill>/.venv/bin/python3 <skill>/scripts/update-check.py work/update --font tools/<face>/font.json`
+and read `update.md`. It rebuilds the face with the installed skill into a temporary folder, compares it with the shipped
+files and changes nothing in the face folder. The operator approves the update by running the `build.py` line it prints, and the
+new woff2 files and manifest are committed. The drift check and its limit are in `references/face-folder.md`.
 
 ## 10. Working with little supervision
 

@@ -110,3 +110,17 @@ def test_the_plan_is_kept_and_names_the_review_findings():
     plan = (REPO / "docs" / "plan.md").read_text(encoding="utf-8")
     for tag in ("F001", "F015", "## 12.", "## 13."):
         assert tag in plan
+
+
+def test_the_current_versions_changelog_entry_states_whether_font_output_changes():
+    """Two installs with one VERSION must be the same skill, and a reader of the CHANGELOG deciding whether to rebuild a shipped face
+    needs to know whether this release can change a woff2. So the entry for the current VERSION carries a line that starts
+    `Font output: unchanged` or `Font output: changes`. The block read is the one under `## [<VERSION>]` up to the next `## `
+    heading; the failure names the version looked at. Weakest mutation to watch red: the line deleted from the entry."""
+    version = (REPO / "VERSION").read_text(encoding="utf-8").strip()
+    changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
+    m = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## |\Z)", changelog, re.M | re.S)
+    assert m, f"CHANGELOG.md has no entry headed '## [{version}]'"
+    assert re.search(r"^Font output: (unchanged|changes)\b", m.group(1), re.M), (
+        f"the CHANGELOG entry for {version} does not state whether font output changes "
+        "(a line starting 'Font output: unchanged' or 'Font output: changes')")
