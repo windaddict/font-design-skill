@@ -180,6 +180,10 @@ before it, so a bend tighter than half the stroke width cannot fold into a loop;
 unchanged), and the stroke body becomes one polygon of `2n` points with two **edge runs**
 (`[0, n−1]` and `[n, 2n−1]`). Terminal and serif polygons are appended, each its own edge run.
 
+When the concept sets `headSink` (0.9.0), the **head sink** runs next, on the same two edges: at each end that takes a lowercase head serif, the
+run of points that lies above `y − headSink × h` is pinned down to that line (section 4). The point count does not change. The spacing profile is
+measured on the body as it was before the sink (section 8).
+
 **Pinned sampling.** A line gets `max(2, ceil(length/3))` points and a curve
 `max(4, ceil(controlPolygonLength/3))`, computed from the unfitted skeleton, so the count is the
 same for every master of a glyph. A ring's repeated closing point is dropped at the source,
@@ -211,6 +215,7 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 | `diagThin` | 0.85–1.0 (refused outside 0.5–1.5, bounds excluded); default 1 | diagonal strokes are thinned by `1 − diagThin`, weighted by sin²2θ (full at 45°, none level or plumb) | optical correction, section 3. Independent of `hzThin`: at 51° both apply. `params()` throws on a value outside the range, naming the knob |
 | `xh` | 400–600 (`params()` refuses outside, bounds allowed); default 500 | the x-height of the lowercase, in skeleton units: every lowercase key (every key that is not `UPPERISH`, except the apostrophe) is drawn through a piecewise-linear y map, section 7. Capitals, figures, ascenders and descenders do not move | the range is a design range (0.8–1.2 of the body), not a compatibility bound: every branch decision is taken on the unmapped skeleton (section 12), so a legal `xh` cannot make the exporter refuse a group. The lowercase accents are compressed into the band as `xh` rises (an acute of 110 units draws about 92 at `xh` 560 and 64 at 600). The spacing band follows (section 8). Not echoed into the manifest |
 | `serifBracket` | 0–1 (refused outside, bounds allowed); default 1 | blends every serif between today's bracketed form (1) and a slab (0) with **the same number of points**, so a bracket can interpolate between masters: the foot and symmetric head (26 points), the lowercase head (15) and the diagonal serif (26) | at 1 the code is the 0.1 code, unchanged. At 0 the foot is a rectangle `h` thick (`h = SW × serifH`), where the bracket climbed `1.7·h` (`1.9·h` for the lowercase head) and curved in by `0.45·h`; the controls of the slab lie on their chords. A slab wants a thin `serifH` (0.13–0.15 is a flat Scotch slab) |
+| `headSink` | 0–0.7 (refused outside, bounds allowed; a string, `null`, a boolean and `NaN` are refused); default 0, off | sinks a stem end under a lowercase head serif by `headSink × h`, with `h = SW × serifH` (so `serifGrow` is included): at that end of each edge, the run of points above `y − headSink × h` is pinned to that line, and the point count is unchanged | **What it repairs.** The lowercase head's top edge slopes down to the left while the stem under it ends flat, so the stem's top-left corner shows above the wedge. Measured on the Driftwood example's `driftwood` concept (roman, 28 stem ends in 23 glyphs): the corner stands 2.81 units above the wedge at mult 1 and 4.11 at mult 1.65. The poke is `h × (0.38·t − 0.18)` with `t = w / (w + SW·serifLen − 0.5·h)` while the stem's left edge meets the straight part of the top edge, so it grows with `serifH` (the plan, `docs/plan-head-sink.md`, measured 16.8 units on `serifH` 0.85 and 22.0 on `clarendon` at mult 1.65). **How much.** 0.2 buries the poke when `serifLen >= 0.5 × serifH` (it does on the Driftwood example, measured 2026-11-21: the corner then lies 4.23 and 2.93 units under the wedge); 0.6 buries it in every concept this repository ships. **Why 0.7 is the limit.** The deepest poke the wedge can have is `0.65·h`, so 0.7 buries every case; above it the stem end can leave the serif, because the wedge's lower edge over the stem is at `y − h × (1 + 0.8 × serifBracket)`, and at `serifBracket: 0` a depth above 1 leaves a visible gap with no error. Applies to the bracketed head and to the blended one (`serifBracket` other than 1), which has the same slope scaled by the bracket; at `serifBracket: 0` the top is level and there is nothing to bury. Capitals, feet, diagonal serifs and ends that became a joint or a corner are untouched. It has no effect when no end maps to `serif`, and `params()` does not refuse it there (the same is true of `serifLen` and `serifH`). Advances, spacing profiles and kerns are those of the concept without it (section 8). Not echoed into the manifest |
 | `joints` | `true` or `false` (anything else is refused); default false | gives a concept whose `s` end is not `serif` the joint and corner pass: a level or plumb cut where two stroke ends meet (`V W A M N 1 4 v w`), squared corners (`E F L Z z 2 5 7`, the spur of `G`), and no `ends[""]` terminal at those ends | read only when `ends.s !== "serif"`; a serif concept always has it. Two concepts in one group that differ in `joints` end the same strokes differently and are refused by the exporter. Judge the cut on `A V W` in the render: a level edge beside curved neighbours can read as a clipped corner |
 | `crotch` | 0–0.5 (refused outside 0–0.6, bounds allowed); default 0 | at each stroke end that resolves as a **joint** between two arms meeting at an acute angle (`dot(−T_end, partner) > 0.3`: V, A, W, M, N, v, w, 1, 4, 5), the edge on the partner's side thins by `crotch × e` over the last `1.1·W0`, with `e = u²(3 − 2u)`, `u = 1 − d/(1.1·W0)` (the teardrop's smoothstep and reach). The outer edge keeps its line, so the apex stays where it was and the counter opens | the reach equals the teardrop's, so `g.minw`'s interior exclusion leaves it out and the hairline floor does not see it. A corner (`E F L`) is not a joint and does not thin. With `crotch` set, the outcome (acute or not) is recorded in the branch record of every open stroke (section 12), so two masters that disagree about an angle are refused; unset, nothing is recorded; the value itself interpolates. With `joints` off a sans concept has no joints and `crotch` does nothing; a serif concept has them always |
 | `apex` | **refused**: `params()` throws | designed, not built in 0.2: a pointed apex that passes the line (section 13) | a knob that does nothing is the dead-knob shape of Driftwood issue #24, so the generator refuses it until a later version builds it |
@@ -242,7 +247,7 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 
 | Mode | Width along the stroke | Terminal polygon | Notes |
 |---|---|---|---|
-| `serif` | none | `serifPoly` (foot, symmetric head for `UPPERISH` glyphs, or the lowercase one-sided wedge) or `diagSerifPoly` for a slanted stem; a round stroke end gets a ball | the branch record names the kind (`serifA=foot|head|diag|ball`) |
+| `serif` | none | `serifPoly` (foot, symmetric head for `UPPERISH` glyphs, or the lowercase one-sided wedge, whose stem end `headSink` can sink) or `diagSerifPoly` for a slanted stem; a round stroke end gets a ball | the branch record names the kind (`serifA=foot|head|diag|ball`) |
 | `flare` with `tear: false` | `1 + flareAmt·u²` over `flareLen` | a ball of radius `w/2 × (1 − 0.4·(W/W0 − 1))`, so the Bold's balls grow more slowly than its stems; with `pebble`, an ellipse | the only mode where `flareAmt` matters |
 | `flare` with `tear: true` | the teardrop (section 3) | a half-round cap across the end's own edges, bulging `0.5·r` along the stroke | side `L`/`R`/`S` from the curvature of the last quarter of the stroke; `|cross| < 0.03` is `S` |
 | `flareS` | as `flare`, with `dropK = 0.5` | as `flare` | **one `dropK` per stroke**: if either end is `flareS`, both ends' drops halve |
@@ -344,6 +349,12 @@ adv = (maxX − minX) + sbL + sbR
 so heavier weights get less extra space than their stems grow, or the Bold looks letterspaced.
 The word space is `210 + 0.3·W + 2·track` (the exporter emits it per master).
 
+**With `headSink` set** (section 4), the profile of each stem body is measured on the body as it was before the sink, so advances, sidebearings and
+automatic kerns equal the concept's without the key (checked in `tests/test_head_sink.py` on the Driftwood example's `driftwood` concept, roman and italic,
+and on a built face; in the font suite on a synthetic concept. The sweep over every shipped serif concept checks the outline only). That is the exact
+guarantee. It is not a claim that the profile follows the sunk outline: the profile reads polygon points and the wedge has none along its long right edge, so
+the sunk body would read as a notch there although no ink moved.
+
 **Automatic kerning** (`kern(a, b)`): the pair's mean gap over the shared band is compared with
 the reference pair's (`H|H` for two uppers, else `n|n`), over the same band: 700 when either glyph is `UPPERISH`, else `xh`; when it exceeds the reference by more
 than 8, `k = −0.75 × (excess − 8)`, clamped at **−170**; a **sparse** pair, where either glyph has
@@ -396,6 +407,8 @@ glyph the generator lacks. Bract emitted 4,100 pairs; the Example template 4,186
   section 9). The roman quotes lie inside their advances in every example master and are untouched.
 - `T` loses 6 units.
 - A concept used for an italic must map `x` in `ends` (normally `exit`).
+- The italic `w` of a narrow concept (its first stroke takes the `head` kind, section 12) is the one italic end that draws the lowercase wedge, and so the one
+  that `headSink` sinks. Measured on the Driftwood example: with `headSink` set, `w` is the only italic glyph that changes.
 
 Roman and italic are separate groups and separate font files; there is no `ital` axis, because
 the skeletons differ in structure and could never be point-compatible. Status: the italic path is
@@ -452,6 +465,7 @@ on:
 - `joints` that is not a boolean, or `crotch` that is not a number from 0 to 0.6 (the error names the knob and the range);
 - `xh` that is not a number from 400 to 600, or `serifBracket` that is not a number from 0 to 1 (the
   error names the knob and the range);
+- `headSink` that is not a number from 0 to 0.7 (the error names the knob and the range; a string, `null`, a boolean and `NaN` are refused too);
 - `hzThin` or `diagThin` that is not a number strictly between 0.5 and 1.5, or `roundGain` not
   strictly between 0.8 and 1.25 (the error names the knob and the range; a string and `null` are
   refused too).
@@ -538,7 +552,7 @@ construction; the fit that feeds the decisions runs at `PU`, the Regular's width
 read the drawn ones, so two ends 1.8 apart at `xh` 500 were 2.16 apart at 600); the partner directions (unmapped; the drawn ones feed
 only the reach of a corner); the beak gate, level strokes only (`pu`, fixed in 0.2: it read the drawn points, so a stroke 0.45 units off
 level at `xh` 500 was 0.54 at 600); `curved`, the teardrop side and its `n > 30` test, the curl test, `vert`, the serif kind, the corner and joint
-tests, the beak side and the crotch test (`pu`, `TU`, `pdU`). What still reads drawn coordinates and is NOT in the record: the fold pin, `cutSide`'s
+tests, the beak side and the crotch test (`pu`, `TU`, `pdU`). What still reads drawn coordinates and is NOT in the record: the fold pin, the head sink (it reads the end's mode, the reference tangent `TU` and the glyph key, which are the same in every master; how many points it pins differs between weights, like the fold pin's reach, and point counts and edge runs do not change), `cutSide`'s
 0.25 parallel test, `clipPast`, the sidebearing and kerning bands (they are meant to follow the drawn glyph) and `minw`'s interior test. Each of
 those changes coordinates only, never a point count or a record, so a master at another `xh` stays compatible. `test_no_decision_reads_a_mapped_coordinate`
 holds the list: 500 synthetic glyphs placed on the thresholds, in five concepts, compared at three `xh`.

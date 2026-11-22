@@ -1630,6 +1630,185 @@ console.log(JSON.stringify(res));"""
     assert out["0"] is None and out["1"] is None, f"the bounds 0 and 1 must be allowed: {out['0']!r} {out['1']!r}"
 
 
+# --- headSink (0.9.0) ---------------------------------------------------------------------------------------
+HEADSINK_FIXTURE = r"""
+const m = require(process.argv[1]);
+const concepts = m.loadConcepts(process.argv[2]);
+// the project's first concept made into the adversarial case: a tall, short serif whose top edge falls well below the stem's flat
+// end, bracketed, growing with weight, upright except `l`, which leans 0.045 (wonk) so one corner of its end stands above the
+// centre line; whatever headSink the project sets is removed and set per run
+const base = Object.assign({}, concepts[0], { serifLen: 0.5, serifH: 0.85, serifBracket: 1, serifGrow: 0.35, shear: 0, bend: 0, wonk: "l" });
+base.ends = Object.assign({}, base.ends, { s: "serif" });
+delete base.headSink;
+// a stroke that starts at a head serif, runs down, turns and rises 140 units above its own start: only the end's run may be pinned
+m.G["ĸ"] = [m.S("M 90 500 L 90 100 C 90 -40 300 -40 300 100 L 300 640", "s", "j")];
+const res = { W0: base.W, serifH: base.serifH, serifGrow: base.serifGrow, runs: {} };
+for (const mult of [1, 1.5]) for (const hs of ["undef", 0, 0.6]) {
+  const c = Object.assign({}, base, { id: "hs" + hs });
+  if (hs !== "undef") c.headSink = hs;
+  const P = m.params(c, mult), r = { glyphs: {}, kern: {} };
+  for (const k of ["n", "i", "j", "u", "l", "I", "H", "o", "ĸ"]) { const g = m.glyph(k, P); r.glyphs[k] = { adv: g.adv, polys: g.polys, runs: g.runs, sig: g.sig, L: g.L, R: g.R, upper: g.upper }; }
+  for (const pair of ["ij", "ni", "ll", "ui"]) r.kern[pair] = m.kern(m.glyph(pair[0], P), m.glyph(pair[1], P), P);
+  res.runs[mult + "/" + hs] = r;
+}
+console.log(JSON.stringify(res));
+"""
+
+
+def headsink_ends(g):
+    """The stem ends under a lowercase head serif in one drawn glyph, found from its output alone: the corners of each end and the 15
+    points of the wedge drawn over it. A body is a polygon with two edge runs; the bodies pair, in order, with the `open` records of
+    `sig`; ` serifA=head` or ` serifB=head` in a record marks the end; the wedge is the first one-run, 15-point polygon after the body
+    whose x range holds the mean x of the corners. An upper glyph has none."""
+    if g["upper"]:
+        return []
+    bodies = [(i, r) for i, r in enumerate(g["runs"]) if len(r) == 2]
+    opens = [s for s in g["sig"] if s.startswith("open")]
+    assert len(bodies) == len(opens), f"{len(bodies)} bodies but {len(opens)} open records"
+    out = []
+    for (idx, runs), rec in zip(bodies, opens):
+        poly, flipped, n = g["polys"][idx], runs[0][0] != 0, runs[0][1] - runs[0][0] + 1
+        for letter, j in (("A", 0), ("B", n - 1)):
+            if f" serif{letter}=head" not in rec:
+                continue
+            left = poly[runs[0][1] - j] if flipped else poly[runs[0][0] + j]
+            right = poly[runs[1][0] + j] if flipped else poly[runs[1][1] - j]
+            mx, wedge = (left[0] + right[0]) / 2, None
+            for wi in range(idx + 1, len(g["polys"])):
+                p = g["polys"][wi]
+                if len(g["runs"][wi]) == 1 and len(p) == 15 and min(q[0] for q in p) <= mx <= max(q[0] for q in p):
+                    wedge = p
+                    break
+            out.append({"body": idx, "end": letter, "corners": [left, right], "wedge": wedge})
+    return out
+
+
+def headsink_measure(end):
+    """(poke, left_poke, cover) of one end: at 21 x positions from 0.1 % to 99.9 % of the way from the left corner to the right, the end's
+    height minus the wedge's highest crossing (poke; positive means the stem stands above the wedge) and minus its lowest crossing
+    (cover; small means the stem has sunk out of the serif). left_poke is the poke at the first position, the stem's left edge."""
+    assert end["wedge"], "no wedge found over a stem end"
+    (x0, y0), (x1, y1) = sorted(end["corners"], key=lambda p: p[0])
+    pokes, covers = [], []
+    for i in range(21):
+        t = 0.001 + 0.998 * i / 20
+        x = x0 + t * (x1 - x0)
+        ys = []
+        for a in range(15):
+            (px, py), (qx, qy) = end["wedge"][a], end["wedge"][(a + 1) % 15]
+            if px != qx and min(px, qx) <= x <= max(px, qx):
+                ys.append(py + (qy - py) * (x - px) / (qx - px))
+        if ys:
+            sy = y0 + t * (y1 - y0)
+            pokes.append(sy - max(ys))
+            covers.append(sy - min(ys))
+    assert pokes, "a stem end lies outside its wedge's x range"
+    return max(pokes), pokes[0], min(covers)
+
+
+def test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif(cfg):
+    """headSink (0.9.0): a lowercase head serif's top edge slopes down to the left while the stem under it ends flat, so the stem's
+    top-left corner stood above the wedge. With headSink h0 the end sinks to its centre line minus h0 x h (h = W0 x mult^serifGrow x
+    serifH, restated here), and the stem and the wedge read as one shape. Measured on the project's first concept made tall-serifed
+    (serifLen 0.5, serifH 0.85, serifGrow 0.35, the fixture above; the pokes with no key are 11 to 15 units on the neutral, Driftwood,
+    Bract and genres concepts): the corner stands above the wedge with no key, and at 0.6 it does not, both corners at the line, the end
+    still inside the wedge; the point counts, edge runs and branch records are unchanged, only the stem bodies under a lowercase head
+    move (not I, H, o, and not the far part of a stroke that rises above its own start), the advances, profiles and kerns are those of
+    the concept without the key, and 0 is the outline with no key. The assertions run in the order of the plan; each message holds the
+    phrase that the mutation of that assertion expects.
+
+    Mutations `headsink-ignored` (the sink never runs), `headsink-zero-on` (0 sinks too), `headsink-capitals` (capitals sink),
+    `headsink-global` (every point above the line is pinned, not the end's own run), `headsink-spacing` (the profile reads the sunk body)
+    and `headsink-no-serifgrow` (the depth ignores serifGrow)."""
+    out = run_node(cfg, HEADSINK_FIXTURE)
+    glyphs = ["n", "i", "j", "u", "l", "I", "H", "o", "ĸ"]
+    for mult in ("1", "1.5"):
+        absent, zero, sunk = out["runs"][f"{mult}/undef"], out["runs"][f"{mult}/0"], out["runs"][f"{mult}/0.6"]
+        h = out["W0"] * float(mult) ** out["serifGrow"] * out["serifH"]
+        ends_a = {k: headsink_ends(absent["glyphs"][k]) for k in glyphs}
+        ends_s = {k: headsink_ends(sunk["glyphs"][k]) for k in glyphs}
+        # 1. the fixture draws a lowercase head on each glyph it is about
+        for k in ["n", "i", "j", "u", "l", "ĸ"]:
+            assert ends_a[k], f"mult {mult}: {k!r} has no stem end with a lowercase head serif in its record: {absent['glyphs'][k]['sig']}"
+        # 2. control: with no key the stem stands above its wedge
+        for k in ["n", "i", "j", "u"]:
+            for e in ends_a[k]:
+                assert headsink_measure(e)[1] > 1, f"mult {mult}: the fixture cannot observe the defect: the stem of {k!r} stands {headsink_measure(e)[1]:.2f} above its wedge with no headSink"
+        # 3. at 0.6 no end stands above its wedge
+        for k in ["n", "i", "j", "u", "l", "ĸ"]:
+            assert len(ends_s[k]) == len(ends_a[k]), f"mult {mult}: {k!r} lost or gained a lowercase head end with headSink 0.6"
+            for e in ends_s[k]:
+                poke = headsink_measure(e)[0]
+                assert poke <= 0.01, f"mult {mult}: with headSink 0.6 the stem of {k!r} pokes out above the wedge by {poke:.2f} units"
+        # 4. both corners sit at the end's centre line minus 0.6 h
+        for k in ["n", "i", "j", "u", "l", "ĸ"]:
+            for ea, es in zip(ends_a[k], ends_s[k]):
+                want = (ea["corners"][0][1] + ea["corners"][1][1]) / 2 - 0.6 * h
+                for c in es["corners"]:
+                    assert abs(c[1] - want) < 1e-6, f"mult {mult}: a corner of {k!r} is at y {c[1]:.6f}, {want - c[1]:+.6f} from 0.6 of the serif height ({0.6 * h:.4f} below the centre line, h = {h:.4f})"
+        # 5. the end is still inside the wedge
+        for k in ["n", "i", "j", "u", "l", "ĸ"]:
+            for e in ends_s[k]:
+                cover = headsink_measure(e)[2]
+                assert cover >= 0.25 * h, f"mult {mult}: with headSink 0.6 the stem of {k!r} keeps {cover:.2f} units over the wedge's lower edge (0.25 h = {0.25 * h:.2f}) and has left the serif"
+        # 6. point counts, edge runs and branch records are those of the outline with no key
+        for k in glyphs:
+            ga, gs = absent["glyphs"][k], sunk["glyphs"][k]
+            assert [len(p) for p in ga["polys"]] == [len(p) for p in gs["polys"]] and ga["runs"] == gs["runs"] and ga["sig"] == gs["sig"], \
+                f"mult {mult}: headSink 0.6 changed a point count, an edge run or a branch record of {k!r}"
+        # 7. only the stem bodies under a lowercase head move
+        for k in glyphs:
+            moved = {i for i, (pa, ps) in enumerate(zip(absent["glyphs"][k]["polys"], sunk["glyphs"][k]["polys"])) if pa != ps}
+            if k in ("I", "H", "o"):
+                assert not moved, f"mult {mult}: headSink 0.6 moved polygons {sorted(moved)} of {k!r}, which has no lowercase head serif"
+            else:
+                bodies = {e["body"] for e in ends_a[k]}
+                assert moved <= bodies, f"mult {mult}: headSink 0.6 moved a polygon that is not a stem under a head serif: {k!r} polygons {sorted(moved - bodies)}"
+        # 8. advances, spacing profiles and kerns are those of the outline with no key
+        for k in glyphs:
+            assert absent["glyphs"][k]["adv"] == sunk["glyphs"][k]["adv"], \
+                f"mult {mult}: headSink changed the advance of {k!r}: {absent['glyphs'][k]['adv']} became {sunk['glyphs'][k]['adv']}"
+        for k in glyphs:
+            assert absent["glyphs"][k]["L"] == sunk["glyphs"][k]["L"] and absent["glyphs"][k]["R"] == sunk["glyphs"][k]["R"], \
+                f"mult {mult}: headSink changed the spacing profile of {k!r}"
+        for pair in absent["kern"]:
+            assert absent["kern"][pair] == sunk["kern"][pair], f"mult {mult}: headSink changed the kern of {pair!r}: {absent['kern'][pair]} became {sunk['kern'][pair]}"
+        # 9. the far part of a stroke that rises above its own start does not move: only the end's own run is pinned
+        (end,) = ends_a["ĸ"]
+        top = (end["corners"][0][1] + end["corners"][1][1]) / 2 + 1
+        pa, ps = absent["glyphs"]["ĸ"]["polys"][end["body"]], sunk["glyphs"]["ĸ"]["polys"][end["body"]]
+        arm = [i for i, p in enumerate(pa) if p[1] > top]
+        assert len(arm) > 20, f"mult {mult}: the fixture's glyph has only {len(arm)} body points above its head end; it cannot show a stroke pinned along its whole length"
+        flat = [i for i in arm if pa[i] != ps[i]]
+        assert not flat, f"mult {mult}: headSink 0.6 moved {len(flat)} of {len(arm)} body points of the test glyph that lie far away from its serifed end (above its centre line by 1 unit or more)"
+        # 10. headSink 0 is the outline with no key
+        for k in glyphs:
+            assert absent["glyphs"][k]["polys"] == zero["glyphs"][k]["polys"] and absent["glyphs"][k]["adv"] == zero["glyphs"][k]["adv"], \
+                f"mult {mult}: headSink 0 is not the outline with no key set: {k!r} differs"
+
+
+def test_headsink_outside_its_range_is_refused(cfg):
+    """headSink (0.9.0): params() throws, naming headSink, for -0.01, 0.71, a string, null, true and NaN; 0, 0.6 and 0.7 are allowed
+    (the bounds are allowed). Past 0.7 the stem end can leave the serif when serifBracket is 0, with no error. Mutation
+    `headsink-range-removed` (params() accepts any headSink)."""
+    node = shutil.which("node")
+    assert node, "node is not on PATH"
+    js = r"""
+const m = require(process.argv[1]); const c = m.loadConcepts(process.argv[2])[0], res = {};
+const cases = [["-0.01", -0.01], ["0.71", 0.71], ['"0.6"', "0.6"], ["null", null], ["true", true], ["NaN", NaN], ["0", 0], ["0.6", 0.6], ["0.7", 0.7]];
+for (const [label, v] of cases) {
+  try { m.params(Object.assign({}, c, { id: "x", headSink: v }), 1); res[label] = null; } catch (e) { res[label] = e.message; }
+}
+console.log(JSON.stringify(res));"""
+    r = subprocess.run([node, "-e", js, str(SCRIPTS / "gen.js"), str(cfg["_concepts"])], cwd=SCRIPTS, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    for v in ("-0.01", "0.71", '"0.6"', "null", "true", "NaN"):
+        assert out[v] and "headSink" in out[v], f"headSink {v}: params() did not refuse it by name: {out[v]!r}"
+    for v in ("0", "0.6", "0.7"):
+        assert out[v] is None, f"the value {v} must be allowed for headSink: {out[v]!r}"
+
+
 # --- junctions: joints and crotch (0.2, item 9), and the refused apex ---------------------------------------
 JOINTS_FIXTURE = r"""
 const m = require(process.argv[1]);

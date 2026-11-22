@@ -691,6 +691,27 @@ def mutations(h):
         lambda: h.rep(GEN, 'if (concept.serifBracket !== undefined && !(typeof concept.serifBracket === "number" && concept.serifBracket >= 0 '
                            '&& concept.serifBracket <= 1)) {', "if (false) {"),
         expect="did not refuse it by name")
+    # headSink (0.9.0)
+    HS, HR = "test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif", "test_headsink_outside_its_range_is_refused"
+    SINK = "if (P.headSink > 0 && !UPPERISH.test(ch)) {"
+    add("headsink-ignored: the sink never runs", [HS], lambda: h.rep(GEN, SINK, "if (false) {"), expect="pokes out above the wedge")
+    add("headsink-zero-on: headSink 0 sinks too", [HS],
+        lambda: h.rep(GEN, SINK, "if (P.headSink >= 0 && !UPPERISH.test(ch)) {"), expect="headSink 0 is not the outline with no key set")
+    add("headsink-capitals: the capital test is dropped", [HS],
+        lambda: h.rep(GEN, SINK, "if (P.headSink > 0) {"), expect="which has no lowercase head serif")
+    add("headsink-global: every point above the line is pinned", [HS],
+        lambda: h.rep(GEN, "for (var j = k; j >= 0 && j < n && E[j][1] > line; j -= sg) E[j] = [E[j][0], line];",
+                      "for (var j = 0; j < n; j++) if (E[j][1] > line) E[j] = [E[j][0], line];"),
+        expect="away from its serifed end")
+    add("headsink-spacing: the spacing profile reads the sunk body", [HS],
+        lambda: h.rep(GEN, "profs.push(it.prof || f.pts);", "profs.push(f.pts);"), expect="headSink changed the advance of")
+    add("headsink-no-serifgrow: the depth ignores serifGrow", [HS],
+        lambda: h.rep(GEN, "line = pts[k][1] - P.headSink * SW * P.serifH;", "line = pts[k][1] - P.headSink * (P.W0 || P.W) * P.serifH;"),
+        expect="of the serif height")
+    add("headsink-range-removed: params() accepts any headSink", [HR],
+        lambda: h.rep(GEN, 'if (concept.headSink !== undefined && !(typeof concept.headSink === "number" && concept.headSink >= 0 '
+                           '&& concept.headSink <= 0.7)) {', "if (false) {"),
+        expect="did not refuse it by name")
     # junctions and crotch (0.2 item 9)
     JL, CL = "test_joints_opt_in_cuts_a_sans_joint_level", "test_crotch_thins_only_the_inner_edge_of_an_acute_joint"
     add("joints-ignored: the joint pass reads ends.s only", [JL],

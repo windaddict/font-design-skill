@@ -34,6 +34,8 @@
  *      before anything is drawn (export.js, and build-page.js --skeletons for a concept page). The
  *      accented letters built from a base are registered with derive(), so they follow an overridden
  *      base. Without the key nothing here runs and every table is what 0.5.0 built.
+ *   9. The head sink (0.9.0). A concept's headSink pins the stem end under a lowercase head serif down inside the wedge, so its
+ *      top-left corner does not show; spacing is measured on the body before the sink. An absent key runs none of it.
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
@@ -649,6 +651,13 @@ function diagSerifPoly(E, T, Lk, Rk, P) {
   return o;
 }
 
+/* The serif a serif-mode end takes, from the end's outward tangent on the reference skeleton: "diag" on a slanted stem, "foot" or
+   "head" on a plumb one (pointing down or up), "ball" on anything flatter. One function, so the head sink in strokePolys() and the
+   terminal drawn for the same end cannot disagree about which ends carry a head. */
+function serifKind(TU) {
+  return Math.abs(TU[1]) > 0.5 && Math.abs(TU[0]) > 0.1 ? "diag" : Math.abs(TU[1]) > 0.5 ? (TU[1] < 0 ? "foot" : "head") : "ball";
+}
+
 function clipPast(arr, k, sg, T, Dv) {
   var C = arr[k], ref = Dv[0] * T[1] - Dv[1] * T[0], pinned = 0;
   for (var j = k - sg, steps = 0; j >= 0 && j < arr.length && steps < 80; j -= sg, steps++) {
@@ -884,8 +893,25 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
       clipPast(Lp, k, sg, T, [1, 0]); clipPast(Rp, k, sg, T, [1, 0]);
     }
   });
-  var poly = Lp.concat(Rp.slice().reverse());
-  out.push({ pts: poly, runs: [[0, n - 1], [n, 2 * n - 1]] });
+  // headSink: a lowercase head serif's top edge slopes down to the left while the stem under it ends flat, so the stem's top-left
+  // corner showed above the wedge. The run of points at that end of each edge that lies above `line` is pinned down to it, inside the
+  // wedge. Only the end's own run is walked, so a stroke that rises above the line elsewhere keeps its shape, and the count of points
+  // is unchanged, so masters stay compatible. `unsunk` is the body as it was: glyph() measures the spacing profile on it, because the
+  // profile reads polygon points and the wedge has none along its long right edge, so the sunk body would read as a notch and move
+  // advances and kerns although no ink moved on either side.
+  var unsunk = null;
+  if (P.headSink > 0 && !UPPERISH.test(ch)) {
+    ends.forEach(function (e) {
+      var k = e[0], sg = e[2], TU = pu === pts ? [Ts[k][0] * sg, Ts[k][1] * sg] : [tang(k)[0] * sg, tang(k)[1] * sg];
+      if (e[1] !== "serif" || serifKind(TU) !== "head") return;
+      var SW = (P.W0 || P.W) * (P.serifGrow ? Math.pow(P.W / (P.W0 || P.W), P.serifGrow) : 1), line = pts[k][1] - P.headSink * SW * P.serifH;
+      if (!unsunk) unsunk = Lp.concat(Rp.slice().reverse());
+      [Lp, Rp].forEach(function (E) { for (var j = k; j >= 0 && j < n && E[j][1] > line; j -= sg) E[j] = [E[j][0], line]; });
+    });
+  }
+  var poly = Lp.concat(Rp.slice().reverse()), body = { pts: poly, runs: [[0, n - 1], [n, 2 * n - 1]] };
+  if (unsunk) body.prof = unsunk;
+  out.push(body);
   sig += " ends=" + ends[0][1] + "/" + ends[1][1];
   // recorded only when crotch is set, so a 0.1 project's masters, which may fall on either side of the acute test, are not newly refused
   if (P.crotch > 0) sig += " crotch=" + (cr && cr[0].acute ? 1 : 0) + "/" + (cr && cr[1].acute ? 1 : 0);
@@ -928,7 +954,7 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
     } else if (mode === "curl") {
       out.push({ pts: circle(p[0], p[1], P.W * 0.36, P.W * 0.36) });
     } else if (mode === "serif") {
-      var kind = Math.abs(TU[1]) > 0.5 && Math.abs(TU[0]) > 0.1 ? "diag" : Math.abs(TU[1]) > 0.5 ? (TU[1] < 0 ? "foot" : "head") : "ball";
+      var kind = serifKind(TU);
       sig += " serif" + (sg < 0 ? "A" : "B") + "=" + kind;
       if (kind === "diag") out.push({ pts: diagSerifPoly(p, T, Lp[k], Rp[k], P) });
       else if (kind !== "ball") out.push({ pts: serifPoly(p, T, w, P, UPPERISH.test(ch)) });
@@ -1054,6 +1080,9 @@ function params(concept, mult, italic) {
   }
   if (concept.serifBracket !== undefined && !(typeof concept.serifBracket === "number" && concept.serifBracket >= 0 && concept.serifBracket <= 1)) {
     throw new Error("params: concept " + concept.id + " sets serifBracket to " + JSON.stringify(concept.serifBracket) + "; it must be a number from 0 to 1 (references/generator.md, section 4)");
+  }
+  if (concept.headSink !== undefined && !(typeof concept.headSink === "number" && concept.headSink >= 0 && concept.headSink <= 0.7)) {
+    throw new Error("params: concept " + concept.id + " sets headSink to " + JSON.stringify(concept.headSink) + "; it must be a number from 0 to 0.7 (references/generator.md, section 4)");
   }
   if (concept.apex !== undefined) {
     throw new Error("params: concept " + concept.id + " sets apex; apex is designed but not built in 0.2 (references/generator.md, 'Designed, not built: apex'); remove it");
@@ -1224,7 +1253,8 @@ function glyph(key, P) {
       [tA ? Object.assign({ dir: tA.dirM }, buriedIn(tA.sj, si)) : null, tB ? Object.assign({ dir: tB.dirM }, buriedIn(tB.sj, si)) : null], [tA ? tA.id : "-", tB ? tB.id : "-"]);
   });
   // orient: ring loops pair up; the larger loop of each pair fills, the smaller cuts the hole
-  var polys = [], runs = [];
+  // profs is what the spacing profile reads: the drawn polygon, unless a head sink kept the unsunk body
+  var polys = [], runs = [], profs = [];
   function flip(pts, rs) { // reversing a polygon maps index i to len-1-i, so each run flips too
     var L = pts.length;
     return { pts: pts.slice().reverse(), runs: rs.map(function (r) { return [L - 1 - r[1], L - 1 - r[0]]; }) };
@@ -1236,14 +1266,14 @@ function glyph(key, P) {
       if (Math.abs(area(o.pts)) < Math.abs(area(inn.pts))) { var t = o; o = inn; inn = t; }
       if (area(o.pts) < 0) o = flip(o.pts, o.runs);
       if (area(inn.pts) > 0) inn = flip(inn.pts, inn.runs);
-      polys.push(o.pts, inn.pts); runs.push(o.runs, inn.runs);
+      polys.push(o.pts, inn.pts); runs.push(o.runs, inn.runs); profs.push(o.pts, inn.pts);
     } else {
       var f = area(it.pts) < 0 ? flip(it.pts, it.runs) : it;
-      polys.push(f.pts); runs.push(f.runs);
+      polys.push(f.pts); runs.push(f.runs); profs.push(it.prof || f.pts);
     }
   }
   var minX = Infinity, maxX = -Infinity, Lb = new Array(NB).fill(Infinity), Rb = new Array(NB).fill(-Infinity);
-  polys.forEach(function (p) { p.forEach(function (q) {
+  profs.forEach(function (p) { p.forEach(function (q) {
     if (q[0] < minX) minX = q[0]; if (q[0] > maxX) maxX = q[0];
     var b = binOf(q[1]); if (b >= 0 && b < NB) { if (q[0] < Lb[b]) Lb[b] = q[0]; if (q[0] > Rb[b]) Rb[b] = q[0]; }
   }); });

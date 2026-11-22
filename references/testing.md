@@ -28,7 +28,7 @@ names in `scripts/tests/test_font.py`, in file order, are: `test_the_cmap_is_exa
 `test_dropamt_changes_the_teardrops_and_flareamt_with_tear_throws`,
 `test_optical_corrections_change_only_the_strokes_they_name`, `test_the_optical_knobs_refuse_values_outside_their_ranges`,
 `test_xh_moves_the_lowercase_lines_and_leaves_the_capitals`, `test_xh_does_not_change_any_branch_record`, `test_weight_does_not_change_any_branch_record`, `test_xh_sets_the_spacing_band`,
-`test_xh_outside_its_range_is_refused`, `test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count`, `test_serifbracket_outside_zero_to_one_is_refused`, `test_joints_opt_in_cuts_a_sans_joint_level`,
+`test_xh_outside_its_range_is_refused`, `test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count`, `test_serifbracket_outside_zero_to_one_is_refused`, `test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif`, `test_headsink_outside_its_range_is_refused`, `test_joints_opt_in_cuts_a_sans_joint_level`,
 `test_crotch_thins_only_the_inner_edge_of_an_acute_joint`, `test_apex_is_refused_until_built`,
 `test_export_refuses_a_required_character_without_a_skeleton`,
 `test_build_refuses_a_required_character_without_a_skeleton` (C6: the build itself, on the export
@@ -48,6 +48,7 @@ Contents
 7. Harness rules
 8. The repository's own guards for the added tools, and the survivors they showed
 9. The face-folder guards (0.8.0)
+10. The headSink guards (0.9.0)
 
 ## 1. Why a green test proves nothing until it has failed
 
@@ -138,6 +139,8 @@ the table below reads "equals the exporter's", that is the limit it carries.
 | `xh` outside 400-600 is refused (`test_xh_outside_its_range_is_refused`) | `params()` names `xh` for 399, 601, a string and null; 400 and 600 pass | `xh-range-removed` | — |
 | an unbracketed serif is a slab with the bracketed point count (`test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count`) | `I` foot and head (26 points), `n` lowercase head (15) and feet, `v` diagonal serif (26), mult 1 and 1.5, `serifBracket` 0, 0.5, 1 and unset: at 0 every point lies between the line and one serif height (`h` = `W0` (`W` / `W0`)^`serifGrow` x `serifH`, restated) and both are reached; at 1 the extreme is 1.7 `h` (1.9 for the lowercase head); at 0.5 strictly between; the count is unchanged; 1 is the unset polygon exactly | `bracket-ignored`, `bracket-count`, `bracket-diag` | the plan said every slab point is on one of two lines; the slab's vertical sides are straight segments sampled by `quad()`, so their points lie between the lines |
 | `serifBracket` outside 0-1 is refused (`test_serifbracket_outside_zero_to_one_is_refused`) | `params()` names `serifBracket` for -0.01, 1.01, a string and null; 0 and 1 pass | `bracket-range-removed` | — |
+| `headSink` sinks the stem end under a lowercase head serif (`test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif`, 0.9.0) | a synthetic tall, short, bracketed, `serifGrow` concept, mult 1 and 1.5, with no key, 0 and 0.6: every head end pokes above its wedge with no key (control), at 0.6 none does, both corners sit `0.6 h` below the centre line (`h` with `serifGrow`), the end stays inside the wedge, point counts, edge runs and records are unchanged, only bodies with a head differ (capitals do not), advances, profiles and four kerns are unchanged, no point away from the serifed end moves, and 0 is the outline with no key | `headsink-ignored`, `headsink-zero-on`, `headsink-capitals`, `headsink-global`, `headsink-spacing`, `headsink-no-serifgrow` | — |
+| `headSink` outside 0-0.7 is refused (`test_headsink_outside_its_range_is_refused`, 0.9.0) | `params()` names `headSink` for -0.01, 0.71, a string, null, true and NaN; 0, 0.6 and 0.7 pass | `headsink-range-removed` | — |
 | `joints` opt-in cuts a sans joint level (`test_joints_opt_in_cuts_a_sans_joint_level`) | the project's first concept, every end a butt, and again with the shipped mapping of the empty end to a disk (no 64-point disk is drawn at a joint: V W M N v w have none, the A keeps the two on its crossbar), with and without `joints: true`, mult 1 and 1.5: with it both edge points of the `V`'s joint end lie on the baseline and the record reads `/joint`, and the `L`'s stem reaches its base's outer edge; without it the two edge points differ in y by the width times the tangent's x component (restated from the output) and the stem stops short | `joints-ignored`, `joints-keep-disk` | the jointed `V` reads y of 17.25 and -17.25 under the mutation |
 | `crotch` thins only the inner edge of an acute joint (`test_crotch_thins_only_the_inner_edge_of_an_acute_joint`) | at the first unpinned sample at least eight steps in on the `V`'s and the `A`'s arms (the partner side found from the partner's OUTPUT): that edge moved inward by 0.3 e w/2 with e restated from the arc distance read off the output (within 2 %); the other edge did not move (under 1e-6); `l`, `n`, `E F L T H` and the right-angled joints of `š ê Ô` are identical at crotch 0 and 0.3; `V` and `A` keep their hairline minimum; crotch 0 draws every glyph as no key; the glyphs whose record names an acute joint are exactly `1 4 5 v w A M N V W ™ Á À Â Ä Ñ` | `crotch-both-edges`, `crotch-everywhere`, `crotch-corners`, `crotch-corner-as-joint`, `crotch-obtuse`, `crotch-floor` | the Bold pins the first samples before a tight joint, so the sample is chosen by scanning (the plan's "eight steps" fails there) |
 | `apex` is refused until built (`test_apex_is_refused_until_built`) | `params()` throws naming `apex` and `generator.md`; `joints` must be a boolean; `crotch` a number from 0 to 0.6 (bounds allowed) | `apex-accepted` | — |
@@ -267,6 +270,8 @@ mutations and reworked the `gasp` one (68 RED of 68); the fix rounds added `desi
 2026-11-16, this machine). With `--static-dir none` the eight static mutations are SKIPPED. With 0.6.0's `weight-branch-drawn` and
 `quote-opening-unslanted` the set is 120: 120 RED of 120, 0 skipped, 0 problems (`scripts/smoke.sh` step 5, 2026-11-19, this machine;
 the first run that day was 118 RED with two UNPROVEN, both catalogue entries the change had broken, re-formed as section 8 records).
+With 0.9.0's seven `headsink-*` mutations (section 10) the set is 127: 127 RED of 127, 0 skipped, 0 problems (`scripts/smoke.sh --full`
+step 5, 2026-11-21, this machine).
 
 ## 6. The site-wiring template
 
@@ -715,3 +720,35 @@ assertion named in the last column (the run proves only the first failing assert
 The manifest digest of the compatibility baseline (`tests/baseline_digest.py`) leaves `skill_version` out, because the
 0.7.0 baseline was recorded before the key existed and the key changes on every release; the woff2 bytes and the other
 digests are unchanged, which is the proof that no font output moved.
+
+## 10. The headSink guards (0.9.0)
+
+`headSink` (`references/generator.md`, section 4) is opt-in, so every guard below has to see two things: the defect it repairs and
+nothing else moving. The font suite holds two tests (rows in section 2, seven mutations); `tests/test_head_sink.py` holds four more,
+each written to fail first on one assertion of the 0.8.0 generator, which ignores the key.
+
+| Repo test | First assertion it fails on |
+|---|---|
+| `test_headsink_buries_the_stem_corner_on_the_driftwood_example` | `HEADSINK-POKE` |
+| `test_headsink_buries_the_stem_end_in_every_serif_concept_the_repo_ships` | `HEADSINK-SWEEP` |
+| `test_a_face_that_sets_headsink_builds_with_its_spacing_unchanged` | `HEADSINK-BUILD` |
+| `test_the_font_suites_headsink_tests_pass_on_two_examples` | `HEADSINK-SUITE` |
+
+**The seven mutations.** `mutate.py --only headsink` on the neutral example, with `examples/neutral/out/static` built first: 7 mutations,
+7 RED, 0 skipped, 0 problems (2026-11-21, this machine). Each fired on the assertion its `expect` names: `headsink-ignored` ("pokes out above
+the wedge by 14.74 units"), `headsink-zero-on` ("headSink 0 is not the outline with no key set: 'l' differs"), `headsink-capitals`
+("moved polygons [0] of 'I', which has no lowercase head serif"), `headsink-global` (94 of 94 body points of the test glyph moved),
+`headsink-spacing` (the advance of `i` moved from 293.26 to 291.32), `headsink-no-serifgrow` (off by 7.78 units at mult 1.5) and
+`headsink-range-removed`. The full harness after this change is 127 mutations, 127 RED (section 5).
+
+**Figures that shaped the design** (measured 2026-11-21 on the Driftwood example's `driftwood` concept, with the built code, unless said
+otherwise). With no `headSink` the corner of every lowercase head end stands 2.81 units above its wedge at mult 1 and 4.11 at mult 1.65,
+on 28 ends in 23 glyphs; with 0.6 every end is buried. In the plan's measurement, with the spacing profile read from the sunk body,
+the advances of `g i j u fi` and eight accented letters shrank by 0.3 to 2.0 units and 1,410 automatic kern values changed at mult 1;
+`glyph()` therefore keeps the unsunk body for the profile, and nothing about spacing moves (plan figures, not re-measured in this change).
+
+**The watches of the repo tests** (plan, section "Verification"). Each is a copy of `scripts/` outside the repository with one edit. The
+results of the builder's runs are recorded in the commit or pull request that lands 0.9.0, not here, until they have been run.
+
+**A recorded limit.** No shipped concept maps the empty end letter to `serif`, so no input reaches the difference between an end's mode
+before and after the joint pass: reading the mode from before the joint pass instead of after it has no watch.

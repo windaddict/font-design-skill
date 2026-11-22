@@ -26,6 +26,10 @@ def tree_files():
         for f in sorted(files):
             if f == ".DS_Store":
                 continue
+            # In a linked worktree or a submodule `.git` is a file that holds the path of the git
+            # directory; git never tracks it, so it cannot be published, like the `.git` folder in SKIP_DIRS.
+            if f == ".git":
+                continue
             out.append(pathlib.Path(root) / f)
     return out
 
