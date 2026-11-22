@@ -1647,7 +1647,10 @@ for (const mult of [1, 1.5]) for (const hs of ["undef", 0, 0.6]) {
   const c = Object.assign({}, base, { id: "hs" + hs });
   if (hs !== "undef") c.headSink = hs;
   const P = m.params(c, mult), r = { glyphs: {}, kern: {} };
-  for (const k of ["n", "i", "j", "u", "l", "I", "H", "o", "ĸ"]) { const g = m.glyph(k, P); r.glyphs[k] = { adv: g.adv, polys: g.polys, runs: g.runs, sig: g.sig, L: g.L, R: g.R, upper: g.upper }; }
+  for (const k of ["n", "i", "j", "u", "l", "I", "H", "o", "ĸ"]) {
+    const g = m.glyph(k, P);
+    r.glyphs[k] = { adv: g.adv, polys: g.polys, runs: g.runs, sig: g.sig, L: g.L, R: g.R, upper: g.upper };
+  }
   for (const pair of ["ij", "ni", "ll", "ui"]) r.kern[pair] = m.kern(m.glyph(pair[0], P), m.glyph(pair[1], P), P);
   res.runs[mult + "/" + hs] = r;
 }
@@ -1733,7 +1736,10 @@ def test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif(cfg):
         # 2. control: with no key the stem stands above its wedge
         for k in ["n", "i", "j", "u"]:
             for e in ends_a[k]:
-                assert headsink_measure(e)[1] > 1, f"mult {mult}: the fixture cannot observe the defect: the stem of {k!r} stands {headsink_measure(e)[1]:.2f} above its wedge with no headSink"
+                assert headsink_measure(e)[1] > 1, (
+                    f"mult {mult}: the fixture cannot observe the defect: the stem of {k!r} stands {headsink_measure(e)[1]:.2f} above its wedge with no "
+                    "headSink"
+                )
         # 3. at 0.6 no end stands above its wedge
         for k in ["n", "i", "j", "u", "l", "ĸ"]:
             assert len(ends_s[k]) == len(ends_a[k]), f"mult {mult}: {k!r} lost or gained a lowercase head end with headSink 0.6"
@@ -1745,12 +1751,18 @@ def test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif(cfg):
             for ea, es in zip(ends_a[k], ends_s[k]):
                 want = (ea["corners"][0][1] + ea["corners"][1][1]) / 2 - 0.6 * h
                 for c in es["corners"]:
-                    assert abs(c[1] - want) < 1e-6, f"mult {mult}: a corner of {k!r} is at y {c[1]:.6f}, {want - c[1]:+.6f} from 0.6 of the serif height ({0.6 * h:.4f} below the centre line, h = {h:.4f})"
+                    assert abs(c[1] - want) < 1e-6, (
+                        f"mult {mult}: a corner of {k!r} is at y {c[1]:.6f}, {want - c[1]:+.6f} from 0.6 of the serif height ({0.6 * h:.4f} below the "
+                        f"centre line, h = {h:.4f})"
+                    )
         # 5. the end is still inside the wedge
         for k in ["n", "i", "j", "u", "l", "ĸ"]:
             for e in ends_s[k]:
                 cover = headsink_measure(e)[2]
-                assert cover >= 0.25 * h, f"mult {mult}: with headSink 0.6 the stem of {k!r} keeps {cover:.2f} units over the wedge's lower edge (0.25 h = {0.25 * h:.2f}) and has left the serif"
+                assert cover >= 0.25 * h, (
+                    f"mult {mult}: with headSink 0.6 the stem of {k!r} keeps {cover:.2f} units over the wedge's lower edge (0.25 h = {0.25 * h:.2f}) and "
+                    "has left the serif"
+                )
         # 6. point counts, edge runs and branch records are those of the outline with no key
         for k in glyphs:
             ga, gs = absent["glyphs"][k], sunk["glyphs"][k]
@@ -1778,9 +1790,14 @@ def test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif(cfg):
         top = (end["corners"][0][1] + end["corners"][1][1]) / 2 + 1
         pa, ps = absent["glyphs"]["ĸ"]["polys"][end["body"]], sunk["glyphs"]["ĸ"]["polys"][end["body"]]
         arm = [i for i, p in enumerate(pa) if p[1] > top]
-        assert len(arm) > 20, f"mult {mult}: the fixture's glyph has only {len(arm)} body points above its head end; it cannot show a stroke pinned along its whole length"
+        assert len(arm) > 20, (
+            f"mult {mult}: the fixture's glyph has only {len(arm)} body points above its head end; it cannot show a stroke pinned along its whole length"
+        )
         flat = [i for i in arm if pa[i] != ps[i]]
-        assert not flat, f"mult {mult}: headSink 0.6 moved {len(flat)} of {len(arm)} body points of the test glyph that lie far away from its serifed end (above its centre line by 1 unit or more)"
+        assert not flat, (
+            f"mult {mult}: headSink 0.6 moved {len(flat)} of {len(arm)} body points of the test glyph that lie far away from its serifed end (above its "
+            "centre line by 1 unit or more)"
+        )
         # 10. headSink 0 is the outline with no key
         for k in glyphs:
             assert absent["glyphs"][k]["polys"] == zero["glyphs"][k]["polys"] and absent["glyphs"][k]["adv"] == zero["glyphs"][k]["adv"], \

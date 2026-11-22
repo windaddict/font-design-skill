@@ -22,16 +22,14 @@ a lowest crossing. Then:
 FONT_DESIGN_HS_SCRIPTS names another scripts/ folder to test (a scratch copy carrying one mutation, for the watches in the
 plan's Verification section); unset, the real one.
 """
+import importlib.util as _ilu
 import json
 import os
 import pathlib
+import pathlib as _pl
 import re
 import shutil
-import subprocess
 import sys
-
-import importlib.util as _ilu
-import pathlib as _pl
 
 # Load tests/conftest.py by path: a combined run with scripts/tests/ puts that folder's conftest in sys.modules as
 # "conftest", so a plain `from conftest import ...` would get the wrong module.
@@ -191,13 +189,18 @@ def test_headsink_buries_the_stem_corner_on_the_driftwood_example():
         for key, ea in ends_a.items():
             want = centre_y(ea) - 0.6 * h
             for c in ends_s[key]["corners"]:
-                assert abs(c[1] - want) < 1e-6, f"mult {mult}: a corner of {key[0]!r} end {key[2]} is at y {c[1]:.6f}, expected the centre line minus 0.6 h = {want:.6f} (h = {h:.4f})"
+                assert abs(c[1] - want) < 1e-6, (
+                    f"mult {mult}: a corner of {key[0]!r} end {key[2]} is at y {c[1]:.6f}, expected the centre line minus 0.6 h = {want:.6f} (h = {h:.4f})"
+                )
     # 4. and has not left the serif
     for mult in romans:
         sunk = one(recs, "roman", mult, 0.6)
         h = serif_height(sunk)
         for (k, _, e), m in all_measures(sunk, f"mult {mult}").items():
-            assert m["cover"] >= 0.25 * h, f"mult {mult}: {k!r} end {e} keeps {m['cover']:.2f} units over the wedge's lower edge, less than 0.25 h = {0.25 * h:.2f}: the end has left the serif"
+            assert m["cover"] >= 0.25 * h, (
+                f"mult {mult}: {k!r} end {e} keeps {m['cover']:.2f} units over the wedge's lower edge, less than 0.25 h = {0.25 * h:.2f}: the end has left "
+                "the serif"
+            )
     # 5. reach: only the stem bodies under a lowercase head differ
     for style, mults in (("roman", romans), ("italic", [1, 1.3])):
         for mult in mults:
@@ -209,7 +212,9 @@ def test_headsink_buries_the_stem_corner_on_the_driftwood_example():
             for k in changed:
                 body_idx = {e["body"] for e in absent["glyphs"][k]["ends"]}
                 moved = {i for i, (a, s) in enumerate(zip(absent["glyphs"][k]["pHash"], sunk["glyphs"][k]["pHash"])) if a != s}
-                assert moved <= body_idx, f"HEADSINK-REACH: {style} mult {mult}: in {k!r} polygons {sorted(moved - body_idx)} changed, which are not a stem under a lowercase head"
+                assert moved <= body_idx, (
+                    f"HEADSINK-REACH: {style} mult {mult}: in {k!r} polygons {sorted(moved - body_idx)} changed, which are not a stem under a lowercase head"
+                )
     italic = {k for k, g in one(recs, "italic", 1, "undef")["glyphs"].items() if g["ends"]}
     assert italic == {"w"}, f"HEADSINK-REACH: the italic's lowercase heads are {sorted(italic)}, expected only w (a narrow concept's first stroke)"
     # 6. spacing: point counts, edge runs, records, advances, profiles and kerns
@@ -264,7 +269,8 @@ def test_headsink_buries_the_stem_end_in_every_serif_concept_the_repo_ships():
         h = serif_height(r)
         for (k, b, e), m in all_measures(r, f"{r['file']} {r['concept']}").items():
             assert m["cover"] >= 0.25 * h, \
-                f"{r['file']} {r['concept']} {r['style']}: {k!r} end {e} keeps {m['cover']:.2f} units over the wedge's lower edge, less than 0.25 h = {0.25 * h:.2f}: the end has left the serif"
+                f"{r['file']} {r['concept']} {r['style']}: {k!r} end {e} keeps {m['cover']:.2f} units over the wedge's lower edge, less than 0.25 h = " \
+                f"{0.25 * h:.2f}: the end has left the serif"
     # 4. the depth is 0.6 h with serifGrow in h. A corner above the line goes down to it; a corner already below it stays (the italic w of a
     #    slanted end has one corner on each side of the centre line), so each corner is expected at min(its height with no key, the line).
     for r in sunk:
@@ -274,7 +280,8 @@ def test_headsink_buries_the_stem_end_in_every_serif_concept_the_repo_ships():
             for c, c0 in zip(es["corners"], ends_a[key]["corners"]):
                 want = min(c0[1], line)
                 assert abs(c[1] - want) < 1e-6, \
-                    f"{r['file']} {r['concept']} {r['style']} (serifGrow {r['serifGrow']}): a corner of {key[0]!r} is at y {c[1]:.4f}, expected {want:.4f}, the end's centre line minus 0.6 h = {line:.4f} (h = {h:.4f})"
+                    f"{r['file']} {r['concept']} {r['style']} (serifGrow {r['serifGrow']}): a corner of {key[0]!r} is at y {c[1]:.4f}, expected " \
+                    f"{want:.4f}, the end's centre line minus 0.6 h = {line:.4f} (h = {h:.4f})"
     # 5. the partial bracket
     part = probe({"files": [str(DRIFTWOOD / "concepts.js")], "ids": ["driftwood"], "keys": "lower", "runs": [{"style": "roman", "mults": [1, 1.65]}],
                   "variants": [{"name": "b0.5", "set": {"serifBracket": 0.5}}, {"name": "b0", "set": {"serifBracket": 0}}], "headSinks": ["undef", 0.6]})
@@ -284,10 +291,14 @@ def test_headsink_buries_the_stem_end_in_every_serif_concept_the_repo_ships():
         for (k, _, e), m in all_measures(one(part, "roman", mult, 0.6, "b0.5"), f"b0.5 mult {mult}").items():
             assert m["poke"] <= 0.01, f"serifBracket 0.5, mult {mult}: with headSink 0.6 {k!r} end {e} still pokes {m['poke']:.2f} above the blended wedge"
         for (k, _, e), m in all_measures(one(part, "roman", mult, "undef", "b0"), f"b0 mult {mult}").items():
-            assert abs(m["poke"]) <= 0.01 and abs(m["left_poke"]) <= 0.01, f"serifBracket 0, mult {mult}: {k!r} end {e} is {m['poke']:.2f} off a level top with no headSink"
+            assert abs(m["poke"]) <= 0.01 and abs(m["left_poke"]) <= 0.01, (
+                f"serifBracket 0, mult {mult}: {k!r} end {e} is {m['poke']:.2f} off a level top with no headSink"
+            )
         sunk0 = one(part, "roman", mult, 0.6, "b0")
         for (k, _, e), m in all_measures(sunk0, f"b0 mult {mult}").items():
-            assert m["cover"] >= 0.25 * serif_height(sunk0), f"serifBracket 0, mult {mult}: with headSink 0.6 {k!r} end {e} keeps {m['cover']:.2f}, which is under 0.25 h: the end has left the slab"
+            assert m["cover"] >= 0.25 * serif_height(sunk0), (
+                f"serifBracket 0, mult {mult}: with headSink 0.6 {k!r} end {e} keeps {m['cover']:.2f}, which is under 0.25 h: the end has left the slab"
+            )
 
 
 # --- c: a face that sets headSink, through export.js, build.py and the font suite --------------------------------------
@@ -316,7 +327,8 @@ def test_a_face_that_sets_headsink_builds_with_its_spacing_unchanged(tmp_path):
     # 1. both builds pass the exporter's compatibility and fold checks and the builder's self-checks
     assert rp.returncode == 0, f"the plain build exited {rp.returncode}:\n{rp.stderr[-2000:]}"
     assert rs.returncode == 0, f"the sunk build exited {rs.returncode}:\n{rs.stderr[-2000:]}"
-    exp = {name: {g: json.loads((d / "keep" / f"export-{g}.json").read_text(encoding="utf-8")) for g in ("roman", "italic")} for name, d in (("plain", plain), ("sunk", sunk))}
+    exp = {name: {g: json.loads((d / "keep" / f"export-{g}.json").read_text(encoding="utf-8")) for g in ("roman", "italic")}
+           for name, d in (("plain", plain), ("sunk", sunk))}
     # 2. the exported undecimated polygons hold the sunk end (raw is rounded to 0.1)
     for group, keys in (("roman", "nilb"), ("italic", "w")):
         for master, m in exp["sunk"][group]["masters"].items():
@@ -325,7 +337,10 @@ def test_a_face_that_sets_headsink_builds_with_its_spacing_unchanged(tmp_path):
                 assert ends, f"{group}/{master}: no lowercase head end found on {k!r} in the sunk export"
                 for end in ends:
                     poke = measure(end, f"{group}/{master} {k}")["poke"]
-                    assert poke <= 0.11, f"HEADSINK-BUILD: the exported {group}/{master} {k!r} still pokes {poke:.2f} units above its wedge although the concept sets headSink 0.6"
+                    assert poke <= 0.11, (
+                        f"HEADSINK-BUILD: the exported {group}/{master} {k!r} still pokes {poke:.2f} units above its wedge although the concept sets "
+                        "headSink 0.6"
+                    )
                     # 3. decimation kept the sunk end: the decimated body reaches the same height as the undecimated one
                     g = m["glyphs"][k]
                     hi_raw, hi_dec = max(p[1] for p in g["raw"][end["body"]]), max(p[1] for p in g["polys"][end["body"]])

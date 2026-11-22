@@ -6,10 +6,9 @@ path that works only on one Mac, a font file that is licensed for one site only,
 a site, an email address, a session link. Each would publish without an error. These tests walk the
 whole working tree (not `git ls-files`, so untracked files count) and fail naming the file.
 """
-import re
-
 import importlib.util as _ilu
 import pathlib as _pl
+import re
 
 # Load tests/conftest.py by path: a combined run with scripts/tests/ puts that folder's conftest in sys.modules as
 # "conftest", so a plain `from conftest import ...` would get the wrong module.
@@ -100,4 +99,6 @@ def test_the_tree_walk_leaves_out_a_git_pointer_file(tmp_path, monkeypatch):
     (tmp_path / "sub" / "b.md").write_text("b\n", encoding="utf-8")
     monkeypatch.setattr(conftest, "REPO", tmp_path)
     names = sorted(p.relative_to(tmp_path).as_posix() for p in conftest.tree_files())
-    assert names == ["a.md", "sub/b.md"], f"HYGIENE-GIT-POINTER: tree_files() returned {names}, expected ['a.md', 'sub/b.md']: a file named .git is a pointer, not publishable content"
+    assert names == ["a.md", "sub/b.md"], (
+        f"HYGIENE-GIT-POINTER: tree_files() returned {names}, expected ['a.md', 'sub/b.md']: a file named .git is a pointer, not publishable content"
+    )
