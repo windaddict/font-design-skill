@@ -6,9 +6,18 @@ path that works only on one Mac, a font file that is licensed for one site only,
 a site, an email address, a session link. Each would publish without an error. These tests walk the
 whole working tree (not `git ls-files`, so untracked files count) and fail naming the file.
 """
+import importlib.util as _ilu
+import pathlib as _pl
 import re
 
-from conftest import REPO, tree_files
+# Load tests/conftest.py by path: a combined run with scripts/tests/ puts that folder's conftest in sys.modules as
+# "conftest", so a plain `from conftest import ...` would get the wrong module.
+_spec = _ilu.spec_from_file_location("repo_tests_conftest", _pl.Path(__file__).resolve().parent / "conftest.py")
+_mod = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+
+REPO = _mod.REPO
+tree_files = _mod.tree_files
 
 # Built from pieces so this file does not match its own list.
 FORBIDDEN = [
@@ -74,3 +83,22 @@ def test_no_innerhtml_in_the_concept_templates():
     for p in sorted((REPO / "scripts" / "concepts").glob("*.html")):
         assert "innerHTML" not in p.read_text(encoding="utf-8"), f"{p.name} uses innerHTML"
     assert "innerHTML" not in (REPO / "scripts" / "render.js").read_text(encoding="utf-8")
+
+
+def test_the_tree_walk_leaves_out_a_git_pointer_file(tmp_path, monkeypatch):
+    """In a linked git worktree or a submodule `.git` is a FILE holding the path of the git directory. Git never tracks it, so it
+    cannot be published, and the walk must skip it the way it skips the `.git` folder; read as text it would report the checkout's
+    own path as a machine-specific string. The tree below holds one pointer file at the top and one in a sub-folder, beside two
+    ordinary files, which the walk must still return."""
+    conftest = _mod
+
+    (tmp_path / ".git").write_text("gitdir: /srv/checkout/.git/worktrees/example\n", encoding="utf-8")
+    (tmp_path / "a.md").write_text("a\n", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / ".git").write_text("gitdir: /srv/checkout/.git/modules/sub\n", encoding="utf-8")
+    (tmp_path / "sub" / "b.md").write_text("b\n", encoding="utf-8")
+    monkeypatch.setattr(conftest, "REPO", tmp_path)
+    names = sorted(p.relative_to(tmp_path).as_posix() for p in conftest.tree_files())
+    assert names == ["a.md", "sub/b.md"], (
+        f"HYGIENE-GIT-POINTER: tree_files() returned {names}, expected ['a.md', 'sub/b.md']: a file named .git is a pointer, not publishable content"
+    )

@@ -4,6 +4,16 @@ All notable changes to this skill. The format follows Keep a Changelog; the vers
 file, repeated in `SKILL.md` and the README badge and checked by the tests. Each entry states whether font
 output changes (a line starting `Font output:`), and `## Releases` at the end lists the tags.
 
+## [0.9.0] — 2026-11-21
+
+Font output: changes: a face that sets headSink builds differently under 0.9.0 than under 0.8.0, which ignored the key. No concept this repository ships sets headSink, and with the key absent every example rebuilds to the recorded digests (`tests/test_backward_compat.py`).
+
+### Added
+- **`headSink`, a concept parameter from 0 to 0.7 (default 0, off).** It sinks a stem end under a lowercase head serif by `headSink x h`, with `h = SW x serifH` (so `serifGrow` is included), so the stem's top-left corner no longer shows above the wedge. Values outside 0 to 0.7 are refused. Advances, spacing profiles and kerns are those of the concept without the key. Capitals, feet, diagonal serifs and ends that became a joint or a corner are untouched. Decisions and measurements of 0.1 to 0.6 are in `docs/plan-head-sink.md` and `references/testing.md` section 10.
+
+### Fixed
+- **The hygiene tree walk skips a `.git` pointer file.** In a linked worktree or a submodule `.git` is a file; the walk read it as publishable text.
+
 ## [0.8.0] — 2026-11-20
 
 Font output: unchanged. Every example rebuilds byte-identically (`tests/test_backward_compat.py`); the manifest gains one key,
@@ -999,6 +1009,7 @@ font output for the same face folder, not identical repository files: later comm
 | v0.7.0 | aa4b9ae | merge of PR #14 |
 | v0.7.1 | b09faa9 | merge of PR #15; the later commits 47ce908 and 852fd96 (CI, CLAUDE.md) changed none of the three font sources |
 | v0.8.0 | the merge commit of the release branch | tagged after the merge |
+| v0.9.0 | the merge commit of the release branch | tagged after the merge |
 
 **0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and
 its `gen.js` and `export.js` differ from the tag's; it reached `main` only inside 0.7.0 (aa4b9ae), so it has no tag. A face built by it
