@@ -12,11 +12,15 @@ x-height band only and its slanted body overhangs the advance by 30 to 53 units;
 its ink landed on that letter. Since 0.7.0 an italic group's `quoteleft` and `quotedblleft` grow to hold their ink with a right
 side bearing that is never negative and equals the left wherever the ink, not the apostrophe-derived advance, sets the advance;
 the roman and the closing quotes are unchanged.
+Since 0.10.0 the two comparison tests that hold this tree to 0.5.0 take out what 0.10.0 declares it changes (tests/joint_changes.py:
+the redrawn glyphs, their records, the kerns of pairs with a G or, in italic, an r, the titles that contain them) and keep every
+other glyph, kern and title under the same comparison.
 
 The tests run the real generator (tests/weight_flips.js, one node process per concept and slant), the real exporter and the real
 builder. The 0.5.0 code for the comparisons is read from git (BASELINE_REV). Exact guarantee of the comparison tests: nothing in any
 example group's export JSON moved, no outline, kern or other advance moved in the built fonts, and the two italic groups' hmtx
-differs on exactly the two opening quotes. They cannot see a defect shared by both sides of a comparison (both run the current
+differs on exactly the two opening quotes (and, since 0.10.0, on the declared G and italic r).
+They cannot see a defect shared by both sides of a comparison (both run the current
 `export.js` where only `gen.js` is swapped, and the builder comparison runs each tree's own `build.py`).
 
 FONT_DESIGN_WEIGHT_GEN names another gen.js to measure (a scratch copy carrying a mutation); unset, the real one.
@@ -45,6 +49,7 @@ from conftest import REPO, node, run
 
 sys.path.insert(0, str(REPO / "tests"))
 import baseline_digest as bd  # noqa: E402
+from joint_changes import OUTLINES, RECORDS, kern_pair_allowed  # noqa: E402
 
 GEN = pathlib.Path(os.environ.get("FONT_DESIGN_WEIGHT_GEN", REPO / "scripts" / "gen.js"))
 FLIPS = REPO / "tests" / "weight_flips.js"
@@ -380,46 +385,76 @@ def expected_opening_advances(export, master):
     return {"quoteleft": round(max(xs) + lo), "quotedblleft": round(max(xs) + 1.45 * aw + lo)}
 
 
+def reduced(export, group_is_italic, example, group):
+    """An export JSON without 0.10.0's declared changes: the glyphs of OUTLINES dropped, the kern pairs `kern_pair_allowed` admits dropped,
+    the titles that contain G (or, in an italic group, r) dropped. Every other glyph, kern and title stays under the comparison."""
+    drop = set(OUTLINES[(example, group)])
+    out = dict(export)
+    out["masters"] = {}
+    for name, m in export["masters"].items():
+        r = dict(m)
+        r["glyphs"] = {k: g for k, g in m["glyphs"].items() if k not in drop}
+        r["kerns"] = [x for x in m["kerns"] if not kern_pair_allowed(group_is_italic, x[0], x[1])]
+        r["titles"] = {t: w for t, w in m["titles"].items() if not ("G" in t or (group_is_italic and "r" in t))}
+        out["masters"][name] = r
+    return out
+
+
+def declared_glyph_names(ttf, example, group):
+    """The font's glyph names for the generator keys of OUTLINES: a character through the cmap, `fl` as its ligature glyph."""
+    cmap = ttf.getBestCmap()
+    return {"f_l" if k == "fl" else cmap[ord(k)] for k in OUTLINES[(example, group)]}
+
+
 def test_only_the_italic_opening_quotes_changed_since_0_5_0(builds):
-    """Per example group, the 0.5.0 build against this tree's: the export JSON is identical (export digest: the generator's output does not
-    move for any shipped group, decisions included); in a roman group the decoded TTF digest is identical; in an italic group every
-    glyph's compiled `glyf` record is identical, GPOS is identical, the tables that differ are a subset of {hmtx, HVAR, gvar, OS/2, head}
-    with OS/2 differing in `xAvgCharWidth` only, and at every master's location `hmtx` differs on exactly {quoteleft, quotedblleft}, each
-    new advance equal to `round(xMax + xMin)` of the glyph's ink computed from the 0.5.0 export's apostrophe polygons. Red at 0.5.0 by
-    design ("hmtx changed on [], expected ['quoteleft', 'quotedblleft']"): it pins that the quotes moved and that nothing else did."""
+    """Per example group, the 0.5.0 build against this tree's, with 0.10.0's declared changes taken out (tests/joint_changes.py: the
+    glyphs of OUTLINES, the kern pairs `kern_pair_allowed` admits, the titles that contain G or an italic r; tests/test_serif_joints.py
+    holds those against 0.9.0). What is left is compared as before. The export JSON is identical after the reduction (`bd.export_digest`
+    of both reduced exports: no other glyph, kern, title or decision moved); a branch record moves on RECORDS only; in a roman group
+    every glyph outside the declared set has the same compiled `glyf` record and the same `gvar` variations, and `hmtx` differs on `G` at
+    most; in an italic group the glyph and `gvar` comparisons skip the declared set, `hmtx` differs on the two opening quotes and on G and
+    r at most, and at every master's location differs on the two opening quotes, each new advance equal to `round(xMax + xMin)` of the
+    glyph's ink computed from the 0.5.0 export's apostrophe polygons. GPOS is no longer compared (the new scope test holds the kerns).
+    The tables allowed to differ are {glyf, loca, gvar, hmtx, HVAR, GPOS, GDEF, OS/2, head, hhea, maxp} (the build of 0.10.0 shows glyf, loca, gvar,
+    hmtx, GPOS, GDEF and head in every group,
+    HVAR in the neutral groups and the italics, OS/2 in the italics), with OS/2
+    differing in `xAvgCharWidth` only. Red at 0.5.0 by design ("hmtx changed on [], expected ['quotedblleft', 'quoteleft']"): it pins
+    that the quotes moved and that nothing else did."""
     from fontTools.varLib import instancer
     bad = []
+    allowed_tables = {"glyf", "loca", "gvar", "hmtx", "HVAR", "GPOS", "GDEF", "OS/2", "head", "hhea", "maxp"}
     for (example, group), sides in builds.items():
         old, new = sides["old"], sides["new"]
         where = f"{example}/{group}"
-        if bd.export_digest(old["export"]) != bd.export_digest(new["export"]):
-            bad.append(f"{where}: the export JSON moved")
+        italic = bool(old["cfg"].get("italic"))
+        if bd.export_digest(reduced(old["export"], italic, example, group)) != bd.export_digest(reduced(new["export"], italic, example, group)):
+            bad.append(f"{where}: the export JSON moved outside the declared glyphs, kerns and titles")
         for master in old["export"]["masters"]:
             og, ng = old["export"]["masters"][master]["glyphs"], new["export"]["masters"][master]["glyphs"]
-            if og.keys() != ng.keys() or any(og[k]["sig"] != ng[k]["sig"] for k in og):
+            if og.keys() != ng.keys() or any(og[k]["sig"] != ng[k]["sig"] for k in og if k not in RECORDS["italic" if italic else "roman"]):
                 bad.append(f"{where}/{master}: a branch record moved")
         ot, nt = old["ttf"], new["ttf"]
-        if not old["cfg"].get("italic"):
-            if bd.ttf_digest(old["woff2"]) != bd.ttf_digest(new["woff2"]):
-                bad.append(f"{where}: a roman group's TTF moved: tables {tables_that_differ(ot, nt)}")
-            continue
+        declared = declared_glyph_names(nt, example, group)
         diff = tables_that_differ(ot, nt)
-        if not set(diff) <= {"hmtx", "HVAR", "gvar", "OS/2", "head"}:
-            bad.append(f"{where}: tables differ beyond the opening quotes' advances: {diff}")
+        if not set(diff) <= allowed_tables:
+            bad.append(f"{where}: tables differ beyond the declared changes and the opening quotes' advances: {diff}")
         if ot.getGlyphOrder() != nt.getGlyphOrder():
             bad.append(f"{where}: the glyph order changed")
-        else:
-            moved = [g for g in ot.getGlyphOrder() if glyph_bytes(ot, g) != glyph_bytes(nt, g)]
-            if moved:
-                bad.append(f"{where}: outlines moved on {moved}")
-            # review F002 (diff review): equal glyf records say nothing about the variation deltas; every glyph but the two opening
-            # quotes (whose phantom-point deltas carry the new advance) keeps its gvar variations
-            gmoved = [g for g in ot.getGlyphOrder() if g not in ("quoteleft", "quotedblleft")
-                      and ot["gvar"].variations.get(g, []) != nt["gvar"].variations.get(g, [])]
-            if gmoved:
-                bad.append(f"{where}: gvar variations moved on {gmoved}")
-        if table_bytes(ot, "GPOS") != table_bytes(nt, "GPOS"):
-            bad.append(f"{where}: GPOS moved")
+            continue
+        moved = [g for g in ot.getGlyphOrder() if g not in declared and glyph_bytes(ot, g) != glyph_bytes(nt, g)]
+        if moved:
+            bad.append(f"{where}: outlines moved on {moved}")
+        # review F002 (diff review): equal glyf records say nothing about the variation deltas; every glyph but the declared ones and the
+        # two opening quotes (whose phantom-point deltas carry the new advance) keeps its gvar variations
+        gmoved = [g for g in ot.getGlyphOrder() if g not in declared and (not italic or g not in ("quoteleft", "quotedblleft"))
+                  and ot["gvar"].variations.get(g, []) != nt["gvar"].variations.get(g, [])]
+        if gmoved:
+            bad.append(f"{where}: gvar variations moved on {gmoved}")
+        if not italic:
+            hm = [g for g in ot.getGlyphOrder() if ot["hmtx"][g] != nt["hmtx"][g]]
+            if not set(hm) <= {"G"}:
+                bad.append(f"{where}: a roman group's hmtx differs on {hm}, expected G at most")
+            continue
         o2, n2 = plain(vars(ot["OS/2"])), plain(vars(nt["OS/2"]))
         o2.pop("xAvgCharWidth"), n2.pop("xAvgCharWidth")
         if o2 != n2:
@@ -428,22 +463,23 @@ def test_only_the_italic_opening_quotes_changed_since_0_5_0(builds):
         # points per axis (ends, quarters, midpoint), every advance through HVAR and every outline through gvar at each
         import itertools
         axes = old["cfg"]["axes"]
+        ok_hmtx = {"quotedblleft", "quoteleft"} | {g for g in declared if g in ("G", "r")}
         for point in itertools.product(*[[a["min"] + (a["max"] - a["min"]) * k / 4 for k in range(5)] for a in axes]):
             loc = {a["tag"]: v for a, v in zip(axes, point)}
             oi = instancer.instantiateVariableFont(ot, loc, inplace=False)
             ni = instancer.instantiateVariableFont(nt, loc, inplace=False)
             changed = sorted(g for g in ot.getGlyphOrder() if oi["hmtx"][g] != ni["hmtx"][g])
-            if not set(changed) <= {"quotedblleft", "quoteleft"}:
-                bad.append(f"{where} at {loc}: hmtx changed on {changed}, expected only the opening quotes")
-            omoved = [g for g in ot.getGlyphOrder() if glyph_bytes(oi, g) != glyph_bytes(ni, g)]
+            if not set(changed) <= ok_hmtx:
+                bad.append(f"{where} at {loc}: hmtx changed on {changed}, expected only the opening quotes, G and r")
+            omoved = [g for g in ot.getGlyphOrder() if g not in declared and glyph_bytes(oi, g) != glyph_bytes(ni, g)]
             if omoved:
                 bad.append(f"{where} at {loc}: instanced outlines moved on {omoved}")
         for master, spec in old["cfg"]["masters"].items():
             oi = instancer.instantiateVariableFont(ot, dict(spec["location"]), inplace=False)
             ni = instancer.instantiateVariableFont(nt, dict(spec["location"]), inplace=False)
             changed = sorted(g for g in ot.getGlyphOrder() if oi["hmtx"][g] != ni["hmtx"][g])
-            if changed != ["quotedblleft", "quoteleft"]:
-                bad.append(f"{where}/{master}: hmtx changed on {changed}, expected ['quotedblleft', 'quoteleft']")
+            if not ({"quotedblleft", "quoteleft"} <= set(changed) <= ok_hmtx):
+                bad.append(f"{where}/{master}: hmtx changed on {changed}, expected the two opening quotes (and G, r at most)")
             want = expected_opening_advances(old["export"], master)
             for g, adv in want.items():
                 if ni["hmtx"][g][0] != adv:
@@ -460,7 +496,8 @@ def test_a_mixed_concept_group_without_a_mult_1_master_per_concept_exports_as_0_
     concepts is covered by the compatibility promise only while every master keeps its decisions under that reset (review F001). The
     narrowed fixture: the bract example's `text` at mult 1 beside its `display` at mult 1.5, one roman group, the heavier concept with
     no mult-1 master of its own (the shipped bract roman has one per concept, so it cannot show this). Exported with the 0.5.0
-    export.js and gen.js and with this tree's: the export JSON and every record are identical. Red if the reset moves a decision of
+    export.js and gen.js and with this tree's: the export JSON and every record are identical once 0.10.0's declared changes are taken
+    out (the glyphs of OUTLINES, their kerns and titles; records may differ on RECORDS["roman"] only). Red if the reset moves a decision of
     the display master, which the generator.md section 11 promise says it may for a concept whose heavier master sits on a threshold;
     bract's does not."""
     cfg = json.loads((REPO / "examples" / "bract" / "font.json").read_text())
@@ -477,10 +514,12 @@ def test_a_mixed_concept_group_without_a_mult_1_master_per_concept_exports_as_0_
         r = run([node(), str(d / "export.js"), "--font", str(fj), "--group", "roman", str(out)])
         assert r.returncode == 0, f"{label}: export.js exited {r.returncode}: {r.stderr[-1500:]}"
         exports[label] = json.loads(out.read_text())
-    assert bd.export_digest(exports["old"]) == bd.export_digest(exports["new"]), "the mixed-concept group's export moved"
+    # 0.10.0's declared changes are taken out first (the bract roman set), the way the test above does
+    red_old, red_new = (reduced(exports[k], False, "bract", "roman") for k in ("old", "new"))
+    assert bd.export_digest(red_old) == bd.export_digest(red_new), "the mixed-concept group's export moved"
     for master in exports["old"]["masters"]:
         og, ng = exports["old"]["masters"][master]["glyphs"], exports["new"]["masters"][master]["glyphs"]
-        moved = sorted(k for k in og if og[k]["sig"] != ng[k]["sig"])
+        moved = sorted(k for k in og if og[k]["sig"] != ng[k]["sig"] and k not in RECORDS["roman"])
         assert not moved, f"{master}: records moved on {moved}"
 
 

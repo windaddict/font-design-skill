@@ -752,3 +752,66 @@ results of the builder's runs are recorded in the commit or pull request that la
 
 **A recorded limit.** No shipped concept maps the empty end letter to `serif`, so no input reaches the difference between an end's mode
 before and after the joint pass: reading the mode from before the joint pass instead of after it has no watch.
+
+## 11. The joint guards (0.10.0)
+
+The 0.10.0 change (`docs/plan-serif-joint-jags.md`) moves outlines in every face, so its guards read what `scripts/gen.js` drew and
+never its source. `FONT_DESIGN_JOINT_SCRIPTS` names a copy of the whole `scripts/` folder outside the repository that carries one
+mutation, as `FONT_DESIGN_HS_SCRIPTS` does for `tests/test_head_sink.py`. Each marker is the first assertion about the new behaviour
+and appears in no other assertion of its test; the assertions before it only check that rows were measured.
+
+| Repo test | First assertion it fails on, 0.9.0 |
+|---|---|
+| `test_serif_joints.py::test_no_head_or_foot_bracket_tip_stands_outside_its_stroke` | `BRACKET-TIP` |
+| `test_serif_joints.py::test_a_leaning_serif_end_is_cut_level` | `LEVEL-END` |
+| `test_serif_joints.py::test_the_head_sink_moves_a_leaning_stem_end_along_its_own_edge` | `SINK-ON-EDGE` |
+| `test_serif_joints.py::test_a_corner_bar_ends_on_the_far_edge_of_the_stroke_it_meets` | `CORNER-TOOTH` |
+| `test_serif_joints.py::test_the_g_bowl_runs_into_its_stem_without_a_step` | `G-STEP` |
+| `test_serif_joints.py::test_the_g_bottom_curve_does_not_dip_or_kink_at_its_lowest_point` | `G-BOTTOM` |
+| `test_serif_joints.py::test_the_italic_r_arm_underside_runs_into_its_terminal_without_a_notch` | `R-ARM-UNDER` |
+| `test_serif_joints.py::test_the_italic_r_arm_top_edge_has_no_dip` | `R-ARM-TOP` |
+| `test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0` | `SCOPE-OUTLINES` |
+| `test_joint_spacing.py::test_no_advance_profile_or_kern_moved_outside_g_and_the_italic_r` | passes on 0.9.0; proof by mutation (below) |
+
+**The watches** (2026-11-22, this machine, node 26.13.1; each applied to a copy of `scripts/gen.js` in the session scratch folder,
+the named test file run with `FONT_DESIGN_JOINT_SCRIPTS` on that copy, the real file untouched, checked by `shasum` after). Every
+watch was RED on the marker it names:
+
+| Watch | Edit | Red on |
+|---|---|---|
+| W1 | `var lean = T[0] / T[1], hw = w / 2 / Math.abs(T[1]);` to `var lean = 0, hw = w / 2;` | `BRACKET-TIP`: 176 of 5168 ends outside; worst 18.20 (bract `blind` italic 1.65 `W`) |
+| W2 | `leanS && !legacy` to `false` | `LEVEL-END`: 176 of 176 leaning ends off the level, worst tilt 22.33 |
+| W3 | the sink loop back to `E[j] = [E[j][0], line]` | `SINK-ON-EDGE`: 32 of 1376 sunk ends leave the edge, worst 4.85 |
+| W4 | `if (unsunk \|\| legacyBody) body.prof = unsunk \|\| legacyBody;` to `if (unsunk) body.prof = unsunk;` | `SPACING-FROZEN`: 353 glyph measures and 14826 kern pairs moved |
+| W5 | the `sp.prof = serifPoly(...)` line removed | `SPACING-FROZEN`: 45 glyph measures and 2494 kern pairs moved. It did not survive: the bracket's `prof` is held by this test |
+| W6 | `slant && !legacy ? [pd[0], pd[1]] : [0, 1]` to `[0, 1]` | `CORNER-TOOTH`: 1536 of 2400 corners outside, worst 55.27; `SCOPE-OUTLINES` fires too |
+| W7 | `if (slant) differs = true;` removed | `SPACING-FROZEN`: 331 glyph measures and 14789 kern pairs moved |
+| W8 | the old `G.G` string back | `G-STEP` (119.7 at most), `G-BOTTOM`, `SCOPE-OUTLINES` |
+| W9 | the `G`'s control `610 60` to `560 20`, the rest new | `G-STEP` (93.8 and over) and `G-BOTTOM` (fall 0.125 on the Driftwood Bold) |
+| W10 | the old `GI.r` string back | `R-ARM-UNDER` (50.3, 56.7, 115.4, 54.1), `R-ARM-TOP` (23.7, 26.9, 18.1, 34.2), `SCOPE-OUTLINES` |
+| W11 (the recipe of `tests/test_joint_spacing.py`) | `T = 30 + 0.36 * W0` to `T = 31 + 0.36 * W0` | `SPACING-FROZEN`: 4326 glyph measures and 80675 kern pairs moved |
+
+**The two string mutations** of `scripts/tests/mutate.py` (`mutate-strings`): `mutate.py --only bracket --only headsink` on the
+neutral example gave 11 mutations, 10 RED, 1 problem. `bracket-count` and `headsink-global`, the two rewritten for this change, are
+RED on their `expect` strings ("no 26-point serif near y 0"; "moved 94 of 94 body points ... far away from its serifed end").
+
+**A guard that stopped observing, recorded as a finding.** `headsink-zero-on` (`P.headSink >= 0` in place of `> 0`) is GREEN since
+0.10.0; on the 0.9.0 `gen.js` the same run is RED ("headSink 0 is not the outline with no key set: 'l' differs"). Its fixture
+(`HEADSINK_FIXTURE` in `scripts/tests/test_font.py`) leans the `l` by 0.045 so that one corner of its end stands above the centre line, and
+headSink 0 pinned that corner. 0.10.0 cuts a leaning head end level, so no corner stands above the line and `headSink >= 0` and `> 0` draw the same
+outline: with the level cut the mutation is an equivalent mutant of the outline and nothing the fixture can draw tells them apart.
+This change did not repair it. The guard of step 10 of that test (a zero `headSink` is the outline with no key) still holds for the correct
+code; what is lost is its power to catch `>= 0`. A repair needs a fixture end that is not cut level, or a different mutation; it is
+a decision for the maintainer, and `scripts/smoke.sh` step 6 reports the problem until it is made.
+
+**A guard that is red on the finished tree, recorded as a finding.** `test_joint_spacing.py` fails on the unmutated 0.10.0 tree
+(2026-11-22, `smoke.sh --full --from 6`, step 7, and alone): "SPACING-FROZEN: 0 glyph measures and 639 kern pairs moved outside G and
+the italic r." Every one of the 639 pairs (bract 207, driftwood 147, neutral 285, all roman) has `G` on the right, and the largest
+unrounded move is 0.036 units; one pair rounds to a different integer. `kern_pair_allowed` admits a roman pair only with `G` on the
+left, which holds for the exported, rounded kerns (the scope test passes) but not for the unrounded ones: the pair reads the `G`'s
+left profile, and the redrawn bowl's sample points shift it. The plan's guarantee ("every kern outside `G` and the italic `r`") was
+stated more strictly than the code delivers. The test was not loosened in this change; the repair is to admit a roman pair with `G` on the
+right below a stated bound (0.05 units, for example) in `tests/test_joint_spacing.py`, which is a decision for the maintainer.
+
+**Not run for this section.** The watches of `tests/test_r_leg_join.py` and `tests/test_weight_decisions.py` (the two tests changed by
+`tests-since-revision`) are those their own docstrings name; they were not rerun for this log.

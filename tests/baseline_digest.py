@@ -7,7 +7,7 @@ tracked (fonts are never published from this repo), so there is nothing to diff 
 turns an example's build into three short digests that a tracked JSON file can hold, so
 tests/test_backward_compat.py can compare a fresh build with what the baseline commit produced (0.1.0's `0fc4314` from 0.2 to 0.4; 0.5.0's
 `788760d`, the commit that redrew the R's leg root, which moved every group's export and TTF digest; since 0.7.0 the commit that widened the italic
-opening quotes, which moved the TTF digests of the two italic groups only: the fixture's `supersedes` entry records the last step).
+opening quotes, which moved the TTF digests of the two italic groups only; 0.10.0's commit, which cut serif brackets and corners along their own edges and redrew the G and the italic r, and moved every group's export and TTF digest: the fixture's `supersedes` entry records the last step).
 
 The three digests, per example group:
 

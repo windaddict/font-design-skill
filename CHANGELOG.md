@@ -4,6 +4,24 @@ All notable changes to this skill. The format follows Keep a Changelog; the vers
 file, repeated in `SKILL.md` and the README badge and checked by the tests. Each entry states whether font
 output changes (a line starting `Font output:`), and `## Releases` at the end lists the tags.
 
+## [0.10.0] — 2026-11-22
+
+Font output: changes: glyphs redrawn on every face, and the advances and kerns of two of them. Roman groups redraw `2 4 5 7 G M Z e z è é ê ë`; an italic group redraws `2 4 5 7 E F G L W Z [ ] fl r z È É Ê Ë`, and the Driftwood italic also `w`. The advance of `G` moves (roman) and the advances of `G` and `r` move (italic), by 1 to 3 units; 66 to 80 kern pairs per roman master (every one with `G` on the left) and 159 to 191 per italic master (every one containing `G` or `r`) change. No other advance or kern moves, and `space` and `minStrokeWidth` are equal. The `e` of the unshipped round-1 concept `blind` gets worse at mult 1.5 and above, by 1.3 units at 1.5 (4.9 to 6.2) and 2.2 at 1.65 (5.5 to 7.7). `tests/test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0` holds the list of changed glyphs. Every example still builds with every self-check passing.
+
+### Fixed
+- **A serif bracket stands on its stroke's own edge.** A head or foot serif on a stroke that leans by 0.1 or less (the italic `w` of a narrow concept, the italic `W`, the roman `M`) drew its bracket on the plumb lines `x - w/2` and `x + w/2`, so the tips stood 2.3 to 9.5 units outside the stroke. The brackets, in the bracketed and the blended branches, now end on the line through the end's corner along the end's direction, and a leaning end is cut level, so no corner hangs below the baseline. On a plumb stem the output is unchanged.
+- **The head sink moves along the edge.** `headSink` pinned points straight down, which took a leaning stroke's corner off its own edge by 1.8 to 3.4 units; it now follows the edge.
+- **The shallow stroke of a corner is cut along its partner.** The steep stroke of a corner was cut level, but the shallow one was cut plumb whatever its partner's direction, so a slanted partner left a tooth: 24.3 units on the roman `Z`, 26.2 on `z`, 25.1 on `2` and up to 41.7 on the italic `z`. The cut now follows the partner's drawn direction, exact for a straight partner and the tangent at the end for a curved one (`2` falls from 12.5 to 51.2 units to 1.6 or less on every example concept). With a plumb partner the cut is the 0.9.0 one.
+- **Spacing is read from the 0.9.0 end constructions.** Where 0.10.0 cuts an end differently from 0.9.0, the polygon carries `prof`, the same polygon 0.9.0 cut, and `glyph()` measures spacing from it, so no advance or kern moves outside `G` and the italic `r`.
+
+### Changed
+- **The `G` and the italic `r` skeletons.** `G.G` stroke 0 now runs into the stem plumb (`C 500 -10 610 60 610 180 L 610 330` in place of `C 470 -10 560 20 610 70 L 610 330`), so the bowl has no corner and its control sits clear of the fit's lift. The largest three-sample turn on the bowl's edges falls from 42.8 to 119.7 degrees down to 12.0 or less. The roman `G` is drawn with the same skeleton, slanted in the italic. `GI.r` stroke 1 now ends 30 units lower with the same end direction (`C 330 510 362 470 382 450`), and the largest turn on its underside falls from 50.3 to 115.4 degrees to 15.1 to 25.2. The terminal of the `r` hangs lower: a design change a site should look at before it adopts 0.10.0.
+- **Kerns that follow from the new `G` and `r`.** The old `G` was held up by a corner at its lower right, so the automatic kern now pulls a neighbour under the chin: `G|A` goes from -84 to -126 on Bract `TextRegular`, from -74 to -122 on `TextBold` and from -77 to -123 on `DisplayBold`, and from -63 to -107 on the neutral `TextRegular`. In an italic group the largest moves are 57 to 123 units (`r|7`, `r|1`, `r|?`). `update-check.py` reports them before a site adopts 0.10.0, and a site can pin a pair in `kerning.hand`.
+
+### Looked at and not changed
+- **The bump before the `G`'s teardrop.** It is the teardrop's neck, set by `dropAmt`, present on every teardrop terminal of both shipped faces. A face that wants a shallower neck sets `dropAmt` in its concept.
+- **The italic `n m r p ñ` head serif's right half above the arch.** It is the italic form of trap 37; the guard is the face's own `skeletons.js`, not a change to the shared table (`references/traps.md` row 37).
+
 ## [0.9.0] — 2026-11-21
 
 Font output: changes: a face that sets headSink builds differently under 0.9.0 than under 0.8.0, which ignored the key. No concept this repository ships sets headSink, and with the key absent every example rebuilds to the recorded digests (`tests/test_backward_compat.py`).

@@ -681,9 +681,9 @@ def mutations(h):
         lambda: h.rep(GEN, "P.serifBracket = concept.serifBracket === undefined ? 1 : concept.serifBracket;", "P.serifBracket = 1;"),
         expect="at serifBracket 0 the serif spans")
     add("bracket-count: the slab is drawn as a six-point rectangle", [BL],
-        lambda: h.rep(GEN, "function serifBlend(x, y, w, L, h, sy, b) {\n",
-                      "function serifBlend(x, y, w, L, h, sy, b) {\n  if (b === 0) return [[x - w / 2, y + sy * h], [x - L, y + sy * h], [x - L, y], "
-                      "[x + L, y], [x + L, y + sy * h], [x + w / 2, y + sy * h]];\n"),
+        lambda: h.rep(GEN, "function serifBlend(x, y, ed, L, h, sy, b) {\n",
+                      "function serifBlend(x, y, ed, L, h, sy, b) {\n  if (b === 0) return [ed(-1, sy * h), [x - L, y + sy * h], [x - L, y], "
+                      "[x + L, y], [x + L, y + sy * h], ed(1, sy * h)];\n"),
         expect="no 26-point serif")
     add("bracket-diag: the diagonal serif is not given the blend", [BL],
         lambda: h.rep(GEN, "  if (bk !== 1) { // blended with a slab", "  if (false) { // blended with a slab"), expect="v 26-point serif at y 500")
@@ -700,8 +700,8 @@ def mutations(h):
     add("headsink-capitals: the capital test is dropped", [HS],
         lambda: h.rep(GEN, SINK, "if (P.headSink > 0) {"), expect="which has no lowercase head serif")
     add("headsink-global: every point above the line is pinned", [HS],
-        lambda: h.rep(GEN, "for (var j = k; j >= 0 && j < n && E[j][1] > line; j -= sg) E[j] = [E[j][0], line];",
-                      "for (var j = 0; j < n; j++) if (E[j][1] > line) E[j] = [E[j][0], line];"),
+        lambda: h.rep(GEN, "for (var j = k; j >= 0 && j < n && E[j][1] > line; j -= sg) E[j] = [E[j][0] + (line - E[j][1]) * leanK, line];",
+                      "for (var j = 0; j < n; j++) if (E[j][1] > line) E[j] = [E[j][0] + (line - E[j][1]) * leanK, line];"),
         expect="away from its serifed end")
     add("headsink-spacing: the spacing profile reads the sunk body", [HS],
         lambda: h.rep(GEN, "profs.push(it.prof || f.pts);", "profs.push(f.pts);"), expect="headSink changed the advance of")

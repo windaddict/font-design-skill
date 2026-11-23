@@ -10,7 +10,9 @@ tests/fixtures/baseline.json recorded from the unmodified code of the baseline c
 the italic opening quotes, the one deliberate departure from 0.5.0, whose `supersedes` entry in the fixture names the
 0.5.0 record and the test that proves nothing else moved: the TTF digests and woff2 bytes of the two italic groups
 moved and every export digest, every manifest digest and every roman digest did not,
-tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0). How the
+tests/test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0; and, since 0.10.0, the commit that cut
+the serif brackets and corners along their own edges and redrew the G and the italic r, which moved every group's export and TTF
+digest, with tests/test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0 proving nothing else moved). How the
 digests are computed, and what each one proves, is in tests/baseline_digest.py.
 
 Exact guarantee: the OUTLINES and TABLES these three configurations build, on the platform AND node major version recorded in
@@ -40,7 +42,7 @@ import pytest
 
 # the commit whose unmodified scripts produced the fixture; a full or abbreviated git sha, never a placeholder, so a
 # fixture written before its commit existed cannot pass (docs/plan-r-leg.md section 6.1 records the two-commit order)
-BASELINE_REV = "c5b4abb"
+BASELINE_REV = "COMMIT_A"
 
 
 @pytest.fixture(scope="module")
