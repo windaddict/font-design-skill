@@ -235,10 +235,14 @@ def test_a_corner_bar_ends_on_the_far_edge_of_the_stroke_it_meets():
     the bar meets the bowl's end, and the e family, where the bar meets the bowl's start) the cut follows the tangent and the edge
     curves away: at most 1.5 units on the 2 and 8.0 on the e family. With the concepts as shipped, every corner of every master of
     the three example font.json files stands at most 2.0 units out.
-    Red on 0.9.0 at CORNER-TOOTH: the roman Z reads 49.2, the z 53.3, the 4 44.4, the 7 32.6 and the italic corners 12.1 or more."""
+    Red on 0.9.0 at CORNER-TOOTH: the roman Z reads 49.2, the z 53.3, the 4 44.4, the 7 32.6 and the italic corners 12.1 or more.
+    The G's crossbar, request item G (a), must be among the measured corners in both styles, so a change that takes it out of the
+    corner pass cannot leave this test green by measuring nothing (Impasse review serif-joint-review-c4bf3d9 F004; watch W19).
+    CORNER-SKEW: every corner, swept and shipped, joins a level bar or a plumb partner (skew 0, to 1e-9), the case in which
+    cutEnds()'s reach is exact; a bar that is not level meeting a partner that is not plumb under- or over-reaches (F002; watch W20)."""
     rows = sweep("corners")
     assert len(rows) >= 2000, f"only {len(rows)} corner ends measured"
-    need = {("roman", k) for k in ("Z", "z", "4", "7", "2", "e")}
+    need = {("roman", k) for k in ("Z", "z", "4", "7", "2", "e", "G")} | {("italic", "G")}
     assert need <= named(rows), f"missing corners: {sorted(need - named(rows))}"
     straight = [r for r in rows if not r["partnerCurved"]]
     teeth = [r for r in straight if r["tooth"] > TOL]
@@ -252,6 +256,12 @@ def test_a_corner_bar_ends_on_the_far_edge_of_the_stroke_it_meets():
         assert srows, f"{example}: no corner ends measured"
         out = [r for r in srows if r["tooth"] > 2.0]
         assert not out, f"{example} as shipped: {len(out)} corners stand more than 2.0 outside the stroke they meet; worst {worst(out, 'tooth')}"
+    skewed = [r for r in rows + [r for srows in shipped.values() for r in srows] if r["skew"] > 1e-9]
+    assert not skewed, (
+        f"CORNER-SKEW: {len(skewed)} corners join a bar that is not level to a partner that is not plumb, skew up to "
+        f"{max(r['skew'] for r in skewed):.2e}; worst {worst(skewed, 'skew')}. "
+        "cutEnds() in gen.js reaches the partner's far edge exactly only when one of the two is axis-aligned (Impasse review "
+        "serif-joint-review-c4bf3d9 F002): compute the reach from |T x pd| before shipping a skeleton like this")
 
 
 # --- e: the G and the italic r's arm -------------------------------------------------------------------------------------------

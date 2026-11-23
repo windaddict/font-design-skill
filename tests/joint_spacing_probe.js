@@ -13,6 +13,9 @@
 // ordered pair of those keys the automatic kern(), with the font's own sparse cap. Differences larger than 1e-9 are listed:
 //   glyphs  [{group, italic, master, key, what: "adv" | "L" | "R" | "presence", old, new}]   one entry per glyph and measure
 //   kerns   [{group, italic, master, a, b, old, new}]
+// A non-finite advance, profile bin or kern on either side ends the probe with a non-zero exit, because `Math.abs(NaN) > EPS` is
+// false and a NaN would otherwise read as no difference (Impasse review serif-joint-review-c4bf3d9 F003; watch W18 in
+// references/testing.md section 11).
 // `checked` counts what was compared, so a test can tell a clean run from an empty one. The export.js beside GEN_UNDER_TEST reads
 // font.json (its loadFontConfig), so that folder must be a whole copy of scripts/.
 // Copyright 2026 John Knox. MIT licence.
@@ -23,6 +26,8 @@ if (process.argv.length < 5) { console.error("usage: node tests/joint_spacing_pr
 const genNew = path.resolve(process.argv[2]), genOld = path.resolve(process.argv[3]), fontPath = path.resolve(process.argv[4]);
 if (genNew === genOld) { console.error("joint_spacing_probe.js: both generators are the same file; the comparison would read one module twice"); process.exit(2); }
 const EPS = 1e-9;
+
+function finite(v, where) { if (!Number.isFinite(v)) throw new Error(where + " is not finite: " + String(v)); return v; }
 
 function main() {
   const mNew = require(genNew), mOld = require(genOld);
@@ -46,6 +51,11 @@ function main() {
         if (!gN[k] !== !gO[k]) { out.glyphs.push(Object.assign({ key: k, what: "presence", old: !!gO[k], new: !!gN[k] }, meta)); continue; }
         if (!gN[k]) continue;
         out.checked.glyphs++;
+        for (const [label, g] of [["new", gN[k]], ["0.9.0", gO[k]]]) {
+          const where = meta.group + "/" + meta.master + " glyph " + JSON.stringify(k) + " (" + label + ")";
+          finite(g.adv, where + " advance");
+          for (const side of ["L", "R"]) g[side].forEach((v, i) => { if (v !== null) finite(v, where + " profile " + side + " bin " + i); });
+        }
         if (Math.abs(gN[k].adv - gO[k].adv) > EPS) out.glyphs.push(Object.assign({ key: k, what: "adv", old: gO[k].adv, new: gN[k].adv }, meta));
         for (const side of ["L", "R"]) {
           const a = gO[k][side], b = gN[k][side];
@@ -56,7 +66,8 @@ function main() {
       const live = keys.filter((k) => gN[k]);
       for (const a of live) for (const b of live) {
         out.checked.pairs++;
-        const kn = mNew.kern(gN[a], gN[b], PN, sparse), ko = mOld.kern(gO[a], gO[b], PO, sparse);
+        const pair = meta.group + "/" + meta.master + " kern " + JSON.stringify(a) + "|" + JSON.stringify(b);
+        const kn = finite(mNew.kern(gN[a], gN[b], PN, sparse), pair + " (new)"), ko = finite(mOld.kern(gO[a], gO[b], PO, sparse), pair + " (0.9.0)");
         if (Math.abs(kn - ko) > EPS) out.kerns.push(Object.assign({ a, b, old: ko, new: kn }, meta));
       }
     }

@@ -38,7 +38,11 @@
  *      top-left corner does not show; spacing is measured on the body before the sink. An absent key runs none of it.
  *  10. Joints (0.10.0). serifPoly's brackets end on the stroke's own edge and a leaning head or foot end is cut level, as a diag end
  *      is; the shallow stroke of a corner is cut along its partner's direction; the head sink moves along the edge. Spacing is read
- *      from the 0.9.0 constructions (`prof`), so no advance or kern moves outside G and the italic r, whose skeletons were redrawn.
+ *      from the 0.9.0 constructions (`prof`), so no advance or kern moves outside G and the italic r, whose skeletons were redrawn,
+ *      with one exception: a roman pair with G on the right reads the G's redrawn left profile, so its unrounded kern moves (at
+ *      most 0.0364 units on the three examples; tests/test_joint_spacing.py bounds it at 0.05). The corner reach pw/2/|pd[1]| (or
+ *      pw/2/|pd[0]| on the steep side) is exact only where the bar is level or the partner plumb, true of every shipped skeleton
+ *      and held by CORNER-SKEW in tests/test_serif_joints.py; a skeleton that breaks it needs the reach from |T x pd|.
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.

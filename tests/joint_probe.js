@@ -38,7 +38,8 @@
 //            (spec: files, mults, styles, extra, swell and wob off), or, with spec.font, for every master of every group of
 //            that font.json with the concepts as shipped. Row adds: tooth (the larger distance of the end's two corners
 //            outside the body of the stroke it meets), partnerCurved (the skeleton segment of the meeting stroke at the
-//            meeting end is a `C`).
+//            meeting end is a `C`), skew (|rise of this shallow end's unit direction x run of the partner's unit direction|,
+//            both read on the drawn centre line between samples 6 and 12; gen.js's corner reach is exact only when it is 0).
 //   edges    for one glyph and one skeleton stroke, every master of every group of spec.font: per body edge `w3`, the
 //            largest absolute sum of three consecutive turning angles in degrees over the edge's points from sample 3 to
 //            sample n-4 with repeated points skipped; `lo` and `hi` name the edge with the lower and the higher y at sample
@@ -226,6 +227,16 @@ function sinkRows(m, P, meta, out, c) {
   }
 }
 
+// skew of a corner: the rise of the shallow end's direction (p0 to p1) times the run of the partner's direction at its meeting end,
+// both as unit vectors. cutEnds() in gen.js reaches the partner's far edge with pw/2/|pd[1]| (shallow side) or pw/2/|pd[0]| (steep
+// side), which equals the exact pw/2/|T x pd| only when this product is 0: a level bar, or a plumb partner (Impasse review
+// serif-joint-review-c4bf3d9 F002).
+function skewOf(p0, p1, pb, pwhich) {
+  const q0 = endMid(pb, pwhich, 6), q1 = endMid(pb, pwhich, Math.min(12, pb.n - 1));
+  const tl = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) || 1, ql = Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) || 1;
+  return Math.abs((p1[1] - p0[1]) / tl * (q1[0] - q0[0]) / ql);
+}
+
 function cornerRowsFor(m, P, meta, out) {
   for (const key of Object.keys(m.G)) {
     const r = readGlyph(m, key, P);
@@ -251,6 +262,7 @@ function cornerRowsFor(m, P, meta, out) {
           key, end: which, body: b.stroke, partner: +pm[1],
           tooth: Math.max.apply(null, c.map((q) => outside(q, pb.poly))),
           partnerCurved: endLetter(pb.d, pm[2]) === "C",
+          skew: skewOf(p0, p1, pb, pm[2] === "a" ? "A" : "B"),
         }));
       });
     });

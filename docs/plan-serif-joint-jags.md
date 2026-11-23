@@ -232,8 +232,12 @@ all still build with every self-check passing (folds, hairline floors, master co
 
 Every other glyph of every master exports the same JSON (polygons, raw polygons, runs, kept indices, minimum
 width, record, advance). `space` and `minStrokeWidth` do not move. This table is the proof the request asks for
-that upright stems are untouched; `tests/test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0`
-holds it (a whole-font `build.py --check` cannot, because the listed glyphs change every font file).
+that upright stems are untouched in every glyph outside the listed sets; `tests/test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0`
+holds it (a whole-font `build.py --check` cannot, because the listed glyphs change every font file). Inside a listed glyph the
+test compares nothing, so a plumb end there is not proven byte-identical. A sweep on 2026-11-23 (Impasse review
+serif-joint-review-c4bf3d9 F005), matching each changed serif to its nearest body edge, found that none of the 214 serif polygons
+that differ from 0.9.0 sits on a plumb edge; that is a one-off heuristic measurement, not a held test. (The roman `M`, which the
+review named, has no plumb stem: its skeleton leans 20 units in 700.)
 
 ## Code to be changed
 

@@ -421,7 +421,10 @@ def test_only_the_italic_opening_quotes_changed_since_0_5_0(builds):
     every glyph outside the declared set has the same compiled `glyf` record and the same `gvar` variations, and `hmtx` differs on `G` at
     most; in an italic group the glyph and `gvar` comparisons skip the declared set, `hmtx` differs on the two opening quotes and on G and
     r at most, and at every master's location differs on the two opening quotes, each new advance equal to `round(xMax + xMin)` of the
-    glyph's ink computed from the 0.5.0 export's apostrophe polygons. GPOS is no longer compared (the new scope test holds the kerns).
+    glyph's ink computed from the 0.5.0 export's apostrophe polygons. GPOS is no longer compared (the new scope test holds the kerns),
+    so this test does not see a change that build.py makes between the export JSON's kerns and the compiled GPOS; and a roman
+    group is checked at its masters only (glyf, gvar, hmtx), not on the instance grid, so its HVAR between masters is not sampled
+    (Impasse review serif-joint-review-c4bf3d9 F006).
     The tables allowed to differ are {glyf, loca, gvar, hmtx, HVAR, GPOS, GDEF, OS/2, head, hhea, maxp} (the build of 0.10.0 shows glyf, loca, gvar,
     hmtx, GPOS, GDEF and head in every group,
     HVAR in the neutral groups and the italics, OS/2 in the italics), with OS/2
