@@ -160,6 +160,42 @@ def test_a_leaning_serif_end_is_cut_level():
         f"{len(below)} of {len(feet)} roman M feet hang below the baseline, lowest y {min(r['lowestY'] for r in feet):.2f}"
 
 
+def test_a_head_sink_of_no_depth_moves_no_point():
+    """No lowercase head end has a point above its own centre line, so a head sink of no depth moves nothing. Every concept of the
+    three example concept files as shipped (swell and wobble on, serif or not), roman and italic at 10 degrees, mult 1 to 1.65, and
+    every master of every group of the three example font.json files, every key of G: the glyph drawn with headSink 1e-300 is the
+    glyph drawn with no key, to 1e-9 units, in every polygon point, the advance and both spacing profiles. A headSink that small
+    leaves the sink's line on the end's centre line, so the sink pins exactly the points that stand above it.
+
+    WHAT IT'S FOR: this is the measurement behind retiring the font suite's mutation `headsink-zero-on` (`P.headSink >= 0` in place
+    of `> 0`, references/testing.md section 11). While it holds, that mutation draws the same outline as the code on every shipped
+    concept and is an equivalent mutation. If it fails, an end has a corner above its centre line again: put the mutation back in
+    scripts/tests/mutate.py and build its fixture from the end this message names.
+    It pins behaviour that already holds, so it passes when written. Red on 0.9.0 and under watch W2 (`leanS && !legacy` to `false`)
+    at HEAD-END-FLAT: the 34 leaning lowercase head ends (the italic w) each have one corner up to 11.3 units above the line.
+    A coordinate, advance or profile value that is not finite on either side ends the probe with a non-zero exit, so a sink that writes
+    NaN cannot read as no movement (watch W15, references/testing.md section 11)."""
+    specs = [json.dumps({"files": [str(f)], "mults": MULTS, "styles": ["roman", "italic"]}, sort_keys=True) for f in CONCEPT_FILES]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(specs)) as pool:
+        swept = [row for part in pool.map(lambda s: _probe("sinkzero", s), specs) for row in part]
+    shipped = [row for rows in per_font("sinkzero").values() for row in rows]
+    assert len(swept) >= 16 * 2 * len(MULTS), f"only {len(swept)} concept runs: 16 concepts, two styles and {len(MULTS)} multipliers are expected"
+    assert {(r["style"], r["mult"]) for r in swept} == {(s, m) for s in ("roman", "italic") for m in MULTS}, "a style or a multiplier was not drawn"
+    assert len(shipped) == masters_in() and len(shipped) >= 14, f"{len(shipped)} shipped runs for {masters_in()} masters"
+    rows = swept + shipped
+    assert all(r["glyphs"] >= 131 for r in rows), f"a run compared fewer than 131 glyphs: {min(r['glyphs'] for r in rows)}"
+    heads, leaning = sum(r["heads"] for r in rows), sum(r["leaning"] for r in rows)
+    assert heads >= 1600 and leaning >= 30, f"only {heads} lowercase head ends were compared, {leaning} of them leaning: the sweep cannot see a leaning end"
+    assert any(r.get("file") == "driftwood/concepts.js" and r["style"] == "italic" and r["leaning"] for r in swept), "no leaning head end in the Driftwood italic"
+    bad = [r for r in rows if r["maxMove"] > 1e-9 or r["spacing"] > 1e-9]
+    where = ("file", "font", "concept", "style", "group", "master", "mult")
+    assert not bad, (
+        f"HEAD-END-FLAT: in {len(bad)} of {len(rows)} runs a head sink of no depth moved a point ({sum(r['moved'] for r in bad)} glyphs), so "
+        "`headsink-zero-on` is no longer an equivalent mutation (references/testing.md section 11). Worst: "
+        + "; ".join(" ".join(str(r[k]) for k in where if k in r) + f" {r['at']!r} moved {r['maxMove']:.2f}, spacing {r['spacing']:.2f}"
+                    for r in sorted(bad, key=lambda r: -r["maxMove"])[:3]))
+
+
 # --- c: the head sink follows the edge ------------------------------------------------------------------------------------------
 
 def test_the_head_sink_moves_a_leaning_stem_end_along_its_own_edge():
@@ -296,7 +332,16 @@ def test_only_the_named_glyphs_changed_since_0_9_0(exports):
     for that group; the glyphs whose branch record differs are exactly RECORDS; the glyphs whose advance differs are a subset of
     ADVANCES; every kern pair that differs (added, dropped or changed) is allowed by kern_pair_allowed; the word space and the
     minimum stroke width are equal; and every title that has no G (and, in an italic group, no r) is laid to the same width.
-    Red on 0.9.0 at SCOPE-OUTLINES: nothing differs yet, so the set is empty: "outlines changed on [], expected [...]"."""
+    Red on 0.9.0 at SCOPE-OUTLINES: nothing differs yet, so the set is empty: "outlines changed on [], expected [...]".
+
+    What the kern comparison sees, exactly: the kern list export.js writes, which build.py puts in the font unchanged. Each value is
+    rounded to a whole unit (`Math.round`), only pairs of glyphs in the face's `kerning.set` are listed, and only pairs whose rounded
+    value reaches `kerning.threshold` in some master. So this test does compare kerns, and it cannot see a move that rounding absorbs
+    or a pair outside `kerning.set`. Since 0.10.0 a roman pair with G on the right moves by up to 0.0364 units before rounding (639
+    pairs on the three examples). None of them changes a listed value, which is why this test passes: the one that rounds to another
+    whole number, the Driftwood roman Bold's u-acute before G (-21.5065 to -21.4970, -22 to -21), is outside Driftwood's
+    `kerning.set` and is never written. tests/test_joint_spacing.py holds the unrounded values. Watched red at SCOPE-KERNS under W13
+    (references/testing.md section 11): every roman kern with G on the right made 1 unit tighter in kern()."""
     fields = ("polys", "raw", "runs", "keptIdx", "minw")
     outlines, records, advances, kerns, other = [], [], [], [], []
     for (example, group), (old, new) in exports.items():
@@ -333,5 +378,5 @@ def test_only_the_named_glyphs_changed_since_0_9_0(exports):
     assert not outlines, "SCOPE-OUTLINES:\n" + "\n".join(outlines)
     assert not records, "the branch records changed on the wrong glyphs:\n" + "\n".join(records)
     assert not advances, "\n".join(advances)
-    assert not kerns, "\n".join(kerns)
+    assert not kerns, "SCOPE-KERNS:\n" + "\n".join(kerns)
     assert not other, "\n".join(other)

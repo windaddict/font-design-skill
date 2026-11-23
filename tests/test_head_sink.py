@@ -377,14 +377,15 @@ def test_a_face_that_sets_headsink_builds_with_its_spacing_unchanged(tmp_path):
 # --- d: the font suite's own headSink tests, on two examples ---------------------------------------------------------
 
 def test_the_font_suites_headsink_tests_pass_on_two_examples():
-    """Whole-tool level. The font suite (scripts/tests/test_font.py, the template a site copies) holds two headSink tests that run
-    on any project's concepts file with a synthetic concept: the sink itself, and the range refusal. Neither needs a built font.
-    This test runs them by path on the neutral and the Driftwood example, so the workflow's red and green runs see them; they are
-    proved separately by the mutations headsink-* in scripts/tests/mutate.py."""
+    """Whole-tool level. The font suite (scripts/tests/test_font.py, the template a site copies) holds three headSink tests that run
+    on any project's concepts file with a synthetic concept: the sink itself, a sink of no depth on the fixture, and the range
+    refusal. None needs a built font. This test runs them by path on the neutral and the Driftwood example, so the workflow's red and
+    green runs see them; the first and the last are proved separately by the mutations headsink-* in scripts/tests/mutate.py, and the
+    sink of no depth by watch W16 (references/testing.md section 11)."""
     for example in ("neutral", "driftwood"):
         d = REPO / "examples" / example
         r = run([sys.executable, "-m", "pytest", "scripts/tests/test_font.py", "-q", "-p", "no:cacheprovider", "--font", str(d / "font.json"),
                  "--requirements", str(d / "requirements.json"), "--static-dir", "none", f"--scripts={SCRIPTS}", "-k", "headsink"])
         out = r.stdout + r.stderr
-        assert r.returncode == 0 and "2 passed" in out, \
-            f"HEADSINK-SUITE: the font suite's headSink tests did not both pass on {example} (exit {r.returncode}):\n{out[-2000:]}"
+        assert r.returncode == 0 and "3 passed" in out, \
+            f"HEADSINK-SUITE: the font suite's headSink tests did not all three pass on {example} (exit {r.returncode}):\n{out[-2000:]}"

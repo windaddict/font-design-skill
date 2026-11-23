@@ -19,25 +19,24 @@ tests. **(inferred)** = not verified; the implementer must check before relying 
 character, and the nine tests of `tests/test_serif_joints.py` and the one of `tests/test_joint_spacing.py` are the ones the plan
 describes. Departures and findings, each also recorded where named:
 
-- **The compatibility baseline** holds the placeholder `COMMIT_A` and one entry, `darwin/26`, taken with `--print` on the finished tree;
-  the `record-baseline` workflow and the two `c5b4abb` in it carry the placeholder too, as planned. The operator finishes it
-  (`baseline-record`). Until then two tests are red by design: `test_the_baseline_fixture_exists_and_covers_every_example_group`
-  and the `record-baseline` test of `tests/test_ci_workflow.py`, both on the shape check of `COMMIT_A`.
+- **The compatibility baseline** (follow-up, 2026-11-22): commit 1dc3856 replaced the placeholder `COMMIT_A` with 6302b8a in the fixture, the
+  test literal and the `record-baseline` workflow, and recorded `darwin/26` with `tests/baseline_digest.py --record`. The two
+  tests that were red by design are green (`tests/test_backward_compat.py` and `tests/test_ci_workflow.py`: 28 passed). The `linux`
+  and the node 20 and 22 entries still wait for the `record-baseline` workflow.
 - **The genre review record** is `docs/reviews/genres-2026-11-22.md`. The round-1 page sets all nine letters (`G M Z z 2 4 5 7 e`) in
   each recipe's specimen line, so none had to be left unread. They were read at Regular only, at specimen size, with the Didone's
   and the Clarendon's `G` and `M` enlarged. Two files outside the plan's list carry the verdict dates and
   `tests/test_genres.py` holds them equal to the table in `references/genres.md`: `scripts/concepts/content.genres.json` and
   `templates/concepts.genres.js` changed from 2026-11-19 to 2026-11-22. Only node 26 is recorded; the node 20 and 22 digests wait
   for the workflow (`genre-review-acceptance`).
-- **A guard that stopped observing.** The font suite's mutation `headsink-zero-on` is GREEN under 0.10.0 (RED on 0.9.0): the level
-  cut of a leaning head end removes the corner its fixture relied on, so the mutation draws the same outline as the code.
-  `references/testing.md` section 11 records the evidence. It is not repaired here.
-- **The spacing test is red on the finished tree.** `tests/test_joint_spacing.py` reports 639 kern pairs outside the allowed set, every
-  one a roman pair with `G` on the right, moved by 0.036 units at most (1 rounds to another integer). The plan's section 0.7
-  said "every kern outside `G` and the italic `r`"; unrounded, a pair also reads the `G`'s left profile. Recorded in
-  `references/testing.md` section 11; the test was not loosened.
+- **An equivalent mutation, retired (follow-up, 2026-11-22).** `headsink-zero-on` is removed from `scripts/tests/mutate.py`; the reason
+  and the measurement are in `references/testing.md` section 11; the guards are LEVEL-END and HEAD-END-FLAT.
+- **The kern bound (follow-up, 2026-11-22).** The operator chose a bound over holding the `G`'s left profile; `tests/test_joint_spacing.py`
+  holds a roman pair with `G` on the right within 0.05 units and every other refused pair exactly.
+
+  **The kern guarantee, exactly.** Of the kern pairs a font ships, the ones 0.10.0 changes are, in a roman group, pairs with `G` on the left and, in an italic group, pairs that contain `G` or `r`. Before rounding, a roman pair with `G` on the right and another glyph on the left also moves: it reads the `G`'s left profile, and the redrawn bowl's sample points shift that profile. On the three examples 639 such pairs move (Bract 207, Driftwood 147, neutral 285), by 0.0364 units at most, and `tests/test_joint_spacing.py` holds each of them under 0.05 units. `export.js` rounds an automatic kern to a whole unit (`Math.round`) and `build.py` writes that whole number, so a move this small changes a shipped value only where it crosses a rounding boundary, and then by 1 unit. On the three examples it changes none: the one pair that crosses, the Driftwood roman Bold's `ú` before `G` (-21.5065 to -21.4970, which round to -22 and -21), is outside Driftwood's `kerning.set`, so it is never written to the font. Every other automatic kern is the value 0.9.0 computes, to 1e-9 units. This is measured on the three examples and is not a claim about another face: `update-check.py` reports the kern values that change before a site adopts 0.10.0.
 - **The watches** W1 to W10 and the spacing recipe (W11) were run as written and are logged in `references/testing.md`
-  section 11. W5 did not survive (the plan allowed that it might).
+  section 11. W5 did not survive (the plan allowed that it might). The watches of `tests-since-revision` were run in the follow-up and are logged in `references/testing.md` section 11.
 - **Not changed or not run here:** the tag `v0.10.0` and the CI run on the branch (`release-acceptance`), the
   operator's look at the redrawn `G` and `r` (`design-acceptance`), and the `Releases` line of the CHANGELOG.
 

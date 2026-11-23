@@ -46,6 +46,18 @@
 //            centreFall (the largest fall of the centre line, the midpoints of the two edges, below its highest level since
 //            the joint sample) and jointTurn (the largest single turn of the lower edge within 12 samples of the joint).
 //            Spec: font, glyph, stroke, joint, italicOnly, centre.
+//   sinkzero does a head sink of no depth move anything? For every concept of spec.files AS SHIPPED (swell and wob left on, every
+//            concept, serif or not), roman and italic at 10 degrees, every mult of spec.mults, or, with spec.font, for every
+//            master of every group of that font.json: every key of G drawn with no headSink key and with headSink 1e-300. A
+//            positive headSink that small leaves the sink's line on the end's own centre line (the subtraction is absorbed in
+//            floating point), so the sink pins exactly the points of a lowercase head end that stand above that line: what
+//            `P.headSink >= 0` in place of `> 0` would do at headSink 0. One row per run. Row: file, concept, style, mult (or
+//            font, group, master, concept, mult, italic), glyphs (how many were compared), heads (the lowercase head ends,
+//            counted from the branch records), leaning (those whose lean is not 0), moved (the glyphs with a point that
+//            differs), maxMove (the largest distance one point moved, in units), at (the glyph it moved in, or null), spacing
+//            (the largest difference in the advance or in a bin of either spacing profile; a bin empty on one side only counts
+//            as 1e9).
+//            A coordinate, advance or profile value that is not finite, on either side, ends the probe with a non-zero exit.
 //
 // The generator is loaded afresh for each concept and style: its glyph cache is never freed. A glyph that throws ends the
 // probe with a non-zero exit, never a skip.
@@ -261,6 +273,76 @@ function shippedMasters(fn) {
   return out;
 }
 
+// ---- sinkzero ---------------------------------------------------------------------------------------------------------
+const VANISHING_SINK = 1e-300;
+function sinkZeroRow(m, concept, mult, italic, meta) {
+  const plain = Object.assign({}, concept); delete plain.headSink;
+  const P0 = m.params(plain, mult, italic), P1 = m.params(Object.assign({}, plain, { headSink: VANISHING_SINK }), mult, italic);
+  const row = Object.assign({}, meta, { glyphs: 0, heads: 0, leaning: 0, moved: 0, maxMove: 0, at: null, spacing: 0 });
+  for (const key of Object.keys(m.G)) {
+    const r = readGlyph(m, key, P0), b = m.glyph(key, P1);
+    if (!r !== !b) throw new Error("glyph " + JSON.stringify(key) + ": drawn with one headSink and not with the other");
+    if (!r) continue;
+    const a = r.g;
+    [["no headSink key", a], ["headSink " + VANISHING_SINK, b]].forEach(([label, g]) => {
+      const where = "glyph " + JSON.stringify(key) + " (" + label + "): ";
+      if (!Number.isFinite(g.adv)) throw new Error(where + "the advance is not finite: " + g.adv);
+      g.polys.forEach((poly, i) => poly.forEach((q, j) => {
+        if (!Number.isFinite(q[0]) || !Number.isFinite(q[1])) throw new Error(where + "polygon " + i + " point " + j + " is not finite: " + String(q[0]) + ", " + String(q[1]));
+      }));
+      ["L", "R"].forEach((side) => g[side].forEach((v, i) => {
+        if (v !== null && !Number.isFinite(v)) throw new Error(where + "profile " + side + " bin " + i + " is not finite: " + String(v));
+      }));
+    });
+    row.glyphs++;
+    if (!a.upper) r.bodies.forEach((body) => { const kinds = serifKinds(body);
+      ["A", "B"].forEach((which) => { if (kinds[which] !== "head") return; row.heads++; if (Math.abs(leanOf(body, which, 12)) > 1e-9) row.leaning++; }); });
+    if (a.polys.length !== b.polys.length) throw new Error("glyph " + JSON.stringify(key) + ": the vanishing headSink changed the polygon count");
+    let far = 0;
+    a.polys.forEach((poly, i) => {
+      if (poly.length !== b.polys[i].length) throw new Error("glyph " + JSON.stringify(key) + ": the vanishing headSink changed a point count");
+      poly.forEach((q, j) => { far = Math.max(far, Math.hypot(q[0] - b.polys[i][j][0], q[1] - b.polys[i][j][1])); });
+    });
+    if (far > 0) row.moved++;
+    if (far > row.maxMove) { row.maxMove = far; row.at = key; }
+    row.spacing = Math.max(row.spacing, Math.abs(a.adv - b.adv));
+    ["L", "R"].forEach((side) => a[side].forEach((v, i) => {
+      const w = b[side][i];
+      row.spacing = Math.max(row.spacing, (v === null) !== (w === null) ? 1e9 : v === null ? 0 : Math.abs(v - w));
+    }));
+  }
+  return row;
+}
+function sinkZeroRows() {
+  const out = [];
+  if (spec.font) {
+    const exporter = require(path.join(scriptsDir, "export.js")), cfg = exporter.loadFontConfig(path.resolve(spec.font)), m = load();
+    if (cfg._skeletonsPath) m.applySkeletons(require(cfg._skeletonsPath), cfg.skeletons);
+    const concepts = m.loadConcepts(cfg._conceptsPath);
+    for (const gname of Object.keys(cfg.groups)) {
+      const group = cfg.groups[gname], italic = group.italic ? (group.italic_angle || 10) : false;
+      for (const mname of Object.keys(group.masters)) {
+        const ms = group.masters[mname];
+        out.push(sinkZeroRow(m, m.conceptById(concepts, ms.concept), ms.mult, italic,
+          { font: path.basename(path.dirname(path.resolve(spec.font))), group: gname, master: mname, concept: ms.concept, mult: ms.mult, italic: !!italic }));
+      }
+    }
+    return out;
+  }
+  for (const file of spec.files) {
+    const ids = load().loadConcepts(path.resolve(file)).map((c) => c.id);
+    for (const id of ids) for (const style of spec.styles) {
+      const m = load(); // a fresh generator, and so a fresh glyph cache, for each concept and style
+      const c = m.loadConcepts(path.resolve(file)).filter((x) => x.id === id)[0];
+      for (const mult of spec.mults) {
+        out.push(sinkZeroRow(m, c, mult, style === "italic" ? 10 : false,
+          { file: path.basename(path.dirname(path.resolve(file))) + "/" + path.basename(file), concept: id, style, mult }));
+      }
+    }
+  }
+  return out;
+}
+
 // ---- edges ----------------------------------------------------------------------------------------------------------
 function dedupe(pts) {
   const out = [];
@@ -316,6 +398,7 @@ function main() {
   else if (mode === "sink") rows = conceptRuns(sinkRows);
   else if (mode === "corners") rows = spec.font ? shippedMasters(cornerRowsFor) : conceptRuns(cornerRowsFor);
   else if (mode === "edges") rows = shippedMasters(edgeRows);
+  else if (mode === "sinkzero") rows = sinkZeroRows();
   else throw new Error("unknown mode " + mode);
   process.stdout.write(JSON.stringify(rows));
 }

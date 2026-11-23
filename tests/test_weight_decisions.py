@@ -24,6 +24,10 @@ They cannot see a defect shared by both sides of a comparison (both run the curr
 `export.js` where only `gen.js` is swapped, and the builder comparison runs each tree's own `build.py`).
 
 FONT_DESIGN_WEIGHT_GEN names another gen.js to measure (a scratch copy carrying a mutation); unset, the real one.
+FONT_DESIGN_JOINT_SCRIPTS names another copy of the whole scripts/ folder, with a copy of VERSION in the folder above it, whose
+build.py, export.js and gen.js build the "new" side of the 0.5.0 build comparison (test f); unset, the real scripts/. It is the
+variable tests/test_serif_joints.py reads, so one copy serves a watch of both files. A mutation of build.py or export.js reaches
+test f only through it; test f does not read FONT_DESIGN_WEIGHT_GEN.
 
 Mutations watched red (2026-11-19, each applied to the real scripts/gen.js or scripts/build.py, the named tests run, the file restored
 by digest; the log is in references/testing.md section 8): M1 `decideOn = mapOn`; M2 `xf(key, P, p)` in `unmapped()`; M3 `src500`
@@ -52,6 +56,8 @@ import baseline_digest as bd  # noqa: E402
 from joint_changes import OUTLINES, RECORDS, kern_pair_allowed  # noqa: E402
 
 GEN = pathlib.Path(os.environ.get("FONT_DESIGN_WEIGHT_GEN", REPO / "scripts" / "gen.js"))
+# the scripts/ folder whose build.py builds the "new" side of the 0.5.0 build comparison (test f); a copy must have VERSION in the folder above it
+BUILD_SCRIPTS = pathlib.Path(os.environ.get("FONT_DESIGN_JOINT_SCRIPTS", REPO / "scripts"))
 FLIPS = REPO / "tests" / "weight_flips.js"
 CONCEPT_FILES = sorted((REPO / "examples").glob("*/concepts.js")) + [REPO / "templates" / "concepts.example.js", REPO / "templates" / "concepts.genres.js"]
 BASELINE_REV = "5d0b29f"  # 0.5.0, the last release whose decisions read the drawn, weight-dependent geometry
@@ -307,10 +313,11 @@ def test_quote_glyphs_opening_rule(old_tree):
 
 # --- f: nothing but the italic opening quotes changed since 0.5.0 ----------------------------------------------------------
 
-def build_tree(tree, name, out, keep):
-    """build.py of `tree` on its own copy of the example, the way tests/baseline_digest.py builds a checkout."""
+def build_tree(tree, name, out, keep, scripts=None):
+    """build.py of `tree` on its own copy of the example, the way tests/baseline_digest.py builds a checkout. `scripts` names another
+    scripts/ folder whose build.py, export.js and gen.js build the tree's example instead (FONT_DESIGN_JOINT_SCRIPTS, for a watch)."""
     ex = tree / "examples" / name
-    cmd = [sys.executable, str(tree / "scripts" / "build.py"), "--font", str(ex / "font.json"), "--out-dir", str(out),
+    cmd = [sys.executable, str((scripts or tree / "scripts") / "build.py"), "--font", str(ex / "font.json"), "--out-dir", str(out),
            "--keep-masters", str(keep / "export.json"), *bd.EXAMPLES[name]]
     if name == "neutral":
         cmd += ["--requirements", str(ex / "requirements.json")]
@@ -339,7 +346,7 @@ def builds(old_tree, tmp_path_factory):
             o, k = work / label / name / "out", work / label / name / "keep"
             o.mkdir(parents=True)
             k.mkdir(parents=True)
-            build_tree(tree, name, o, k)
+            build_tree(tree, name, o, k, BUILD_SCRIPTS if label == "new" else None)
             manifest = json.loads((o / "manifest.json").read_text())
             cfg = json.loads((tree / "examples" / name / "font.json").read_text())
             for group, spec in manifest["groups"].items():

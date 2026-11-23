@@ -386,12 +386,7 @@ leaning serif end cut level (the body cut as 0.9.0 cut it), and a head or foot b
 drawn on a plumb stem, `serifPoly(p, [0, +-1], ...)`). Without it the italic group's band (the 20-unit bins between the
 baseline and the x-height or cap line) would read a moved corner as a different edge: measured without `prof`, the italic `Z`
 lost 47 units of advance at mult 1.3 and the italic `z` 57 at mult 1.5. **The exact guarantee:** for every glyph except `G`
-and the italic `r`, whose skeletons were redrawn, the advance and the two 54-bin profiles are the values 0.9.0 computes. Every
-automatic kern of a pair that has neither `G` nor (in an italic group) `r` in it is too. A pair with `G` on the right in a roman
-group is the exception that `tests/test_joint_spacing.py` found: its unrounded kern moves by up to 0.036 units (639 pairs over
-the three examples, 1 of them rounding to another integer), because the pair reads the `G`'s left profile, which the redrawn
-bowl's new sample points shift. After rounding, the exported kerns that change are those that
-`tests/test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0` admits. It is not a claim that the profile follows the
+and the italic `r`, whose skeletons were redrawn, the advance and the two 54-bin profiles are the values 0.9.0 computes. **The kern guarantee, exactly.** Of the kern pairs a font ships, the ones 0.10.0 changes are, in a roman group, pairs with `G` on the left and, in an italic group, pairs that contain `G` or `r`. Before rounding, a roman pair with `G` on the right and another glyph on the left also moves: it reads the `G`'s left profile, and the redrawn bowl's sample points shift that profile. On the three examples 639 such pairs move (Bract 207, Driftwood 147, neutral 285), by 0.0364 units at most, and `tests/test_joint_spacing.py` holds each of them under 0.05 units. `export.js` rounds an automatic kern to a whole unit (`Math.round`) and `build.py` writes that whole number, so a move this small changes a shipped value only where it crosses a rounding boundary, and then by 1 unit. On the three examples it changes none: the one pair that crosses, the Driftwood roman Bold's `ú` before `G` (-21.5065 to -21.4970, which round to -22 and -21), is outside Driftwood's `kerning.set`, so it is never written to the font. Every other automatic kern is the value 0.9.0 computes, to 1e-9 units. This is measured on the three examples and is not a claim about another face: `update-check.py` reports the kern values that change before a site adopts 0.10.0. It is not a claim that the profile follows the
 ink: at those ends the ink differs from the profile by the corner triangle or the bracket sliver that moved, up to 24.3 units (the
 roman `Z`'s tooth).
 

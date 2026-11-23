@@ -695,8 +695,6 @@ def mutations(h):
     HS, HR = "test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif", "test_headsink_outside_its_range_is_refused"
     SINK = "if (P.headSink > 0 && !UPPERISH.test(ch)) {"
     add("headsink-ignored: the sink never runs", [HS], lambda: h.rep(GEN, SINK, "if (false) {"), expect="pokes out above the wedge")
-    add("headsink-zero-on: headSink 0 sinks too", [HS],
-        lambda: h.rep(GEN, SINK, "if (P.headSink >= 0 && !UPPERISH.test(ch)) {"), expect="headSink 0 is not the outline with no key set")
     add("headsink-capitals: the capital test is dropped", [HS],
         lambda: h.rep(GEN, SINK, "if (P.headSink > 0) {"), expect="which has no lowercase head serif")
     add("headsink-global: every point above the line is pinned", [HS],

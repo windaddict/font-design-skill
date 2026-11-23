@@ -1635,15 +1635,19 @@ HEADSINK_FIXTURE = r"""
 const m = require(process.argv[1]);
 const concepts = m.loadConcepts(process.argv[2]);
 // the project's first concept made into the adversarial case: a tall, short serif whose top edge falls well below the stem's flat
-// end, bracketed, growing with weight, upright except `l`, which leans 0.045 (wonk) so one corner of its end stands above the
-// centre line; whatever headSink the project sets is removed and set per run
+// end, bracketed, growing with weight, upright except `l`, which leans 0.045 (wonk), so the sink is also held on a leaning stem
+// (steps 3 to 5). Until 0.9.0 that lean left one corner of the `l`'s end above the centre line; since 0.10.0 a leaning serif end
+// is cut level, so no corner of any end here stands above its centre line. Whatever headSink the project sets is removed and set
+// per run
 const base = Object.assign({}, concepts[0], { serifLen: 0.5, serifH: 0.85, serifBracket: 1, serifGrow: 0.35, shear: 0, bend: 0, wonk: "l" });
 base.ends = Object.assign({}, base.ends, { s: "serif" });
 delete base.headSink;
 // a stroke that starts at a head serif, runs down, turns and rises 140 units above its own start: only the end's run may be pinned
 m.G["ĸ"] = [m.S("M 90 500 L 90 100 C 90 -40 300 -40 300 100 L 300 640", "s", "j")];
 const res = { W0: base.W, serifH: base.serifH, serifGrow: base.serifGrow, runs: {} };
-for (const mult of [1, 1.5]) for (const hs of ["undef", 0, 0.6]) {
+// 1e-300 is a sink of no depth: the subtraction is absorbed, so the sink's line is the end's centre line and the sink pins
+// exactly the points above it, what P.headSink >= 0 would do at 0
+for (const mult of [1, 1.5]) for (const hs of ["undef", 0, 0.6, 1e-300]) {
   const c = Object.assign({}, base, { id: "hs" + hs });
   if (hs !== "undef") c.headSink = hs;
   const P = m.params(c, mult), r = { glyphs: {}, kern: {} };
@@ -1720,9 +1724,11 @@ def test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif(cfg):
     the concept without the key, and 0 is the outline with no key. The assertions run in the order of the plan; each message holds the
     phrase that the mutation of that assertion expects.
 
-    Mutations `headsink-ignored` (the sink never runs), `headsink-zero-on` (0 sinks too), `headsink-capitals` (capitals sink),
-    `headsink-global` (every point above the line is pinned, not the end's own run), `headsink-spacing` (the profile reads the sunk body)
-    and `headsink-no-serifgrow` (the depth ignores serifGrow)."""
+    Mutations `headsink-ignored` (the sink never runs), `headsink-capitals` (capitals sink), `headsink-global` (every point above the
+    line is pinned, not the end's own run), `headsink-spacing` (the profile reads the sunk body) and `headsink-no-serifgrow` (the depth
+    ignores serifGrow). No mutation watches step 10 (0 is the outline with no key) since 0.10.0: `headsink-zero-on` (`P.headSink >= 0`,
+    0 sinks too) was retired as an equivalent mutation, because a level-cut end has no corner above its centre line and a sink of
+    depth 0 then moves nothing (references/testing.md section 11). Step 10 stays as a pin of the correct code."""
     out = run_node(cfg, HEADSINK_FIXTURE)
     glyphs = ["n", "i", "j", "u", "l", "I", "H", "o", "ĸ"]
     for mult in ("1", "1.5"):
@@ -1798,10 +1804,28 @@ def test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif(cfg):
             f"mult {mult}: headSink 0.6 moved {len(flat)} of {len(arm)} body points of the test glyph that lie far away from its serifed end (above its "
             "centre line by 1 unit or more)"
         )
-        # 10. headSink 0 is the outline with no key
+        # 10. headSink 0 is the outline with no key (a pin: no mutation in mutate.py turns it red since 0.10.0, see the docstring)
         for k in glyphs:
             assert absent["glyphs"][k]["polys"] == zero["glyphs"][k]["polys"] and absent["glyphs"][k]["adv"] == zero["glyphs"][k]["adv"], \
                 f"mult {mult}: headSink 0 is not the outline with no key set: {k!r} differs"
+
+
+def test_headsink_of_no_depth_moves_no_point_on_the_fixture(cfg):
+    """headSink (0.10.0): on the headSink fixture above (the leaning `l` included), mult 1 and 1.5, every glyph drawn with headSink
+    1e-300 is the glyph drawn with no key, in every polygon point, the advance and both spacing profiles. A sink that small leaves
+    the sink's line on the end's centre line, so it pins exactly the points that stand above it. While this holds, the retired
+    mutation `headsink-zero-on` (`P.headSink >= 0`) draws this fixture as the code does (references/testing.md section 11). If it
+    fails, an end of the fixture has a corner above its centre line again: put the mutation back in mutate.py. No mutation in
+    mutate.py watches this test; it was watched red by hand (W16, section 11)."""
+    out = run_node(cfg, HEADSINK_FIXTURE)
+    glyphs = ["n", "i", "j", "u", "l", "I", "H", "o", "ĸ"]
+    for mult in ("1", "1.5"):
+        absent, tiny = out["runs"][f"{mult}/undef"], out["runs"][f"{mult}/1e-300"]
+        assert headsink_ends(absent["glyphs"]["l"]), f"mult {mult}: the fixture's leaning 'l' has no lowercase head end: {absent['glyphs']['l']['sig']}"
+        moved = [k for k in glyphs if any(absent["glyphs"][k][f] != tiny["glyphs"][k][f] for f in ("polys", "adv", "L", "R"))]
+        assert not moved, (
+            f"HEADSINK-FIXTURE-FLAT: mult {mult}: a head sink of no depth (headSink 1e-300) moved {moved}, so `headsink-zero-on` is no "
+            "longer an equivalent mutation on this fixture (references/testing.md section 11)")
 
 
 def test_headsink_outside_its_range_is_refused(cfg):

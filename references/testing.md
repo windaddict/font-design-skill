@@ -139,7 +139,8 @@ the table below reads "equals the exporter's", that is the limit it carries.
 | `xh` outside 400-600 is refused (`test_xh_outside_its_range_is_refused`) | `params()` names `xh` for 399, 601, a string and null; 400 and 600 pass | `xh-range-removed` | — |
 | an unbracketed serif is a slab with the bracketed point count (`test_an_unbracketed_serif_is_a_slab_with_the_bracketed_point_count`) | `I` foot and head (26 points), `n` lowercase head (15) and feet, `v` diagonal serif (26), mult 1 and 1.5, `serifBracket` 0, 0.5, 1 and unset: at 0 every point lies between the line and one serif height (`h` = `W0` (`W` / `W0`)^`serifGrow` x `serifH`, restated) and both are reached; at 1 the extreme is 1.7 `h` (1.9 for the lowercase head); at 0.5 strictly between; the count is unchanged; 1 is the unset polygon exactly | `bracket-ignored`, `bracket-count`, `bracket-diag` | the plan said every slab point is on one of two lines; the slab's vertical sides are straight segments sampled by `quad()`, so their points lie between the lines |
 | `serifBracket` outside 0-1 is refused (`test_serifbracket_outside_zero_to_one_is_refused`) | `params()` names `serifBracket` for -0.01, 1.01, a string and null; 0 and 1 pass | `bracket-range-removed` | — |
-| `headSink` sinks the stem end under a lowercase head serif (`test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif`, 0.9.0) | a synthetic tall, short, bracketed, `serifGrow` concept, mult 1 and 1.5, with no key, 0 and 0.6: every head end pokes above its wedge with no key (control), at 0.6 none does, both corners sit `0.6 h` below the centre line (`h` with `serifGrow`), the end stays inside the wedge, point counts, edge runs and records are unchanged, only bodies with a head differ (capitals do not), advances, profiles and four kerns are unchanged, no point away from the serifed end moves, and 0 is the outline with no key | `headsink-ignored`, `headsink-zero-on`, `headsink-capitals`, `headsink-global`, `headsink-spacing`, `headsink-no-serifgrow` | — |
+| `headSink` sinks the stem end under a lowercase head serif (`test_headsink_sinks_the_stem_end_under_a_lowercase_head_serif`, 0.9.0) | a synthetic tall, short, bracketed, `serifGrow` concept, mult 1 and 1.5, with no key, 0 and 0.6: every head end pokes above its wedge with no key (control), at 0.6 none does, both corners sit `0.6 h` below the centre line (`h` with `serifGrow`), the end stays inside the wedge, point counts, edge runs and records are unchanged, only bodies with a head differ (capitals do not), advances, profiles and four kerns are unchanged, no point away from the serifed end moves, and 0 is the outline with no key | `headsink-ignored`, `headsink-capitals`, `headsink-global`, `headsink-spacing`, `headsink-no-serifgrow` (`headsink-zero-on` is retired as an equivalent mutation since 0.10.0, section 11) | — |
+| a head sink of no depth moves no point on the fixture (`test_headsink_of_no_depth_moves_no_point_on_the_fixture`, 0.10.0) | the headSink fixture, mult 1 and 1.5, with no key and with headSink 1e-300: the leaning `l` has a lowercase head end, and the polygons, advance and both profiles of `n i j u l I H o ĸ` are equal | none in mutate.py; watched by hand (W16, section 11) | — |
 | `headSink` outside 0-0.7 is refused (`test_headsink_outside_its_range_is_refused`, 0.9.0) | `params()` names `headSink` for -0.01, 0.71, a string, null, true and NaN; 0, 0.6 and 0.7 pass | `headsink-range-removed` | — |
 | `joints` opt-in cuts a sans joint level (`test_joints_opt_in_cuts_a_sans_joint_level`) | the project's first concept, every end a butt, and again with the shipped mapping of the empty end to a disk (no 64-point disk is drawn at a joint: V W M N v w have none, the A keeps the two on its crossbar), with and without `joints: true`, mult 1 and 1.5: with it both edge points of the `V`'s joint end lie on the baseline and the record reads `/joint`, and the `L`'s stem reaches its base's outer edge; without it the two edge points differ in y by the width times the tangent's x component (restated from the output) and the stem stops short | `joints-ignored`, `joints-keep-disk` | the jointed `V` reads y of 17.25 and -17.25 under the mutation |
 | `crotch` thins only the inner edge of an acute joint (`test_crotch_thins_only_the_inner_edge_of_an_acute_joint`) | at the first unpinned sample at least eight steps in on the `V`'s and the `A`'s arms (the partner side found from the partner's OUTPUT): that edge moved inward by 0.3 e w/2 with e restated from the arc distance read off the output (within 2 %); the other edge did not move (under 1e-6); `l`, `n`, `E F L T H` and the right-angled joints of `š ê Ô` are identical at crotch 0 and 0.3; `V` and `A` keep their hairline minimum; crotch 0 draws every glyph as no key; the glyphs whose record names an acute joint are exactly `1 4 5 v w A M N V W ™ Á À Â Ä Ñ` | `crotch-both-edges`, `crotch-everywhere`, `crotch-corners`, `crotch-corner-as-joint`, `crotch-obtuse`, `crotch-floor` | the Bold pins the first samples before a tight joint, so the sample is chosen by scanning (the plan's "eight steps" fails there) |
@@ -271,7 +272,7 @@ mutations and reworked the `gasp` one (68 RED of 68); the fix rounds added `desi
 `quote-opening-unslanted` the set is 120: 120 RED of 120, 0 skipped, 0 problems (`scripts/smoke.sh` step 5, 2026-11-19, this machine;
 the first run that day was 118 RED with two UNPROVEN, both catalogue entries the change had broken, re-formed as section 8 records).
 With 0.9.0's seven `headsink-*` mutations (section 10) the set is 127: 127 RED of 127, 0 skipped, 0 problems (`scripts/smoke.sh --full`
-step 5, 2026-11-21, this machine).
+step 5, 2026-11-21, this machine). With 0.10.0's follow-up, which retires `headsink-zero-on` (section 11), the set is 126: 126 RED of 126, 0 skipped, 0 problems (`scripts/smoke.sh` step 5, 2026-11-22, this machine).
 
 ## 6. The site-wiring template
 
@@ -724,7 +725,7 @@ digests are unchanged, which is the proof that no font output moved.
 ## 10. The headSink guards (0.9.0)
 
 `headSink` (`references/generator.md`, section 4) is opt-in, so every guard below has to see two things: the defect it repairs and
-nothing else moving. The font suite holds two tests (rows in section 2, seven mutations); `tests/test_head_sink.py` holds four more,
+nothing else moving. The font suite holds two tests (rows in section 2; seven mutations in 0.9.0, six since 0.10.0, which retired `headsink-zero-on`, section 11); `tests/test_head_sink.py` holds four more,
 each written to fail first on one assertion of the 0.8.0 generator, which ignores the key.
 
 | Repo test | First assertion it fails on |
@@ -739,7 +740,7 @@ each written to fail first on one assertion of the 0.8.0 generator, which ignore
 the wedge by 14.74 units"), `headsink-zero-on` ("headSink 0 is not the outline with no key set: 'l' differs"), `headsink-capitals`
 ("moved polygons [0] of 'I', which has no lowercase head serif"), `headsink-global` (94 of 94 body points of the test glyph moved),
 `headsink-spacing` (the advance of `i` moved from 293.26 to 291.32), `headsink-no-serifgrow` (off by 7.78 units at mult 1.5) and
-`headsink-range-removed`. The full harness after this change is 127 mutations, 127 RED (section 5).
+`headsink-range-removed`. The full harness after this change is 127 mutations, 127 RED (section 5). Since 0.10.0 `headsink-zero-on` is retired as an equivalent mutation (section 11), so six of the seven remain.
 
 **Figures that shaped the design** (measured 2026-11-21 on the Driftwood example's `driftwood` concept, with the built code, unless said
 otherwise). With no `headSink` the corner of every lowercase head end stands 2.81 units above its wedge at mult 1 and 4.11 at mult 1.65,
@@ -772,6 +773,7 @@ and appears in no other assertion of its test; the assertions before it only che
 | `test_serif_joints.py::test_the_italic_r_arm_top_edge_has_no_dip` | `R-ARM-TOP` |
 | `test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0` | `SCOPE-OUTLINES` |
 | `test_joint_spacing.py::test_no_advance_profile_or_kern_moved_outside_g_and_the_italic_r` | passes on 0.9.0; proof by mutation (below) |
+| `test_serif_joints.py::test_a_head_sink_of_no_depth_moves_no_point` | `HEAD-END-FLAT`: passes on 0.10.0; proof by mutation (W2, below). Its 0.9.0 reading is "in 34 of 142 runs" |
 
 **The watches** (2026-11-22, this machine, node 26.13.1; each applied to a copy of `scripts/gen.js` in the session scratch folder,
 the named test file run with `FONT_DESIGN_JOINT_SCRIPTS` on that copy, the real file untouched, checked by `shasum` after). Every
@@ -791,27 +793,77 @@ watch was RED on the marker it names:
 | W10 | the old `GI.r` string back | `R-ARM-UNDER` (50.3, 56.7, 115.4, 54.1), `R-ARM-TOP` (23.7, 26.9, 18.1, 34.2), `SCOPE-OUTLINES` |
 | W11 (the recipe of `tests/test_joint_spacing.py`) | `T = 30 + 0.36 * W0` to `T = 31 + 0.36 * W0` | `SPACING-FROZEN`: 4326 glyph measures and 80675 kern pairs moved |
 
+**The watches of the follow-up** (2026-11-22, this machine, node 26.13.1, `.venv/bin/python3 -m pytest ... -q -p no:cacheprovider`). Each edit was applied to a
+copy of `scripts/` in the session scratch folder, with a copy of `VERSION` beside it, by an exact text replacement that matched once. The
+tests ran with `FONT_DESIGN_JOINT_SCRIPTS`, `FONT_DESIGN_R_GEN` and `FONT_DESIGN_WEIGHT_GEN` set to the copy. The real files were untouched:
+`shasum -a 256` of `scripts/gen.js`, `scripts/export.js` and `scripts/build.py` printed `d7e7b0f5...2b2703`, `d4a3a583...8110f` and `21ea35dd...b3bb86`
+after the last watch and after the smoke run. The control (no edit; SPACING, all of `tests/test_serif_joints.py`, RLEG, F and MIXED) passed: 14 passed in 80.50 s.
+The first line of each failure text is quoted; the counts after the first are in the same message. Node ids: SPACING is `tests/test_joint_spacing.py`; F is
+`test_weight_decisions.py::test_only_the_italic_opening_quotes_changed_since_0_5_0`; MIXED is
+`test_weight_decisions.py::test_a_mixed_concept_group_without_a_mult_1_master_per_concept_exports_as_0_5_0_did`.
+
+| Watch | Edit | Test | Verdict and first line of the failure |
+|---|---|---|---|
+| W4 | `if (unsunk \|\| legacyBody) body.prof = unsunk \|\| legacyBody;` to `if (unsunk) body.prof = unsunk;` (`gen.js`) | SPACING | RED: `SPACING-FROZEN: 353 glyph measures and 14187 kern pairs moved outside G and the italic r; 31 roman pairs with G on the right moved by more than 0.05 units.` |
+| W5 | the `sp.prof = serifPoly(...)` line removed (`gen.js`) | SPACING | RED: `SPACING-FROZEN: 45 glyph measures and 1855 kern pairs moved ...; 1 roman pairs with G on the right moved by more than 0.05 units.` |
+| W7 | `if (slant) differs = true;` removed (`gen.js`) | SPACING | RED: `SPACING-FROZEN: 331 glyph measures and 14150 kern pairs moved ...; 31 roman pairs ...` |
+| W11 | `T = 30 + 0.36 * W0` to `T = 31 + 0.36 * W0` (`gen.js`) | SPACING | RED: `SPACING-FROZEN: 4326 glyph measures and 80035 kern pairs moved ...; 318 roman pairs ...` |
+| W12 | in `glyph()`, `v + sh` to `v + sh - (key === "G" && !P.italic ? 0.015 : 0)` in the `L:` line (`gen.js`) | SPACING | RED: `SPACING-FROZEN: 0 glyph measures and 0 kern pairs moved outside G and the italic r; 6 roman pairs with G on the right moved by more than 0.05 units.` The first pair line reads `driftwood/roman/Bold Ë\|G: -32.37528336446334 -> -32.32392826988163, moved 0.0514 units (bound 0.05)`. The bound fired alone; the exact half did not. |
+| W14 | the line `if (a.key === "A" && b.key === "V") k -= 0.001;` put before `c.k[id] = k;` in `kern()` (`gen.js`) | SPACING | RED: `SPACING-FROZEN: 0 glyph measures and 14 kern pairs moved outside G and the italic r; 0 roman pairs with G on the right moved by more than 0.05 units.` The 0.05 tolerance did not spread to a pair outside the bounded class (`A\|V` moved by 0.001). |
+| W14 | the same edit | SCOPE | 1 passed in 3.78 s. GREEN, as the plan expected: rounding absorbs a move of 0.001, so the scope test cannot see an unrounded kern move this small. SPACING is the guard for it. |
+| W13 | the line `if (b.key === "G" && a.key !== "G" && !P.italic) k -= 1;` put before `c.k[id] = k;` in `kern()` (`gen.js`) | SCOPE, SPACING, RLEG, F, MIXED | all five RED (5 failed in 59.37 s). SCOPE: `SCOPE-KERNS:` with 38 changed pairs on the neutral and Driftwood roman masters and 34 on Bract's, first `[('%', 'G'), ('&', 'G'), ('(', 'G'), ...]`. SPACING: `0 glyph measures and 0 kern pairs ...; 1300 roman pairs with G on the right moved by more than 0.05 units`. RLEG: `neutral/roman/TextRegular: 38 kern pairs changed outside the allowed set`. F: `neutral/roman: the export JSON moved outside the declared glyphs, kerns and titles` (neutral, Bract and Driftwood roman). MIXED: `the mixed-concept group's export moved`. |
+| W2 | `leanS && !legacy` to `false` in `cutEnds()` (`gen.js`) | FLAT, LEVEL | both RED (2 failed in 9.39 s). FLAT: `HEAD-END-FLAT: in 34 of 142 runs a head sink of no depth moved a point (34 glyphs)`, worst `bract/concepts.js foil italic 1.65 'w' moved 11.25`. LEVEL: `LEVEL-END: 176 of 176 leaning ends are cut off the level`. |
+| W15 | `var leanK = Ts[k][0] / Ts[k][1];` to `var leanK = Ts[k][0] / Ts[k][1]; Lp[k] = [NaN, Lp[k][1]];` (`gen.js`) | FLAT | GREEN on the probe before the review fix, RED after it: `joint_probe.js: Error: glyph "b" (headSink 1e-300): polygon 0 point 0 is not finite: NaN, 740`. |
+| W16 | `leanS && !legacy` to `false` in `cutEnds()` (`gen.js`) | `test_font.py::test_headsink_of_no_depth_moves_no_point_on_the_fixture` (neutral, `--scripts` on the copy) | RED: `HEADSINK-FIXTURE-FLAT: mult 1: a head sink of no depth (headSink 1e-300) moved ['l'], so `headsink-zero-on` is no longer an equivalent mutation on this fixture (references/testing.md section 11)`. |
+| R1 | the italic leg's `"i"` replaced by `""` in `S("M 310 340 C 390 260 450 130 490 50 ...` (`gen.js`) | RLEG | RED: `neutral/italic/Regular: outlines changed on ['2', '4', '5', '7', 'E', 'F', 'G', 'L', 'W', ...], expected [... 'R' ...]`; also `driftwood/italic/Regular: records changed on ['G', 'r'], expected ['G', 'R', 'r']`. The expected sets are held as exact sets. |
+| R2 | `k = -0.75 * (g.mean - rg - 8);` to `k = -0.76 * ...` (`gen.js`) | RLEG | RED: `neutral/roman/TextRegular: 1721 kern pairs changed outside the allowed set, first [('!', '%'), ('!', ')'), ...]`, and title widths. |
+| Q1 | `if italic_angle:` to `if True:` in `quote_glyphs` (`build.py`) | F, MIXED | F RED: `neutral/roman: gvar variations moved on ['quoteleft', 'quotedblleft']`; the messages also hold `hmtx differs on ['G', 'quoteleft', 'quotedblleft']`. MIXED green. |
+| Q1' | `if italic_angle:` to `if False:` (`build.py`) | F, MIXED | F RED: `neutral/italic/Regular: hmtx changed on ['G', 'r'], expected the two opening quotes (and G, r at most)`. MIXED green. |
+| Q3 | `quotedblright` built with `opening(...)` (`build.py`) | F, MIXED | F RED: `neutral/italic: gvar variations moved on ['quotedblright']`. MIXED green. |
+| T1 | `Math.abs(TU[0]) > 0.1 ? "diag"` to `> 0.12` in `serifKind` (`gen.js`) | F, MIXED | F RED: `neutral/italic: the export JSON moved outside the declared glyphs, kerns and titles`; the messages also hold `a branch record moved`. MIXED green; why it stays green was not looked into. |
+| K1 | `Math.round(m.kern(...))` plus 1 (`export.js`) | F, MIXED | F RED: `neutral/roman: the export JSON moved outside the declared glyphs, kerns and titles`. MIXED green: its new side runs the repository's `export.js`, which the copy does not replace. |
+| O1 | the hidden-join disk `0.42` to `0.43` (`gen.js`) | F, MIXED | both RED. F: the same family of messages as T1. MIXED: `the mixed-concept group's export moved`. |
+| F2 | the heavier masters' `o` raised 2 units in `build_variable` (`build.py`) | F, MIXED | F RED: `neutral/roman: gvar variations moved on ['o']`, and `outlines moved on ['o']`. MIXED green. |
+
+No watch survived, and none failed for another reason (no ERROR, no `exited 1`). In the table, SPACING, SCOPE, LEVEL, FLAT, RLEG, F and MIXED
+are the node ids of the plan's "watch procedure": SCOPE is `test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0`, LEVEL is
+`test_a_leaning_serif_end_is_cut_level`, FLAT is `test_a_head_sink_of_no_depth_moves_no_point` and RLEG is
+`test_r_leg_join.py::test_only_the_r_changed_since_0_4_0`. Test f of `tests/test_weight_decisions.py` reads `FONT_DESIGN_JOINT_SCRIPTS` since this
+change, so one copy serves the watches of both files.
+
 **The two string mutations** of `scripts/tests/mutate.py` (`mutate-strings`): `mutate.py --only bracket --only headsink` on the
-neutral example gave 11 mutations, 10 RED, 1 problem. `bracket-count` and `headsink-global`, the two rewritten for this change, are
+neutral example gave 11 mutations, 10 RED, 1 problem before the retirement (2026-11-22, first run). After it, the same command (2026-11-22,
+this machine) gives 10 mutations, 10 RED, 0 skipped, 0 problem(s). `bracket-count` and `headsink-global`, the two rewritten for this change, are
 RED on their `expect` strings ("no 26-point serif near y 0"; "moved 94 of 94 body points ... far away from its serifed end").
 
-**A guard that stopped observing, recorded as a finding.** `headsink-zero-on` (`P.headSink >= 0` in place of `> 0`) is GREEN since
-0.10.0; on the 0.9.0 `gen.js` the same run is RED ("headSink 0 is not the outline with no key set: 'l' differs"). Its fixture
-(`HEADSINK_FIXTURE` in `scripts/tests/test_font.py`) leans the `l` by 0.045 so that one corner of its end stands above the centre line, and
-headSink 0 pinned that corner. 0.10.0 cuts a leaning head end level, so no corner stands above the line and `headSink >= 0` and `> 0` draw the same
-outline: with the level cut the mutation is an equivalent mutant of the outline and nothing the fixture can draw tells them apart.
-This change did not repair it. The guard of step 10 of that test (a zero `headSink` is the outline with no key) still holds for the correct
-code; what is lost is its power to catch `>= 0`. A repair needs a fixture end that is not cut level, or a different mutation; it is
-a decision for the maintainer, and `scripts/smoke.sh` step 6 reports the problem until it is made.
+**An equivalent mutation, recorded.** `headsink-zero-on` (`P.headSink >= 0` in place of `> 0`) is not in `mutate.py` since 0.10.0. On the 0.9.0
+`gen.js` it was RED ("headSink 0 is not the outline with no key set: 'l' differs"). Since 0.10.0 every leaning serif end is cut level and a
+plumb end was flat already, so no lowercase head end has a point above its centre line, and a sink of no depth moves nothing. The cut of
+0.9.0 that `cutEnds` still makes with `legacy` true is used only to measure the spacing profile and is never drawn. The measurement
+(`tests/joint_probe.js sinkzero`, 2026-11-22, this machine): 142 runs, 18602 glyphs, 1658 lowercase head ends, 34 leaning ends, 0 glyphs moved,
+largest move 0, largest spacing difference 0. The guards whose failure means the mutation must come back are LEVEL-END
+(`tests/test_serif_joints.py::test_a_leaning_serif_end_is_cut_level`, red under W2) and HEAD-END-FLAT
+(`tests/test_serif_joints.py::test_a_head_sink_of_no_depth_moves_no_point`, red under W2 too); the fixture (`HEADSINK_FIXTURE` in
+`scripts/tests/test_font.py`) must then be built from the end HEAD-END-FLAT names. What is lost: no mutation in the catalogue turns step 10 of
+the font suite's `headSink` test (a zero `headSink` is the outline with no key) red any more. The font suite's `test_headsink_of_no_depth_moves_no_point_on_the_fixture` holds the same property on `HEADSINK_FIXTURE` itself (HEADSINK-FIXTURE-FLAT, red under W16), and the probe refuses a non-finite coordinate, advance or profile value (W15), so a NaN cannot read as no movement.
 
-**A guard that is red on the finished tree, recorded as a finding.** `test_joint_spacing.py` fails on the unmutated 0.10.0 tree
-(2026-11-22, `smoke.sh --full --from 6`, step 7, and alone): "SPACING-FROZEN: 0 glyph measures and 639 kern pairs moved outside G and
-the italic r." Every one of the 639 pairs (bract 207, driftwood 147, neutral 285, all roman) has `G` on the right, and the largest
-unrounded move is 0.036 units; one pair rounds to a different integer. `kern_pair_allowed` admits a roman pair only with `G` on the
-left, which holds for the exported, rounded kerns (the scope test passes) but not for the unrounded ones: the pair reads the `G`'s
-left profile, and the redrawn bowl's sample points shift it. The plan's guarantee ("every kern outside `G` and the italic `r`") was
-stated more strictly than the code delivers. The test was not loosened in this change; the repair is to admit a roman pair with `G` on the
-right below a stated bound (0.05 units, for example) in `tests/test_joint_spacing.py`, which is a decision for the maintainer.
+**The kern bound for a roman pair with `G` on the right.** On the unmutated 0.10.0 tree `test_joint_spacing.py` first read "0 glyph measures and
+639 kern pairs moved outside G and the italic r" (2026-11-22, first run). Every one of the 639 pairs (Bract 207, Driftwood 147, neutral 285, all
+roman) has `G` on the right, and the largest unrounded move is 0.036 units; one pair rounds to a different integer. The redrawn bowl shifts the
+sample points that the `G`'s left profile reads. The operator chose a bound over holding the left profile exactly. `kern_move_bound` in
+`tests/joint_changes.py` holds three rules: no limit for a pair `kern_pair_allowed` admits (`G` on the left in a roman master, `G` or `r` on either side in
+an italic one), 0.05 units (`KERN_BOUND_G_RIGHT`) for a roman pair with `G` on the right, and exactly the 0.9.0 value for every other pair.
+`kern_pair_allowed` is unchanged and still holds the exported, rounded kerns in the scope test. The three watches that prove the three rules:
+W11 widths (4326 glyph measures and 80035 kern pairs, the exact rule on advances and every other kern), W14 an exact kern (14 pairs outside
+the bounded class, the bound did not spread) and W12 the bound (0 glyph measures, 0 kern pairs, 6 roman pairs with `G` on the right, `moved 0.0514 units`
+against the bound 0.05, so the bound fired alone). The test passes on the finished tree (smoke step 7).
 
-**Not run for this section.** The watches of `tests/test_r_leg_join.py` and `tests/test_weight_decisions.py` (the two tests changed by
-`tests-since-revision`) are those their own docstrings name; they were not rerun for this log.
+**The watches of `tests/test_r_leg_join.py` and `tests/test_weight_decisions.py`.** Logged in the table above (R1, R2, Q1, Q1', Q3, T1, K1, O1, F2),
+with the control run (14 passed) beside them. MIXED is green under Q1, Q1', Q3, T1, K1 and F2 and red under O1 and W13; the 0.7.0 log
+lists it as a pin with no mutation of its own, and this run does not add a reason. Test f of `tests/test_weight_decisions.py` reads
+`FONT_DESIGN_JOINT_SCRIPTS` since this change, so the watches of the build side run on a copy.
+
+**The layers** (2026-11-22, this machine). Layer 3, `pytest scripts/tests/test_font.py --font examples/neutral/font.json --requirements examples/neutral/requirements.json`:
+115 passed in 30.30 s. Layer 4, `bash scripts/smoke.sh` (steps 1 to 7, no `--full`): exit status 0, "smoke: every step from 1 passed.", step 5 "126 mutations,
+126 RED, 0 skipped, 0 problem(s)", step 7 "741 passed, 7 skipped in 1650.60s"; about 2524 s from start to the end of the log (the repository's
+`CLAUDE.md` records no figure for either layer). After the review fixes (2026-11-22): layer 3, the same command, 116 passed in 33.31 s. Layer 4: exit status 0, "smoke: every step from 1 passed.", step 5 "126 mutations, 126 RED, 0 skipped, 0 problem(s)", step 7 "746 passed, 7 skipped in 1772.83s (0:29:32)".
