@@ -48,6 +48,10 @@ SCRIPTS = pathlib.Path(os.environ.get("FONT_DESIGN_JOINT_SCRIPTS", REPO / "scrip
 PROBE = REPO / "tests" / "joint_probe.js"
 EXAMPLES = ("bract", "driftwood", "neutral")
 CONCEPT_FILES = [REPO / "examples" / e / "concepts.js" for e in EXAMPLES]
+# The equivalence behind retiring headsink-zero-on is a claim about every concept file the repository ships, so its sweep adds the
+# two template concept files that test_weight_decisions.py and test_r_leg_join.py already treat as shipped.
+TEMPLATE_CONCEPT_FILES = [REPO / "templates" / "concepts.example.js", REPO / "templates" / "concepts.genres.js"]
+SINKZERO_CONCEPT_FILES = CONCEPT_FILES + TEMPLATE_CONCEPT_FILES
 FONTS = [REPO / "examples" / e / "font.json" for e in EXAMPLES]
 MULTS = [1, 1.3, 1.5, 1.65]
 EXAMPLE_GROUPS = [("neutral", "roman"), ("neutral", "italic"), ("bract", "roman"), ("driftwood", "roman"), ("driftwood", "italic")]
@@ -162,7 +166,8 @@ def test_a_leaning_serif_end_is_cut_level():
 
 def test_a_head_sink_of_no_depth_moves_no_point():
     """No lowercase head end has a point above its own centre line, so a head sink of no depth moves nothing. Every concept of the
-    three example concept files as shipped (swell and wobble on, serif or not), roman and italic at 10 degrees, mult 1 to 1.65, and
+    three example concept files and of the two template concept files as shipped (swell and wobble on, serif or not), roman and italic
+    at 10 degrees, mult 1 to 1.65, and
     every master of every group of the three example font.json files, every key of G: the glyph drawn with headSink 1e-300 is the
     glyph drawn with no key, to 1e-9 units, in every polygon point, the advance and both spacing profiles. A headSink that small
     leaves the sink's line on the end's centre line, so the sink pins exactly the points that stand above it.
@@ -172,12 +177,17 @@ def test_a_head_sink_of_no_depth_moves_no_point():
     concept and is an equivalent mutation. If it fails, an end has a corner above its centre line again: put the mutation back in
     scripts/tests/mutate.py and build its fixture from the end this message names.
     It pins behaviour that already holds, so it passes when written. Red on 0.9.0 and under watch W2 (`leanS && !legacy` to `false`)
-    at HEAD-END-FLAT: the 34 leaning lowercase head ends (the italic w) each have one corner up to 11.3 units above the line.
+    at HEAD-END-FLAT: the 34 leaning lowercase head ends of the example files and fonts (the italic w) each have one corner up to
+    11.3 units above the line. The template files' leaning ends (brush, scotch) mirror example concepts today; watch W17 shows the sweep
+    sees one edited away from its twin.
     A coordinate, advance or profile value that is not finite on either side ends the probe with a non-zero exit, so a sink that writes
     NaN cannot read as no movement (watch W15, references/testing.md section 11)."""
-    specs = [json.dumps({"files": [str(f)], "mults": MULTS, "styles": ["roman", "italic"]}, sort_keys=True) for f in CONCEPT_FILES]
+    specs = [json.dumps({"files": [str(f)], "mults": MULTS, "styles": ["roman", "italic"]}, sort_keys=True) for f in SINKZERO_CONCEPT_FILES]
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(specs)) as pool:
         swept = [row for part in pool.map(lambda s: _probe("sinkzero", s), specs) for row in part]
+    for f in TEMPLATE_CONCEPT_FILES:
+        name = f"templates/{f.name}"
+        assert any(r.get("file") == name for r in swept), f"no run drew {name}: the sweep skipped a shipped concept file"
     shipped = [row for rows in per_font("sinkzero").values() for row in rows]
     assert len(swept) >= 16 * 2 * len(MULTS), f"only {len(swept)} concept runs: 16 concepts, two styles and {len(MULTS)} multipliers are expected"
     assert {(r["style"], r["mult"]) for r in swept} == {(s, m) for s in ("roman", "italic") for m in MULTS}, "a style or a multiplier was not drawn"
