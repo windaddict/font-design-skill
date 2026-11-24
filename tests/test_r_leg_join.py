@@ -8,7 +8,9 @@ tests draw the R with the real generator (tests/r_leg_junction.js runs scripts/g
 every concept of the five concept files at mult 1 and 1.5, roman and italic, and hold the construction to what a
 reader of the outline would check; they also hold the T-join's own rules on hand-built glyphs, prove the
 measurement sees the 0.4.0 defect, compare the filled union near the join with the 0.4.0 outline, and compare
-every example group's export with the 0.4.0 generator's so the change is known to reach the R only.
+every example group's export with the 0.4.0 generator's so the change is known to reach the R only, apart from what 0.10.0
+declares (tests/joint_changes.py: the glyphs it redraws, the advances and kerns it moves), which that comparison takes out and
+still holds every other glyph to.
 
 FONT_DESIGN_R_GEN names another gen.js to measure (a scratch copy carrying a mutation); unset, the real one. The
 0.4.0 generator is read from git (BASELINE_REV) for the comparison tests, so they need a git checkout.
@@ -35,9 +37,13 @@ import pathlib
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 from conftest import REPO, node, run
+
+sys.path.insert(0, str(REPO / "tests"))
+from joint_changes import ADVANCES, OUTLINES, RECORDS, kern_pair_allowed  # noqa: E402
 
 GEN = pathlib.Path(os.environ.get("FONT_DESIGN_R_GEN", REPO / "scripts" / "gen.js"))
 JUNCTION = REPO / "tests" / "r_leg_junction.js"
@@ -359,40 +365,53 @@ def exports(tmp_path_factory):
 
 def test_only_the_r_changed_since_0_4_0(exports):
     """Every group of the three examples exported through the real export.js with the 0.4.0 generator (git show) and with the one
-    under test: per master, the glyphs whose adv, polys, raw, runs, keptIdx or minw differ are exactly {R}; the glyphs whose branch
-    record differs are exactly {R}; every advance is equal; the 54-bin left and right profiles recomputed here from every glyph's raw
-    polygons are equal for every glyph, R included (its profile does not move); the emitted kern list is identical pair for pair and
-    value for value; titles, space and minStrokeWidth are equal. Green before the fix (nothing differs) and after it; red if the
-    change reaches any other glyph, an advance or a kern. The field list is the one this docstring states: a comparison that skipped
+    under test: per master, the glyphs whose adv, polys, raw, runs, keptIdx or minw differ are exactly {R} plus the glyphs 0.10.0
+    redraws on purpose (tests/joint_changes.py OUTLINES for that group); the glyphs whose branch record differs are exactly {R} plus
+    RECORDS; every advance is equal except those of ADVANCES; the 54-bin left and right profiles recomputed here from every glyph's raw
+    polygons are equal for every glyph outside that outline set, R included (its profile does not move); the emitted kern list is
+    identical pair for pair and value for value except pairs `kern_pair_allowed` admits; titles that contain neither G nor (in an
+    italic group) r, space and minStrokeWidth are equal. Green before the fix (nothing differs) and after it; red if the change reaches
+    any other glyph, an advance or a kern. The field list is the one this docstring states: a comparison that skipped
     `raw` would pass a change confined to undecimated points, which no execution can observe, so that mutation is recorded as
-    uncatchable here."""
+    uncatchable here. The 0.10.0 sets are taken out so the test still sees every other glyph; a glyph in those sets is held by
+    tests/test_serif_joints.py against 0.9.0."""
     fields = ("adv", "polys", "raw", "runs", "keptIdx", "minw")
     bad = []
     for (example, group), (old, new) in exports.items():
+        italic = group == "italic"
+        outline_set = set(OUTLINES[(example, group)])
         for master in old["masters"]:
             om, nm = old["masters"][master], new["masters"][master]
             where = f"{example}/{group}/{master}"
             assert set(om["glyphs"]) == set(nm["glyphs"]), f"{where}: the glyph set changed"
             changed = sorted(k for k in om["glyphs"]
                              if any(json.dumps(om["glyphs"][k][f], sort_keys=True) != json.dumps(nm["glyphs"][k][f], sort_keys=True) for f in fields))
-            if changed != ["R"]:
-                bad.append(f"{where}: outlines changed on {changed}, expected ['R']")
+            expected = sorted({"R"} | outline_set)
+            if changed != expected:
+                bad.append(f"{where}: outlines changed on {changed}, expected {expected}")
             records = sorted(k for k in om["glyphs"] if om["glyphs"][k]["sig"] != nm["glyphs"][k]["sig"])
-            if records != ["R"]:
-                bad.append(f"{where}: records changed on {records}, expected ['R']")
-            advs = [k for k in om["glyphs"] if om["glyphs"][k]["adv"] != nm["glyphs"][k]["adv"]]
+            expected_records = sorted({"R"} | set(RECORDS[group]))
+            if records != expected_records:
+                bad.append(f"{where}: records changed on {records}, expected {expected_records}")
+            advs = [k for k in om["glyphs"] if om["glyphs"][k]["adv"] != nm["glyphs"][k]["adv"] and k not in ADVANCES[group]]
             if advs:
                 bad.append(f"{where}: advances changed on {advs}")
-            prof = [k for k in om["glyphs"] if profiles(om["glyphs"][k]["raw"]) != profiles(nm["glyphs"][k]["raw"])]
+            prof = [k for k in om["glyphs"] if k not in outline_set and profiles(om["glyphs"][k]["raw"]) != profiles(nm["glyphs"][k]["raw"])]
             if prof:
                 bad.append(f"{where}: the spacing profiles changed on {prof}")
-            if om["kerns"] != nm["kerns"]:
-                ko, kn = {tuple(x[:2]): x[2] for x in om["kerns"]}, {tuple(x[:2]): x[2] for x in nm["kerns"]}
-                diff = sorted(k for k in set(ko) | set(kn) if ko.get(k) != kn.get(k))
-                bad.append(f"{where}: {len(diff)} kern pairs changed, first {diff[:5]}")
-            for f in ("titles", "space", "minStrokeWidth"):
+            ko, kn = {tuple(x[:2]): x[2] for x in om["kerns"]}, {tuple(x[:2]): x[2] for x in nm["kerns"]}
+            diff = sorted(k for k in set(ko) | set(kn) if ko.get(k) != kn.get(k))
+            stray = [k for k in diff if not kern_pair_allowed(italic, *k)]
+            if stray:
+                bad.append(f"{where}: {len(stray)} kern pairs changed outside the allowed set, first {stray[:5]}")
+            for f in ("space", "minStrokeWidth"):
                 if om[f] != nm[f]:
                     bad.append(f"{where}: {f} changed: {om[f]} -> {nm[f]}")
+            for title in om["titles"]:
+                if "G" in title or (italic and "r" in title):
+                    continue
+                if om["titles"][title] != nm["titles"][title]:
+                    bad.append(f"{where}: the title {title!r} changed width {om['titles'][title]} -> {nm['titles'][title]}")
     assert not bad, "\n".join(bad)
 
 

@@ -36,6 +36,13 @@
  *      base. Without the key nothing here runs and every table is what 0.5.0 built.
  *   9. The head sink (0.9.0). A concept's headSink pins the stem end under a lowercase head serif down inside the wedge, so its
  *      top-left corner does not show; spacing is measured on the body before the sink. An absent key runs none of it.
+ *  10. Joints (0.10.0). serifPoly's brackets end on the stroke's own edge and a leaning head or foot end is cut level, as a diag end
+ *      is; the shallow stroke of a corner is cut along its partner's direction; the head sink moves along the edge. Spacing is read
+ *      from the 0.9.0 constructions (`prof`), so no advance or kern moves outside G and the italic r, whose skeletons were redrawn,
+ *      with one exception: a roman pair with G on the right reads the G's redrawn left profile, so its unrounded kern moves (at
+ *      most 0.0364 units on the three examples; tests/test_joint_spacing.py bounds it at 0.05). The corner reach pw/2/|pd[1]| (or
+ *      pw/2/|pd[0]| on the steep side) is exact only where the bar is level or the partner plumb, true of every shipped skeleton
+ *      and held by CORNER-SKEW in tests/test_serif_joints.py; a skeleton that breaks it needs the reach from |T x pd|.
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
@@ -105,7 +112,7 @@ var G = {
       S("M 100 700 L 300 700 C 500 700 600 550 600 350 C 600 150 500 0 300 0 L 100 0")],
   E: [S("M 100 700 L 100 0"), S("M 100 700 L 480 700", "", "t"), S("M 100 370 L 420 370", "", "t"), S("M 100 0 L 500 0", "", "t")],
   F: [S("M 100 700 L 100 0", "", "s"), S("M 100 700 L 470 700", "", "t"), S("M 100 370 L 410 370", "", "t")],
-  G: [S("M 610 570 C 560 655 480 710 380 710 C 200 710 80 560 80 350 C 80 140 200 -10 370 -10 C 470 -10 560 20 610 70 L 610 330", "t", ""),
+  G: [S("M 610 570 C 560 655 480 710 380 710 C 200 710 80 560 80 350 C 80 140 200 -10 370 -10 C 500 -10 610 60 610 180 L 610 330", "t", ""),
       S("M 430 330 L 610 330", "j", "")],
   H: [S("M 100 700 L 100 0", "s", "s"), S("M 580 700 L 580 0", "s", "s"), S("M 100 360 L 580 360")],
   I: [S("M 120 700 L 120 0", "s", "s")],
@@ -199,7 +206,7 @@ var GI = {
   n: [S("M 90 500 L 90 0", "s", "j"),
       S("M 90 380 C 140 470 210 510 290 510 C 410 510 460 440 460 330 L 460 110 C 460 35 490 -10 545 -10", "", "x")],
   r: [S("M 90 500 L 90 0", "s", "j"),
-      S("M 90 380 C 140 470 210 510 290 510 C 330 510 360 500 380 480", "", "t")],
+      S("M 90 380 C 140 470 210 510 290 510 C 330 510 362 470 382 450", "", "t")],
   v: [S("M 20 500 L 220 0", "s", ""), S("M 220 0 C 320 140 430 320 430 430 C 430 470 415 495 390 505", "", "t")],
   w: [S("M 10 500 L 170 0", "s", ""), S("M 170 0 L 340 400"), S("M 340 400 L 470 0"),
       S("M 470 0 C 560 140 650 320 650 430 C 650 470 635 495 610 505", "", "t")],
@@ -565,11 +572,11 @@ function cutSide(X, T, p, Dv, w) {
 function mix(a, c, b) { return [c[0] + (a[0] - c[0]) * b, c[1] + (a[1] - c[1]) * b]; }
 function mid(a, c) { return [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2]; }
 /* the foot (sy +1) and the symmetric head (sy -1): two pushes and four quads, 26 points; a..f are the anchors, c the four controls */
-function serifBlend(x, y, w, L, h, sy, b) {
-  var A = [[x - w / 2, y + sy * h * 1.7], [x - L, y + sy * h * 0.42], [x - L + h * 0.45, y], [x + L - h * 0.45, y], [x + L, y + sy * h * 0.42], [x + w / 2, y + sy * h * 1.7]];
-  var S = [[x - w / 2, y + sy * h], [x - L, y + sy * h], [x - L, y], [x + L, y], [x + L, y + sy * h], [x + w / 2, y + sy * h]];
+function serifBlend(x, y, ed, L, h, sy, b) {
+  var A = [ed(-1, sy * h * 1.7), [x - L, y + sy * h * 0.42], [x - L + h * 0.45, y], [x + L - h * 0.45, y], [x + L, y + sy * h * 0.42], ed(1, sy * h * 1.7)];
+  var S = [ed(-1, sy * h), [x - L, y + sy * h], [x - L, y], [x + L, y], [x + L, y + sy * h], ed(1, sy * h)];
   var a = A.map(function (q, i) { return mix(q, S[i], b); });
-  var C = [[x - w / 2, y + sy * h * 0.55], [x - L - h * 0.1, y], [x + L + h * 0.1, y], [x + w / 2, y + sy * h * 0.55]];
+  var C = [ed(-1, sy * h * 0.55), [x - L - h * 0.1, y], [x + L + h * 0.1, y], ed(1, sy * h * 0.55)];
   var chords = [mid(S[0], S[1]), mid(S[1], S[2]), mid(S[3], S[4]), mid(S[4], S[5])];
   var c = C.map(function (q, i) { return mix(q, chords[i], b); }), o = [a[0]];
   quad(o, a[0], c[0], a[1]); quad(o, a[1], c[1], a[2]);
@@ -581,36 +588,39 @@ function serifPoly(E, T, w, P, symmetric) {
   // serif reach follows the Regular, so the Bold does not grow slab serifs
   var SW = (P.W0 || P.W) * (P.serifGrow ? Math.pow(P.W / (P.W0 || P.W), P.serifGrow) : 1), L = w * 0.5 + SW * P.serifLen * (P.italic && symmetric ? 0.6 : 1), h = SW * P.serifH, x = E[0], y = E[1], o = [];
   var b = P.serifBracket;
-  if (b !== 1 && (T[1] < 0 || symmetric)) return serifBlend(x, y, w, L, h, T[1] < 0 ? 1 : -1, b);
+  // the brackets end on the stroke's own edge: the straight line through the end's corner along the end's direction (a plumb stem: x -+ w / 2)
+  var lean = T[0] / T[1], hw = w / 2 / Math.abs(T[1]);
+  function ed(side, dy) { return [x + side * hw + lean * dy, y + dy]; }
+  if (b !== 1 && (T[1] < 0 || symmetric)) return serifBlend(x, y, ed, L, h, T[1] < 0 ? 1 : -1, b);
   if (b !== 1) { // lowercase head, blended: three pushes and two quads, 15 points
-    var A = [[x + w / 2, y - h * 1.8], [x + w / 2, y + h * 0.18], [x - L + h * 0.5, y - h * 0.2], [x - L, y - h * 0.65], [x - w / 2, y - h * 1.9]];
-    var S = [[x + w / 2, y - h], [x + w / 2, y], [x - L, y], [x - L, y - h], [x - w / 2, y - h]];
+    var A = [ed(1, -h * 1.8), ed(1, h * 0.18), [x - L + h * 0.5, y - h * 0.2], [x - L, y - h * 0.65], ed(-1, -h * 1.9)];
+    var S = [ed(1, -h), ed(1, 0), [x - L, y], [x - L, y - h], ed(-1, -h)];
     var a = A.map(function (q, i) { return mix(q, S[i], b); });
-    var c1 = mix([x - L - h * 0.05, y - h * 0.3], mid(S[2], S[3]), b), c2 = mix([x - w / 2, y - h * 0.8], mid(S[3], S[4]), b);
+    var c1 = mix([x - L - h * 0.05, y - h * 0.3], mid(S[2], S[3]), b), c2 = mix(ed(-1, -h * 0.8), mid(S[3], S[4]), b);
     o.push(a[0], a[1], a[2]);
     quad(o, a[2], c1, a[3]); quad(o, a[3], c2, a[4]);
     return o;
   }
   if (T[1] < 0) { // foot
-    o.push([x - w / 2, y + h * 1.7]);
-    quad(o, [x - w / 2, y + h * 1.7], [x - w / 2, y + h * 0.55], [x - L, y + h * 0.42]);
+    o.push(ed(-1, h * 1.7));
+    quad(o, ed(-1, h * 1.7), ed(-1, h * 0.55), [x - L, y + h * 0.42]);
     quad(o, [x - L, y + h * 0.42], [x - L - h * 0.1, y], [x - L + h * 0.45, y]);
     o.push([x + L - h * 0.45, y]);
     quad(o, [x + L - h * 0.45, y], [x + L + h * 0.1, y], [x + L, y + h * 0.42]);
-    quad(o, [x + L, y + h * 0.42], [x + w / 2, y + h * 0.55], [x + w / 2, y + h * 1.7]);
+    quad(o, [x + L, y + h * 0.42], ed(1, h * 0.55), ed(1, h * 1.7));
   } else if (symmetric) { // head, both sides
-    o.push([x - w / 2, y - h * 1.7]);
-    quad(o, [x - w / 2, y - h * 1.7], [x - w / 2, y - h * 0.55], [x - L, y - h * 0.42]);
+    o.push(ed(-1, -h * 1.7));
+    quad(o, ed(-1, -h * 1.7), ed(-1, -h * 0.55), [x - L, y - h * 0.42]);
     quad(o, [x - L, y - h * 0.42], [x - L - h * 0.1, y], [x - L + h * 0.45, y]);
     o.push([x + L - h * 0.45, y]);
     quad(o, [x + L - h * 0.45, y], [x + L + h * 0.1, y], [x + L, y - h * 0.42]);
-    quad(o, [x + L, y - h * 0.42], [x + w / 2, y - h * 0.55], [x + w / 2, y - h * 1.7]);
+    quad(o, [x + L, y - h * 0.42], ed(1, -h * 0.55), ed(1, -h * 1.7));
   } else { // lowercase head: one wedge to the left, top sloping down leftward
-    o.push([x + w / 2, y - h * 1.8]);
-    o.push([x + w / 2, y + h * 0.18]);
+    o.push(ed(1, -h * 1.8));
+    o.push(ed(1, h * 0.18));
     o.push([x - L + h * 0.5, y - h * 0.2]);
     quad(o, [x - L + h * 0.5, y - h * 0.2], [x - L - h * 0.05, y - h * 0.3], [x - L, y - h * 0.65]);
-    quad(o, [x - L, y - h * 0.65], [x - w / 2, y - h * 0.8], [x - w / 2, y - h * 1.9]);
+    quad(o, [x - L, y - h * 0.65], ed(-1, -h * 0.8), ed(-1, -h * 1.9));
   }
   return o;
 }
@@ -620,7 +630,7 @@ function serifPoly(E, T, w, P, symmetric) {
    stroke's own edges, and the serif reaches further on the open (obtuse) side than on
    the side the stroke leans into, as in a book face's V. */
 function diagSerifPoly(E, T, Lk, Rk, P) {
-  // every italic stem is slanted, so all italic serifs come through here; they are 60% length
+  // italic serifs are 60% length. A stroke whose reference lean is 0.1 or less (the w of a narrow concept, the W) does NOT come through here: serifKind gives it head or foot, and serifPoly follows its edge
   var SW = (P.W0 || P.W) * (P.serifGrow ? Math.pow(P.W / (P.W0 || P.W), P.serifGrow) : 1), h = SW * P.serifH, L = SW * P.serifLen * (P.italic ? 0.6 : 1), y = E[1], up = T[1] < 0 ? 1 : -1;
   var a = Lk[0] < Rk[0] ? Lk : Rk, b = Lk[0] < Rk[0] ? Rk : Lk;
   function onEdge(q, hh) { var s = hh / Math.abs(T[1]); return [q[0] - T[0] * s, q[1] - T[1] * s]; }
@@ -652,7 +662,7 @@ function diagSerifPoly(E, T, Lk, Rk, P) {
 }
 
 /* The serif a serif-mode end takes, from the end's outward tangent on the reference skeleton: "diag" on a slanted stem, "foot" or
-   "head" on a plumb one (pointing down or up), "ball" on anything flatter. One function, so the head sink in strokePolys() and the
+   "head" on a plumb one or one leaning by 0.1 or less (pointing down or up), "ball" on anything flatter. One function, so the head sink in strokePolys() and the
    terminal drawn for the same end cannot disagree about which ends carry a head. */
 function serifKind(TU) {
   return Math.abs(TU[1]) > 0.5 && Math.abs(TU[0]) > 0.1 ? "diag" : Math.abs(TU[1]) > 0.5 ? (TU[1] < 0 ? "foot" : "head") : "ball";
@@ -864,6 +874,11 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
     trace.push({ sig: sig, minw: minw }); return;
   }
   var ends = [[0, modeA, -1], [n - 1, modeB, 1]];
+  // cutEnds cuts each end of the edges Lp and Rp and returns whether any end is cut differently from 0.9.0 (a slanted corner cut, a
+  // level cut on a leaning serif end). `legacy` cuts as 0.9.0 did: glyph() reads the spacing profile from that body (`prof`), so no
+  // advance or kern moves where the ink changed (references/generator.md, section 8).
+  function cutEnds(ends, Lp, Rp, legacy) {
+  var differs = false;
   ends.forEach(function (e) {
     var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg], TU = pu === pts ? T : [tang(k)[0] * sg, tang(k)[1] * sg];
     if (mode === "tee") { teeCut(Lp, Rp, k, sg, T, pts, Ws, tees[sg < 0 ? 0 : 1], ch); return; }
@@ -877,26 +892,35 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
     var pdU = pd ? ju[side] : null;
     var vert = Math.abs(TU[1]) > 0.5;
     if (pd && vert !== (Math.abs(pdU[1]) > 0.5)) {
-      // a corner (E, F, L, Z, the spur of G): square it off by running this stroke out
-      // to the far edge of its partner, cut level or plumb
+      // a corner (E, F, L, Z, the spur of G): square it off by running this stroke out to the far edge of its partner. The steep
+      // stroke is cut level; the shallow one is cut along its partner's drawn direction (exact for a straight partner, the tangent
+      // at the end for a curved one). With a plumb partner pd[0] is exactly 0 and the 0.9.0 plumb cut runs.
       var pth = Math.atan2(pd[1], pd[0]);
       var pw = P.W * penWidth(pth, P, 0);
       var reach = pw / 2 / Math.max(0.3, vert ? Math.abs(pd[0]) : Math.abs(pd[1]));
-      var Dc = vert ? [1, 0] : [0, 1], at = [pts[k][0] + T[0] * reach / Math.abs(vert ? T[1] : T[0]), pts[k][1] + T[1] * reach / Math.abs(vert ? T[1] : T[0])];
+      var slant = !vert && pd[0] !== 0;
+      if (slant) differs = true;
+      var Dc = vert ? [1, 0] : slant && !legacy ? [pd[0], pd[1]] : [0, 1], at = [pts[k][0] + T[0] * reach / Math.abs(vert ? T[1] : T[0]), pts[k][1] + T[1] * reach / Math.abs(vert ? T[1] : T[0])];
       Lp[k] = cutSide(Lp[k], T, at, Dc, Ws[k] + reach * 3); Rp[k] = cutSide(Rp[k], T, at, Dc, Ws[k] + reach * 3);
       clipPast(Lp, k, sg, T, Dc); clipPast(Rp, k, sg, T, Dc);
       e[1] = "corner"; return;
     }
     if (pd && vert) e[1] = "joint";
-    if ((mode === "serif" && Math.abs(TU[0]) > 0.1 || e[1] === "joint") && Math.abs(TU[1]) > 0.5) {
+    var leanS = mode === "serif" && e[1] !== "joint" && Math.abs(TU[0]) <= 0.1 && Math.abs(TU[1]) > 0.5 && T[0] !== 0;
+    if (leanS) differs = true;
+    if ((mode === "serif" && Math.abs(TU[0]) > 0.1 || e[1] === "joint" || leanS && !legacy) && Math.abs(TU[1]) > 0.5) {
       Lp[k] = cutSide(Lp[k], T, pts[k], [1, 0], Ws[k]); Rp[k] = cutSide(Rp[k], T, pts[k], [1, 0], Ws[k]);
       clipPast(Lp, k, sg, T, [1, 0]); clipPast(Rp, k, sg, T, [1, 0]);
     }
   });
+  return differs;
+  }
+  var L0 = Lp.slice(), R0 = Rp.slice(), legacyBody = null;
+  if (cutEnds(ends, Lp, Rp, false)) { cutEnds([[0, modeA, -1], [n - 1, modeB, 1]], L0, R0, true); legacyBody = L0.concat(R0.slice().reverse()); }
   // headSink: a lowercase head serif's top edge slopes down to the left while the stem under it ends flat, so the stem's top-left
   // corner showed above the wedge. The run of points at that end of each edge that lies above `line` is pinned down to it, inside the
   // wedge. Only the end's own run is walked, so a stroke that rises above the line elsewhere keeps its shape, and the count of points
-  // is unchanged, so masters stay compatible. `unsunk` is the body as it was: glyph() measures the spacing profile on it, because the
+  // is unchanged, so masters stay compatible. The pin moves along the stroke's own edge (x shifts by the lean times the drop). `unsunk` is the body as it was (as 0.9.0 cut it, `legacyBody`, when an end is cut differently now): glyph() measures the spacing profile on it, because the
   // profile reads polygon points and the wedge has none along its long right edge, so the sunk body would read as a notch and move
   // advances and kerns although no ink moved on either side.
   var unsunk = null;
@@ -905,12 +929,13 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
       var k = e[0], sg = e[2], TU = pu === pts ? [Ts[k][0] * sg, Ts[k][1] * sg] : [tang(k)[0] * sg, tang(k)[1] * sg];
       if (e[1] !== "serif" || serifKind(TU) !== "head") return;
       var SW = (P.W0 || P.W) * (P.serifGrow ? Math.pow(P.W / (P.W0 || P.W), P.serifGrow) : 1), line = pts[k][1] - P.headSink * SW * P.serifH;
-      if (!unsunk) unsunk = Lp.concat(Rp.slice().reverse());
-      [Lp, Rp].forEach(function (E) { for (var j = k; j >= 0 && j < n && E[j][1] > line; j -= sg) E[j] = [E[j][0], line]; });
+      if (!unsunk) unsunk = legacyBody || Lp.concat(Rp.slice().reverse());
+      var leanK = Ts[k][0] / Ts[k][1];
+      [Lp, Rp].forEach(function (E) { for (var j = k; j >= 0 && j < n && E[j][1] > line; j -= sg) E[j] = [E[j][0] + (line - E[j][1]) * leanK, line]; });
     });
   }
   var poly = Lp.concat(Rp.slice().reverse()), body = { pts: poly, runs: [[0, n - 1], [n, 2 * n - 1]] };
-  if (unsunk) body.prof = unsunk;
+  if (unsunk || legacyBody) body.prof = unsunk || legacyBody;
   out.push(body);
   sig += " ends=" + ends[0][1] + "/" + ends[1][1];
   // recorded only when crotch is set, so a 0.1 project's masters, which may fall on either side of the acute test, are not newly refused
@@ -957,7 +982,11 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
       var kind = serifKind(TU);
       sig += " serif" + (sg < 0 ? "A" : "B") + "=" + kind;
       if (kind === "diag") out.push({ pts: diagSerifPoly(p, T, Lp[k], Rp[k], P) });
-      else if (kind !== "ball") out.push({ pts: serifPoly(p, T, w, P, UPPERISH.test(ch)) });
+      else if (kind !== "ball") {
+        var sp = { pts: serifPoly(p, T, w, P, UPPERISH.test(ch)) };
+        if (T[0] !== 0) sp.prof = serifPoly(p, [0, T[1] < 0 ? -1 : 1], w, P, UPPERISH.test(ch));
+        out.push(sp);
+      }
       else out.push({ pts: circle(p[0], p[1], w / 2, w / 2) });
     }
   });

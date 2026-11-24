@@ -100,6 +100,16 @@ each capped by its `ends[""]` terminal, `disk` in every shipped sans concept).
 The glyphs whose records carry a joint end are `1 4 5 v w A M N V W`, the circumflex and caron marks
 and `™`; `y` and `k` have none (their strokes cross or start mid-stroke).
 
+At a **corner** (two ends within 2 units, one steep and one shallow) the steep stroke runs out to the partner's far
+edge and is cut level. Since 0.10.0 the shallow stroke runs out to the partner's far edge and is cut **along the
+partner's drawn end direction**, where 0.9.0 cut it plumb whatever the partner did. The cut is exact for a straight
+partner. For a curved partner (the `2`, where the bar meets the bowl's end; the `e`, where the bar meets the bowl's
+start) it follows the partner's tangent at its end, and the partner's edge curves away from it: the `2` falls from
+12.5 to 51.2 units of tooth to 1.6 or less on every example concept, while the `e` of the unshipped round-1 concept
+`blind` rises from 4.9 to 6.2 at mult 1.5 and from 5.5 to 7.7 at 1.65. With a plumb partner the direction is exactly
+`[0, 1]` and the 0.9.0 cut runs, so a plumb corner (`E F L [ ] fl`) is the same bytes. The 1.6 units that remain on a
+swelled stroke are the swell (`references/traps.md` row 36).
+
 ## 3. The pen model
 
 For a sample point whose tangent direction is θ:
@@ -247,7 +257,7 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 
 | Mode | Width along the stroke | Terminal polygon | Notes |
 |---|---|---|---|
-| `serif` | none | `serifPoly` (foot, symmetric head for `UPPERISH` glyphs, or the lowercase one-sided wedge, whose stem end `headSink` can sink) or `diagSerifPoly` for a slanted stem; a round stroke end gets a ball | the branch record names the kind (`serifA=foot|head|diag|ball`) |
+| `serif` | none | `serifPoly` (foot, symmetric head for `UPPERISH` glyphs, or the lowercase one-sided wedge, whose stem end `headSink` can sink) or `diagSerifPoly` for a slanted stem; a round stroke end gets a ball. Since 0.10.0 the brackets of `serifPoly` end on the stroke's own edge (the straight line through the end's corner along the end's direction, so a stem that leans by 0.1 or less keeps its bracket on its edge), and a leaning head or foot end is cut level, as a `diag` end is | the branch record names the kind (`serifA=foot|head|diag|ball`) |
 | `flare` with `tear: false` | `1 + flareAmt·u²` over `flareLen` | a ball of radius `w/2 × (1 − 0.4·(W/W0 − 1))`, so the Bold's balls grow more slowly than its stems; with `pebble`, an ellipse | the only mode where `flareAmt` matters |
 | `flare` with `tear: true` | the teardrop (section 3) | a half-round cap across the end's own edges, bulging `0.5·r` along the stroke | side `L`/`R`/`S` from the curvature of the last quarter of the stroke; `|cross| < 0.03` is `S` |
 | `flareS` | as `flare`, with `dropK = 0.5` | as `flare` | **one `dropK` per stroke**: if either end is `flareS`, both ends' drops halve |
@@ -258,7 +268,7 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 | `taper` | `1 − 0.62·(1 − d/taperLen)^1.3` | a 4-point tip cut at angle `cut` | Cone, Thorn |
 | `curl` | `1 − 0.45·(1 − d/curlLen)` over the curl | 30 extra centre-line points continuing the stroke's turn as a spiral (radius `0.55·W + 22`, sweep 1.3π, shrinking 42 %), then a disc of `0.36·W`; needs ≥ 12 samples and curvature `|cross| ≥ 0.06`, else falls back to `disk` | the fallback is recorded (`A=disk`), so masters that disagree are refused |
 | `joint` (an outcome, not a mapping) | none | none | what an end becomes when its partner's end meets it and both strokes are steep (`|T[1]| > 0.5`): cut level or plumb, no terminal. Every serif concept and every concept with `joints: true` has it; the record shows `ends=…/joint` |
-| `corner` (an outcome) | none | none | the same pass where a steep stroke meets a shallow one (E, F, L, Z, the spur of G): the steep stroke runs out to the partner's far edge, cut plumb or level |
+| `corner` (an outcome) | none | none | the same pass where a steep stroke meets a shallow one (E, F, L, Z, the spur of G): the steep stroke runs out to the partner's far edge, cut level; the shallow stroke runs out to it too and is cut along the partner's drawn direction since 0.10.0 (plumb before) |
 | `tee` (the outcome of `i`) | the join taper when the stroke is curved | none | the end is cut parallel to the stroke it runs into, through the end point on that stroke's centre line, so the cut is buried by the partner's half-thickness on both sides whatever the pen or the swell; the leg of `R`. Decided on drawn geometry per master (`cutSide` reads drawn tangents): under 14.5° to the partner, past the clamp, or with the cut crossing the partner's drawn edge or its midpoint outside the partner, the draw throws. The record reads `A=tee`, `ends=tee/…` and carries `tee=<stroke>@<segment><side>` (section 12) |
 | `butt`, or any unmapped letter | none | none | a square end |
 
@@ -322,6 +332,20 @@ Curves whose control points straddle 500 (the `n`'s arch, the `a`'s top) are the
 mapped control points, not the image of the curve. `t`'s and `f`'s crossbars (490) scale with the
 body.
 
+**A control or an end drawn nearer a round extreme than the fit's travel folds the centre line back.** The fit lifts a round
+extreme and its control by `hwRound - overshoot` (14.3 units at the Driftwood Regular, 21.5 at the Medium, 30 at the Bold) and
+leaves a neighbouring control or end where it is. When that neighbour is nearer the extreme than the travel, the centre line
+runs flat or turns back after the lift, and the stroke's edges kink or fold there. Two skeletons did this until 0.10.0. The
+roman `G`'s bowl ran from the extreme `(370, -10)` through a control `(560, 20)` 30 units above it: at the Medium the centre
+line fell 0.01 units after its lowest point, 0.83 at the Driftwood Bold, 0.51 at the neutral Bold. The italic `r`'s arm
+ended at `(380, 480)` with a control at `(360, 500)`, 10 to 30 units under the extreme the fit lowered by 24.3, 31.5 and 40
+units, so the centre line humped over the control and turned 70 degrees in its last 50 units. 0.10.0 draws the `G`'s bowl through the controls
+`(500, -10)` and `(610, 60)`, the second 70 units above the extreme, and runs it into the stem plumb, and ends the `r`'s arm at `(382, 450)`,
+30 units lower with the same end direction. **The rule for a new skeleton, or a per-face override
+(`references/generator.md`, "Per-face skeletons"):** keep every control and every end at least `hwRound - overshoot` of the
+heaviest master's width (30 units at Bold on the examples) away from a round extreme the fit moves, measured along y, or
+check the three-sample turn of the drawn edges on every master (`tests/joint_probe.js edges`).
+
 The **dot rule** reads the dot's UNMAPPED position (review finding F006): a dot below 100 is a
 baseline dot (`r − 4`); a dot between 380 and 460 is an x-height dot (`xh − r + 4`; the colon's upper
 dot, drawn at 420); any other dot of a mapped glyph is carried by the map (the `i` and `j` dots at
@@ -354,6 +378,17 @@ automatic kerns equal the concept's without the key (checked in `tests/test_head
 and on a built face; in the font suite on a synthetic concept. The sweep over every shipped serif concept checks the outline only). That is the exact
 guarantee. It is not a claim that the profile follows the sunk outline: the profile reads polygon points and the wedge has none along its long right edge, so
 the sunk body would read as a notch there although no ink moved.
+
+**Spacing is read from `prof`, the polygon as 0.9.0 cut it (0.10.0).** `glyph()` measures a polygon's profile from its `prof` when it has
+one, else from its points. Since 0.10.0 three constructions carry a `prof`: the head sink (the body before the sink, as in 0.9.0, or
+the body as 0.9.0 cut its ends when one is cut differently now), a stroke body with a corner cut along a slanted partner or a
+leaning serif end cut level (the body cut as 0.9.0 cut it), and a head or foot bracket on a leaning end (the same bracket
+drawn on a plumb stem, `serifPoly(p, [0, +-1], ...)`). Without it the italic group's band (the 20-unit bins between the
+baseline and the x-height or cap line) would read a moved corner as a different edge: measured without `prof`, the italic `Z`
+lost 47 units of advance at mult 1.3 and the italic `z` 57 at mult 1.5. **The exact guarantee:** for every glyph except `G`
+and the italic `r`, whose skeletons were redrawn, the advance and the two 54-bin profiles are the values 0.9.0 computes. **The kern guarantee, exactly.** Of the kern pairs a font ships, the ones 0.10.0 changes are, in a roman group, pairs with `G` on the left and, in an italic group, pairs that contain `G` or `r`. Before rounding, a roman pair with `G` on the right and another glyph on the left also moves: it reads the `G`'s left profile, and the redrawn bowl's sample points shift that profile. On the three examples 639 such pairs move (Bract 207, Driftwood 147, neutral 285), by 0.0364 units at most, and `tests/test_joint_spacing.py` holds each of them under 0.05 units. `export.js` rounds an automatic kern to a whole unit (`Math.round`) and `build.py` writes that whole number, so a move this small changes a shipped value only where it crosses a rounding boundary, and then by 1 unit. On the three examples it changes none: the one pair that crosses, the Driftwood roman Bold's `ú` before `G` (-21.5065 to -21.4970, which round to -22 and -21), is outside Driftwood's `kerning.set`, so it is never written to the font. Every other automatic kern is the value 0.9.0 computes, to 1e-9 units. This is measured on the three examples and is not a claim about another face: `update-check.py` reports the kern values that change before a site adopts 0.10.0. It is not a claim that the profile follows the
+ink: at those ends the ink differs from the profile by the corner triangle or the bracket sliver that moved, up to 24.3 units (the
+roman `Z`'s tooth).
 
 **Automatic kerning** (`kern(a, b)`): the pair's mean gap over the shared band is compared with
 the reference pair's (`H|H` for two uppers, else `n|n`), over the same band: 700 when either glyph is `UPPERISH`, else `xh`; when it exceeds the reference by more
@@ -391,9 +426,14 @@ glyph the generator lacks. Bract emitted 4,100 pairs; the Example template 4,186
   a d h i l m n r u, v w y k e, the ligatures) and the capitals with diagonals or a free foot
   (A T W M R K V U N Y J). Everything else is the roman skeleton slanted.
 - `xf()` multiplies x by 0.95 (a narrower set) and adds `P.italic × y` (the shear).
-- Serif length is ×0.6 in `diagSerifPoly` and for symmetric heads in `serifPoly`. **Every italic
-  stem is slanted, so every italic stem serif comes through `diagSerifPoly`**; Driftwood once
-  shortened serifs in `serifPoly` only and saw no change.
+- Serif length is ×0.6 in `diagSerifPoly` and for symmetric heads in `serifPoly`. An italic stem serif comes
+  through `diagSerifPoly` when the stroke's reference lean `|T[0]|` is over 0.1 (`serifKind` gives `diag`). **A stroke that leans
+  by 0.1 or less takes `serifPoly`** (kind `head` or `foot`), and since 0.10.0 its brackets follow its edge. Measured over
+  every key of `G` and `GI` and every serif concept of the three examples, roman and italic at 10 degrees: the italic `w`
+  (first stroke, start; lean 0.085 to 0.126, so 8 of the 12 serif example concepts: the `w` of `blind`, `cone` and the
+  neutral `text` and `display` is `diag`), the italic `W` (0.034 to 0.115, all 12) and the roman `M` (0.025 to 0.034, all 12).
+  Nothing else. An italic slanted by less than 5.7 degrees would put every stem in this list. Driftwood once shortened serifs in
+  `serifPoly` only and saw no change on a `diag` stem.
 - Sidebearings are measured over the band between the baseline and the x-height or cap height
   only (`cMin`/`cMax`), so `f` hooks and tails overhang their neighbours instead of being spaced.
   `J`'s descender hook may hang only 90 units into the previous letter's space. The apostrophe is
