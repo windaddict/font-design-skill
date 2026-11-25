@@ -4,6 +4,22 @@ All notable changes to this skill. The format follows Keep a Changelog; the vers
 file, repeated in `SKILL.md` and the README badge and checked by the tests. Each entry states whether font
 output changes (a line starting `Font output:`), and `## Releases` at the end lists the tags.
 
+## [0.11.0] — 2026-11-25
+
+Font output: changes: a glyph with a cut end whose corner the cut moves may be redrawn, and its advance and kerns may move with it; a corner that moved past no sample changes nothing, and a pinned sample changes spacing only where the profile read it (the measured moves are under Changed). No concept that the three examples build has a cut end, so every example rebuilds to the recorded digests (tests/test_backward_compat.py).
+
+### Fixed
+- **A `cut` end no longer draws a spike at its corner.** `gen.js` moved the last point of each edge onto the cut line and left the samples before it where they were, so on the edge whose corner moves back those samples stood past the cut and the outline ran out to the old end and returned. Measured over 11,616 edges of `cut` ends (the Cane concept plus the six shipped concepts that map an end to `cut`, roman and italic, mult 1, 1.3, 1.5, 1.65), 4,748 edges had a spike over 0.05 units, the worst 126.26 (`grot` `t` at mult 1.65). `export.js` counts a spike as a folded edge and `build.py` refuses a master with one, so a face with `cut` stem ends could not be built: a copy of `examples/neutral` with `s: "cut"` exported with 101 folded edges in a roman master and `build.py` exited 1. The samples a cut corner moved past are now pinned to it, bounded by how far the corner moved.
+
+### Changed
+- **Spacing follows the clipped outline.** No `prof` is kept for a `cut` end, so advances and kerns of a concept with `cut` ends move. No font this repository builds has a `cut` end. Measured against 0.10.0 (`scripts/gen.js` at d9974f3) on this tree, mult 1, 1.3, 1.5, 1.65, every key of G, advances that differ by more than 1e-6 units: the Cane concept moves 210 of 524 roman draws (largest -11.73, `I` at mult 1.65) and 158 of 524 italic draws (largest -8.89, `y` at mult 1.5); `windswept` roman moves 123 of 524 (largest -3.16, `v` at mult 1.65); `field` and `brush` roman move 56 of 524 each (largest -3.43, `5` at mult 1.3); `grot` and `geometric` roman move at most 2.45 units (`grot` `'` at mult 1.3). Three italic moves are large. The italic `T` of `field` and `brush` narrows by 56.3 units at mult 1, 70.22 at 1.3, 83.75 at 1.5 and 91.47 at 1.65 (from 500.22 to 443.92 at mult 1, from 581.71 to 490.23 at 1.65). The italic apostrophe of `field` and `brush` narrows by 63.15 units at mult 1 (81.39 to 18.24). The italic apostrophe of `geometric` widens by 145.85 to 210.63 units across the four multipliers (55.12 to 200.97 at mult 1, 65.68 to 276.31 at 1.65). No other draw of those concepts moves by more than 50 units.
+- **The genre verdicts for `grot` and `geometric` were re-read** after the redraw (`docs/reviews/genres-2026-11-25.md`).
+
+### Looked at and not changed
+- **The unbounded clip.** One call without the corner bound pins every sample past the infinite cut line for up to 80 steps; on a curved terminal the body of the stroke lies past that line, so it replaces up to 80 samples of the inner edge by one chord. It moves 1,176 edges beyond the cut's reach, 106 of them on ends the cut did not move.
+- **The step where a curved terminal meets its cut corner.** The corner moves along the end tangent, so it stands off a curved edge and a step remains. It is small on `grot` and `geometric` at mult 1 and large on `r` and `f` at mult 1.5 and above, where 0.10.0 drew the same step under its spike. Issue #27.
+- **The 80-step limit of `clipPast`.** The longest run pinned on any measured edge is 65 samples.
+
 ## [0.10.0] — 2026-11-22
 
 Font output: changes: glyphs redrawn on every face, and the advances and kerns of two of them. Roman groups redraw `2 4 5 7 G M Z e z è é ê ë`; an italic group redraws `2 4 5 7 E F G L W Z [ ] fl r z È É Ê Ë`, and the Driftwood italic also `w`. The advance of `G` moves (roman) and the advances of `G` and `r` move (italic), by 1 to 3 units; 66 to 80 shipped kern pairs per roman master (every one with `G` on the left) and 159 to 191 per italic master (every one containing `G` or `r`) change. No other advance moves, no other shipped kern changes on the three examples, and `space` and `minStrokeWidth` are equal. Before rounding, a roman pair with `G` on the right also moves, by 0.0364 units at most: the exact statement is "The kern guarantee, exactly" under Changed. The `e` of the unshipped round-1 concept `blind` gets worse at mult 1.5 and above, by 1.3 units at 1.5 (4.9 to 6.2) and 2.2 at 1.65 (5.5 to 7.7). `tests/test_serif_joints.py::test_only_the_named_glyphs_changed_since_0_9_0` holds the list of changed glyphs. Every example still builds with every self-check passing.
@@ -1030,6 +1046,8 @@ font output for the same face folder, not identical repository files: later comm
 | v0.7.1 | b09faa9 | merge of PR #15; the later commits 47ce908 and 852fd96 (CI, CLAUDE.md) changed none of the three font sources |
 | v0.8.0 | the merge commit of the release branch | tagged after the merge |
 | v0.9.0 | the merge commit of the release branch | tagged after the merge |
+| v0.10.0 | 1b3c2c7 | merge of PR #25 |
+| v0.11.0 | the merge commit of the release branch | tagged after the merge |
 
 **0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and
 its `gen.js` and `export.js` differ from the tag's; it reached `main` only inside 0.7.0 (aa4b9ae), so it has no tag. A face built by it

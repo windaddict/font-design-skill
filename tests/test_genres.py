@@ -425,7 +425,7 @@ def test_smoke_step_8b_asserts_that_every_recipe_drew(tmp_path, fault):
 
 # --- the review record (review finding T8) ---------------------------------------------------------------------------
 
-RECORD = REPO / "docs" / "reviews" / "genres-2026-11-22.md"
+RECORD = REPO / "docs" / "reviews" / "genres-2026-11-25.md"
 DIGEST = r"""
 const crypto = require("crypto"); const m = require(process.argv[1]); const list = m.loadConcepts(process.argv[2]);
 const r2 = v => Math.round(v * 100) / 100, out = {};
@@ -463,7 +463,7 @@ def read_record():
 
 
 def test_the_review_record_holds_the_verdicts_the_table_states():
-    """docs/reviews/genres-2026-11-22.md is what the dated verdicts in genres.md rest on: its verdict table (id,
+    """docs/reviews/genres-2026-11-25.md is what the dated verdicts in genres.md rest on: its verdict table (id,
     verdict, date) must equal the table in genres.md for every recipe. Mutation: change one verdict in the record
     or in genres.md."""
     _, verdicts = read_record()
@@ -475,7 +475,7 @@ def test_the_review_record_holds_the_verdicts_the_table_states():
 
 
 def test_a_verdict_is_stale_when_the_recipe_outlines_change():
-    """The recorded verdicts describe what the generator drew on 2026-11-22: a sha256 over every glyph's outline
+    """The recorded verdicts describe what the generator drew on 2026-11-25: a sha256 over every glyph's outline
     (roman, mult 1, 1.25 and 1.5, coordinates rounded to 0.01) per recipe, recorded in the review record BY NODE MAJOR
     (V8 arithmetic can differ between majors; CI runs 20 and 22). On a recorded major whose digest differs, the
     verdict is stale. On a major with no record the test fails with the instructions to record it, which is not a
@@ -486,7 +486,7 @@ def test_a_verdict_is_stale_when_the_recipe_outlines_change():
     by_major = recorded["by_node_major"]
     assert now["node"] in by_major, (f"no digests are recorded for node {now['node']} (recorded: {sorted(by_major, key=int)}). This is not a stale verdict: "
                                      "confirm the digests of a recorded major still match, then run current_digests() under this node "
-                                     "and add the result under by_node_major in docs/reviews/genres-2026-11-22.md")
+                                     "and add the result under by_node_major in docs/reviews/genres-2026-11-25.md")
     rec = by_major[now["node"]]
     assert sorted(rec) == sorted(now["digests"]), "the record and the recipe file name different recipes"
     for i, d in now["digests"].items():
