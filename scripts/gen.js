@@ -43,6 +43,9 @@
  *      most 0.0364 units on the three examples; tests/test_joint_spacing.py bounds it at 0.05). The corner reach pw/2/|pd[1]| (or
  *      pw/2/|pd[0]| on the steep side) is exact only where the bar is level or the partner plumb, true of every shipped skeleton
  *      and held by CORNER-SKEW in tests/test_serif_joints.py; a skeleton that breaks it needs the reach from |T x pd|.
+ *  11. Cut ends (0.11.0). A `cut` end pins the edge samples its corner moved past, bounded by how far the corner moved; before, they
+ *      stood beyond the cut as a spike, and export.js counted each as a folded edge, so a face with cut stem ends did not build.
+ *      Spacing follows the clipped outline.
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
@@ -668,10 +671,21 @@ function serifKind(TU) {
   return Math.abs(TU[1]) > 0.5 && Math.abs(TU[0]) > 0.1 ? "diag" : Math.abs(TU[1]) > 0.5 ? (TU[1] < 0 ? "foot" : "head") : "ball";
 }
 
-function clipPast(arr, k, sg, T, Dv) {
-  var C = arr[k], ref = Dv[0] * T[1] - Dv[1] * T[0], pinned = 0;
+/* clipPast: after an end's corner arr[k] was moved onto a cut line, pins to that corner the edge samples before it that lie past
+   the line (the line through the corner along Dv, on the side the outward tangent T points to). WHAT IT'S FOR: the corner moves
+   back along the edge, and the samples it passed would otherwise stay beyond the cut, so the outline would run out to the old end
+   and return as a spike. The count of points is unchanged, so masters stay compatible. The walk skips a sample that is not past
+   the line during its first seven steps, stops at the first such sample after them, and takes 80 steps at most.
+   X0, when given, is the corner before the cut moved it (a `cut` end): the walk also stops at the first sample farther from X0,
+   measured along the edge, than the corner moved. A `cut` moves its corner by the stroke width at most (cutSide's clamp), and on
+   a curved terminal the body of the stroke lies past the infinite cut line, so an unbounded walk replaced up to 80 samples of the
+   inner edge by one chord (r, f, t, 9 of a sans concept at mult 1.5). An end the cut did not move has a reach of 0 and keeps
+   every point. Returns how many samples it pinned. */
+function clipPast(arr, k, sg, T, Dv, X0) {
+  var C = arr[k], ref = Dv[0] * T[1] - Dv[1] * T[0], pinned = 0, reach = X0 ? dist(X0, C) + 1e-6 : Infinity, along = 0, prev = X0;
   for (var j = k - sg, steps = 0; j >= 0 && j < arr.length && steps < 80; j -= sg, steps++) {
     var q = arr[j], side = Dv[0] * (q[1] - C[1]) - Dv[1] * (q[0] - C[0]);
+    if (X0) { along += dist(prev, q); prev = q; if (along > reach) break; }
     if (side * ref > 1e-6) { arr[j] = [C[0], C[1]]; pinned++; } else if (steps > 6) break;
   }
   return pinned;
@@ -875,7 +889,7 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
   }
   var ends = [[0, modeA, -1], [n - 1, modeB, 1]];
   // cutEnds cuts each end of the edges Lp and Rp and returns whether any end is cut differently from 0.9.0 (a slanted corner cut, a
-  // level cut on a leaning serif end). `legacy` cuts as 0.9.0 did: glyph() reads the spacing profile from that body (`prof`), so no
+  // level cut on a leaning serif end). `legacy` cuts as 0.9.0 did (a `cut` end is clipped in both passes): glyph() reads the spacing profile from that body (`prof`), so no
   // advance or kern moves where the ink changed (references/generator.md, section 8).
   function cutEnds(ends, Lp, Rp, legacy) {
   var differs = false;
@@ -883,8 +897,11 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
     var k = e[0], mode = e[1], sg = e[2], T = [Ts[k][0] * sg, Ts[k][1] * sg], TU = pu === pts ? T : [tang(k)[0] * sg, tang(k)[1] * sg];
     if (mode === "tee") { teeCut(Lp, Rp, k, sg, T, pts, Ws, tees[sg < 0 ? 0 : 1], ch); return; }
     if (mode === "cut") {
-      var Dv = [Math.cos(P.cut), Math.sin(P.cut)];
+      var Dv = [Math.cos(P.cut), Math.sin(P.cut)], Lu = Lp[k], Ru = Rp[k];
       Lp[k] = cutSide(Lp[k], T, pts[k], Dv, Ws[k]); Rp[k] = cutSide(Rp[k], T, pts[k], Dv, Ws[k]);
+      // the samples each corner moved past are pinned to it (0.11.0): they stood beyond the cut and drew a spike. The same in the
+      // `legacy` pass, so the spacing profile of a cut end follows the outline (references/generator.md, section 8)
+      clipPast(Lp, k, sg, T, Dv, Lu); clipPast(Rp, k, sg, T, Dv, Ru);
     }
     // a serifed diagonal ends level with the baseline or cap line, not square to the stroke
     // only the serifed concept gets level joints; the others keep their own round or cut ends

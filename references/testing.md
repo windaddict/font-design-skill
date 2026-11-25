@@ -49,6 +49,8 @@ Contents
 8. The repository's own guards for the added tools, and the survivors they showed
 9. The face-folder guards (0.8.0)
 10. The headSink guards (0.9.0)
+11. The joint guards (0.10.0)
+12. The cut-end guards (0.11.0)
 
 ## 1. Why a green test proves nothing until it has failed
 
@@ -874,3 +876,51 @@ lists it as a pin with no mutation of its own, and this run does not add a reaso
 115 passed in 30.30 s. Layer 4, `bash scripts/smoke.sh` (steps 1 to 7, no `--full`): exit status 0, "smoke: every step from 1 passed.", step 5 "126 mutations,
 126 RED, 0 skipped, 0 problem(s)", step 7 "741 passed, 7 skipped in 1650.60s"; about 2524 s from start to the end of the log (the repository's
 `CLAUDE.md` records no figure for either layer). After the review fixes (2026-11-22): layer 3, the same command, 116 passed in 33.31 s. Layer 4: exit status 0, "smoke: every step from 1 passed.", step 5 "126 mutations, 126 RED, 0 skipped, 0 problem(s)", step 7 "746 passed, 7 skipped in 1772.83s (0:29:32)".
+
+## 12. The cut-end guards (0.11.0)
+
+The 0.11.0 change (`docs/plan-cut-end-spikes.md`) pins the edge samples a `cut` end's corner moved past. Its guards read what `scripts/gen.js` drew, through
+`tests/cut_end_probe.js`, never its source. `FONT_DESIGN_CUT_SCRIPTS` names a copy of the whole `scripts/` folder, with a copy of `VERSION` beside it,
+outside the repository, for the watches below; unset, the real folder. Each marker is the first assertion about the new behaviour and appears in no other
+assertion of its test. With its colon, `CUT-SPIKE:` is not a substring of `CUT-SPIKE-SHIPPED:`.
+
+| Repo test | First assertion it fails on, 0.10.0 |
+|---|---|
+| `test_cut_ends.py::test_no_cut_end_keeps_a_sample_past_its_cut_line_on_the_cane_concept` | `CUT-SPIKE:` |
+| `test_cut_ends.py::test_no_cut_end_keeps_a_sample_past_its_cut_line_in_any_shipped_concept` | `CUT-SPIKE-SHIPPED:` |
+| `test_cut_ends.py::test_a_face_with_cut_stem_ends_exports_without_a_folded_edge` | `CUT-EXPORT-FOLD:` |
+| `test_cut_ends.py::test_a_face_with_cut_stem_ends_builds` | `CUT-FACE-BUILD:` |
+| `test_cut_reach.py::test_a_cut_moves_no_sample_beyond_its_own_reach` | passes on 0.10.0; proof by mutation (W2, below) |
+| `test_cut_reach.py::test_only_glyphs_with_a_moved_cut_end_changed_since_0_10_0` | passes on 0.10.0; proof by mutation (W2, below) |
+| `test_cut_reach.py::test_a_moved_cut_end_moves_the_spacing_with_its_outline` | passes on 0.10.0's spacing rule; proof by mutation (W6, below) |
+
+**The watches** (2026-11-25, this machine, node 26.13.1). Each edit is one exact text replacement that matched once, applied to a copy of `scripts/` in the session
+scratch folder with a copy of `VERSION` beside it. `tests/test_cut_ends.py` and `tests/test_cut_reach.py` ran with `FONT_DESIGN_CUT_SCRIPTS` on the copy
+(`.venv/bin/python3 -m pytest -p no:cacheprovider tests/test_cut_ends.py tests/test_cut_reach.py -q`). The control, with no edit, passed: 6 passed in 14.41 s.
+`shasum -a 256` of the real `scripts/gen.js` printed `27ec39dd...e4c0` before the watches and after them. Every watch was RED on the tests the plan named,
+and no watch stayed green.
+
+| Watch | Edit (`scripts/gen.js`) | Red on |
+|---|---|---|
+| W1, the fix removed | delete the line `clipPast(Lp, k, sg, T, Dv, Lu); clipPast(Rp, k, sg, T, Dv, Ru);` | all four of `test_cut_ends.py`: `CUT-SPIKE:` 931 of 1912 edges (worst 95.68), `CUT-SPIKE-SHIPPED:` 3817 of 9704 (worst 126.26), `CUT-EXPORT-FOLD:` 101, 102, 101, 102 and two italic masters, `CUT-FACE-BUILD:` exit 1. `test_cut_reach.py` stayed green, 4 failed and 2 passed in 6.65 s |
+| W2, the unbounded line (the mutation proof of `test_cut_reach.py`) | that line to `clipPast(Lp, k, sg, T, Dv); clipPast(Rp, k, sg, T, Dv);` | `CUT-REACH:` 1176 of 11616 edges, 106 of them on an end the cut did not move (worst `beyondMax` 238.43); `CUT-SCOPE:` 25 of 18078 glyph draws. The four spike tests stayed green, 2 failed and 4 passed in 14.20 s |
+| W3, one edge only | that line to `clipPast(Lp, k, sg, T, Dv, Lu);` | `CUT-SPIKE:` 552 of 1912, `CUT-SPIKE-SHIPPED:` 1909 of 9704, `CUT-EXPORT-FOLD:` (74 folded edges in a roman master) and `CUT-FACE-BUILD:`; 4 failed |
+| W4, the weakest clip, one step | `if (along > reach) break;` to `if (along > reach \|\| steps > 0) break;` | `CUT-SPIKE:` 909 of 1912, `CUT-SPIKE-SHIPPED:` 3711 of 9704, `CUT-EXPORT-FOLD:` (61 to 69 folded edges in a roman master) and `CUT-FACE-BUILD:`; 4 failed |
+| W5, reach as a straight line | `along += dist(prev, q); prev = q;` to `along = dist(X0, q);` | `CUT-REACH:` 750 of 11616 edges, none on an end the cut did not move (worst `beyondMax` 126.24); 1 failed and 5 passed in 14.28 s |
+| W6, the spacing profile read from the spiked body (the mutation proof of the spacing test) | two edits: `clipPast(Lp, k, sg, T, Dv, Lu); clipPast(Rp, k, sg, T, Dv, Ru);` to `if (!legacy) { clipPast(Lp, k, sg, T, Dv, Lu); clipPast(Rp, k, sg, T, Dv, Ru); }`, and `if (cutEnds(ends, Lp, Rp, false)) {` to `if (cutEnds(ends, Lp, Rp, false) \|\| modeA === "cut" \|\| modeB === "cut") {` (each matched once) | `CUT-SPACING:` only 0 of 262 Cane glyph draws with a moved cut end have an advance different from d9974f3's. The other six tests stayed green, including all of `test_cut_ends.py` and the two earlier `test_cut_reach.py` tests, so 1 failed and 6 passed in 15.10 s. Real `scripts/gen.js` `shasum -a 256` was `27ec39dd...e4c0` before and after |
+
+W2 is the mutation proof the plan names for `tests/test_cut_reach.py`, run on a copy of the fixed `scripts/` with the fix's last line replaced by the unbounded
+call, not by inserting the unbounded line into the tree before the fix. The two give the same drawing. The count of `CUT-SCOPE` (25 draws) is over all
+five concept files and the Cane concept; the plan's 14 is for `templates/concepts.genres.js` alone.
+
+**What the spike measure does not see.** The run ends at the first sample on the safe side of the line, so a later sample past the line is not measured. On a curved terminal the body crosses the infinite cut line again farther in: measured on 0.11.0 during the build review (2026-11-25, a scratch copy of the probe), 48 of the 11,616 edges keep such a sample, 16 to 52 samples in from the end and up to 16.42 units past the line (the italic `f` of field and brush at mult 1.65). The clip does not pin those samples, and these tests do not hold them. That case is the one the guarantee in references/generator.md section 5 excludes. `clipPast` skips a safe-side sample during its first seven steps, but on every fixture the first safe-side sample of an edge that has a later past sample is 16 to 43 samples in, so no fixture exercises the skip. The mutation `else if (steps > 6) break` -> `else break` is therefore equivalent on these fixtures, and no test here can see it.
+
+**The genre digests.** `tests/test_genres.py` went red on `grot` with "the genre verdict for grot is stale" after the change, as expected, and is green after
+`docs/reviews/genres-2026-11-25.md` was written (`genres.md` section 6). Of the ten recipe digests, `grot` and `geometric` moved and the other eight did not,
+under node 20.20.2, 22.23.5 and 26.13.1, each computed twice with byte-equal output.
+
+**The layers** (2026-11-25, this machine). Layer 4 with the Chrome steps, `bash scripts/smoke.sh --full`: exit status 0, "smoke: every step from 1 passed.", step 5 "126 mutations, 126 RED, 0 skipped,
+0 problem(s)", step 7 (layer 2) "756 passed, 7 skipped in 1685.70s (0:28:05)", steps 8 to 11 passed; 3552 s (59 min 12 s) from the launch to the check that found the process gone, so an upper bound on
+the run. Layer 2 was not run a second time on its own, because step 7 is layer 2. Before and after the run `shasum -a 256` of `docs/reviews/genres-2026-11-25.md` and `scripts/gen.js`
+printed the values taken after the review record was written (`ad342eef...f507` and `27ec39dd...e4c0`). After the full run, the build review's fixes changed `tests/cut_end_probe.js`, `tests/test_cut_ends.py`, `tests/test_cut_reach.py`, the review record and the CHANGELOG (also the plan, `CLAUDE.md` and this file). `tests/test_cut_ends.py` and `tests/test_cut_reach.py`, `tests/test_genres.py`, `tests/test_docs_commands.py`, `tests/test_hygiene.py` and `tests/test_versions_and_skill.py` were rerun on those bytes (step 9 of the fix run); layer 4 was not rerun, because the fixes changed no code that draws a glyph. `shasum -a 256` of `docs/reviews/genres-2026-11-25.md` is now `350b9e32...44cb`. Layer 5 (`gh workflow run ci.yml`) is the operator's
+`release-acceptance` and was not run.
