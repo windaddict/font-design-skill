@@ -148,13 +148,13 @@
     "grot": {
       "desc": "A near-uniform stroke, flat apexes, terminals cut across the stroke",
       "cost": "Not costed",
-      "risk": "partly (2026-11-25): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7). The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a small step where a curved terminal meets its cut corner on t, f and J (section 7)",
+      "risk": "partly (2026-11-25): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7). The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a thorn where a curved terminal meets its cut corner on t, r, f and J, visible at Regular (issue #27) (section 7)",
       "pick": false
     },
     "geometric": {
       "desc": "Circles and squares, a monoline stroke, an even colour",
       "cost": "Not costed",
-      "risk": "no (2026-11-25): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt. The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a small step where a curved terminal meets its cut corner on t and f (section 7)",
+      "risk": "no (2026-11-25): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt. The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a thorn where a curved terminal meets its cut corner on t, r and f, visible at Regular (issue #27) (section 7)",
       "pick": false
     },
     "reverse": {

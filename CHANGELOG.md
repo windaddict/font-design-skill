@@ -17,7 +17,7 @@ Font output: changes: a glyph with a cut end whose corner the cut moves may be r
 
 ### Looked at and not changed
 - **The unbounded clip.** One call without the corner bound pins every sample past the infinite cut line for up to 80 steps; on a curved terminal the body of the stroke lies past that line, so it replaces up to 80 samples of the inner edge by one chord. It moves 1,176 edges beyond the cut's reach, 106 of them on ends the cut did not move.
-- **The step where a curved terminal meets its cut corner.** The corner moves along the end tangent, so it stands off a curved edge and a step remains. It is small on `grot` and `geometric` at mult 1 and large on `r` and `f` at mult 1.5 and above, where 0.10.0 drew the same step under its spike. Issue #27.
+- **The step where a curved terminal meets its cut corner.** The corner moves along the end tangent, so it stands off a curved edge and a step remains. On `grot` and `geometric` it reads as a thorn on `t` and `r` even at Regular, and it is large on `r` and `f` at mult 1.5 and above. 0.10.0 drew a deeper notch there, with the spike on top. Issue #27.
 - **The 80-step limit of `clipPast`.** The longest run pinned on any measured edge is 65 samples.
 
 ## [0.10.0] — 2026-11-22

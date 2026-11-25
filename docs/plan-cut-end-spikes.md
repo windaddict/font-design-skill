@@ -468,5 +468,9 @@ The plan above is the one the change was built from. Every departure and every f
 - **Build review fixes (2026-11-25).** `test_a_face_with_cut_stem_ends_builds` has no setup assertion: the plan's setup column asked that a `returncode` exist, and `assert r.returncode is not None` could not fail (`run()` returns a finished `subprocess.run`), so it was deleted; the `CUT-FACE-BUILD:` assertion is now the only one before the file checks. `test_cut_reach.py::test_a_moved_cut_end_moves_the_spacing_with_its_outline` (marker `CUT-SPACING:`) was added: the probe's `glyphs` rows now carry `adv` and `oldAdv`, and the test needs 161 of the 262 Cane draws with a moved cut end (measured 179, 2026-11-25) to have an advance different from 0.10.0's. Mutation W6 (`references/testing.md` section 12) turned it red. The spike measure's coverage limit (a later sample past the line on a curved terminal) is stated in `tests/test_cut_ends.py` and in `testing.md` section 12. The advance moves were measured and added to the 0.11.0 CHANGELOG; every figure equals the Decisions paragraph's.
 - **The full runs.** `scripts/smoke.sh --full` runs layer 2 as its step 7, so layer 2 was not run a second time on its own. The measured times
   are in `CLAUDE.md` and in `references/testing.md` section 12.
+- **The step is larger than the plan said.** The plan and the first reading called it a small step. The operator, reading the genres page on
+  2026-11-25, saw a thorn on `t` and `r` in both recipes, and outline renders at mult 1 and 1.5 confirm a sharp upward tick at Regular. The
+  operator kept the bounded clip and left the thorn to issue #27; the record, `genres.md`, the recipes' `desc` and `risk` strings and the
+  CHANGELOG say "thorn".
 - **Not run by this change.** The operator items (`design-acceptance`, `genre-review-acceptance`, `release-acceptance`) and layer 5, which is the
   operator's `gh workflow run ci.yml`.

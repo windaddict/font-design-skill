@@ -66,14 +66,14 @@ var CONCEPTS = [
 
   // Grotesque: near-uniform stroke, flat apexes, horizontal terminals, level-cut joints.
   { id: "grot", name: "Grotesque", from: "A near-uniform stroke, flat apexes, terminals cut across the stroke",
-    desc: "Partly (2026-11-25): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7). The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a small step where a curved terminal meets its cut corner on t, f and J (section 7)",
+    desc: "Partly (2026-11-25): A monoline neo-grotesque with level-cut joints and a straight-leg R; the double-storey g with its sharp ear and the hooked a read humanist, which needs skeleton work. Seen after the cut default was fixed (section 7). The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a thorn where a curved terminal meets its cut corner on t, r, f and J, visible at Regular (issue #27) (section 7)",
     W: 100, nib: 0, thin: 1, pow: 1, xs: 1.0, swell: 0, track: 2,
     ends: SANS_ENDS, dot: 0.55, overshoot: 10,
     hzThin: 0.92, roundGain: 1.04, diagThin: 0.95, xh: 540, joints: true, crotch: 0.3 },
 
   // Geometric: the grotesque with the textbook x-height, wider rounds and a lighter pen.
   { id: "geometric", name: "Geometric", from: "Circles and squares, a monoline stroke, an even colour",
-    desc: "No (2026-11-25): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt. The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a small step where a curved terminal meets its cut corner on t and f (section 7)",
+    desc: "No (2026-11-25): A wide humanist sans, not Futura-like: it needs a circular O, a single-storey a and pointed apexes, all unbuilt. The cut terminals were re-read on 2026-11-25 after the 0.11.0 clip: no spike, and a thorn where a curved terminal meets its cut corner on t, r and f, visible at Regular (issue #27) (section 7)",
     W: 92, nib: 0, thin: 1, pow: 1, xs: 1.08, swell: 0, track: 4,
     ends: SANS_ENDS, dot: 0.55, overshoot: 10,
     hzThin: 0.92, roundGain: 1.04, diagThin: 0.95, xh: 500, joints: true, crotch: 0.2 },
