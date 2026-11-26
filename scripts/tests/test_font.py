@@ -1638,8 +1638,9 @@ const concepts = m.loadConcepts(process.argv[2]);
 // end, bracketed, growing with weight, upright except `l`, which leans 0.045 (wonk), so the sink is also held on a leaning stem
 // (steps 3 to 5). Until 0.9.0 that lean left one corner of the `l`'s end above the centre line; since 0.10.0 a leaning serif end
 // is cut level, so no corner of any end here stands above its centre line. Whatever headSink the project sets is removed and set
-// per run
-const base = Object.assign({}, concepts[0], { serifLen: 0.5, serifH: 0.85, serifBracket: 1, serifGrow: 0.35, shear: 0, bend: 0, wonk: "l" });
+// per run. The amount is pinned (wonkAmount, 0.12.0), so a project whose first concept sets a steeper lean cannot turn the `l`'s
+// head serif into a diagonal one
+const base = Object.assign({}, concepts[0], { serifLen: 0.5, serifH: 0.85, serifBracket: 1, serifGrow: 0.35, shear: 0, bend: 0, wonk: "l", wonkAmount: 0.045 });
 base.ends = Object.assign({}, base.ends, { s: "serif" });
 delete base.headSink;
 // a stroke that starts at a head serif, runs down, turns and rises 140 units above its own start: only the end's run may be pinned

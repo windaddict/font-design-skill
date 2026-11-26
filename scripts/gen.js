@@ -46,6 +46,12 @@
  *  11. Cut ends (0.11.0). A `cut` end pins the edge samples its corner moved past, bounded by how far the corner moved; before, they
  *      stood beyond the cut as a spike, and export.js counted each as a folded edge, so a face with cut stem ends did not build.
  *      Spacing follows the clipped outline.
+ *  12. The lean amount (0.12.0). A concept's wonkAmount sets how far the letters named in wonk lean back (x -= wonkAmount * y);
+ *      unset it is 0.045, what every earlier version drew, so a concept without the key draws as before. The lean is applied
+ *      before every branch decision, so a branch decision can differ between two masters that differ in wonkAmount, and export.js
+ *      refuses a master pair whose structure or branch outcome differs, naming the glyphs. Two measured causes: the serif kind on
+ *      a concept with serif ends (head or foot becomes diag), and the curved decision on a cut-end concept (Driftwood
+ *      windswept). Compatibility is what export.js checks per pair; the amount does not guarantee it.
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
@@ -436,11 +442,12 @@ var UPPERISH = /^[A-Z0-9!?&$%\/()\[\]#*©™ÁÀÂÄÉÈÊËÍÏÓÔÖÚÜÑÇ]$
 /* ---------- Concepts live in the project's concepts.js ----------
    A concept is one parameter set: the pen (W, nib, thin, thinGrow, pow, xs, swell, wob, track), the
    stroke ends (ends: {s, t, u, "", x}, flareLen, flareAmt or dropAmt, taperLen, cut, serifLen, serifH,
-   serifGrow, dot, leaf, overshoot, beak, tear, pebble) and the transforms (shear, bend, wonk). The
+   serifGrow, dot, leaf, overshoot, beak, tear, pebble) and the transforms (shear, bend, wonk with wonkAmount). The
    full table with ranges and interactions is references/generator.md. Angles are written in degrees
    times DEG. */
 var DEG = Math.PI / 180;
 var DROP_AMT_DEFAULT = 0.55; // the outer teardrop swell Bract and Driftwood shipped with
+var WONK_AMOUNT_DEFAULT = 0.045; // the back-lean of the letters a concept names in wonk: x -= 0.045 * y, about 2.6 degrees, what every version up to 0.11.0 drew
 
 /* ---------- Geometry helpers ---------- */
 function dist(a, b) { return Math.hypot(b[0] - a[0], b[1] - a[1]); }
@@ -498,7 +505,7 @@ function ymap(y, xh) {
 function xhMapped(key, P) { return P.xh !== 500 && !UPPERISH.test(key) && key !== "'"; }
 function xf(ch, P, p) {
   var x = p[0], y = p[1];
-  if (P.wonk && P.wonk.indexOf(ch) >= 0) x -= 0.045 * y;
+  if (P.wonk && P.wonk.indexOf(ch) >= 0) x -= P.wonkAmount * y;
   x *= P.xs * (1 + 0.16 * ((P.W0 ? P.W / P.W0 : 1) - 1)) * (P.italic ? 0.95 : 1);
   if (P.shear) x += P.shear * y;
   if (P.bend && y > 350) x += P.bend * (y - 350) * (y - 350);
@@ -1139,9 +1146,14 @@ function params(concept, mult, italic) {
   if (concept.crotch !== undefined && !(typeof concept.crotch === "number" && concept.crotch >= 0 && concept.crotch <= 0.6)) {
     throw new Error("params: concept " + concept.id + " sets crotch to " + JSON.stringify(concept.crotch) + "; it must be a number from 0 to 0.6 (references/generator.md, section 4)");
   }
+  if (concept.wonkAmount !== undefined && !(finiteNumber(concept.wonkAmount) && concept.wonkAmount >= 0 && concept.wonkAmount <= 0.2)) {
+    var shownWonk = typeof concept.wonkAmount === "number" ? String(concept.wonkAmount) : JSON.stringify(concept.wonkAmount);
+    throw new Error("params: concept " + concept.id + " sets wonkAmount to " + shownWonk + "; it must be a number from 0 to 0.2 (references/generator.md, section 4)");
+  }
   var P = Object.assign({}, concept);
   P.xh = concept.xh === undefined ? 500 : concept.xh;
   P.serifBracket = concept.serifBracket === undefined ? 1 : concept.serifBracket;
+  P.wonkAmount = concept.wonkAmount === undefined ? WONK_AMOUNT_DEFAULT : concept.wonkAmount;
   P.hzThin = concept.hzThin === undefined ? 1 : concept.hzThin;
   P.diagThin = concept.diagThin === undefined ? 1 : concept.diagThin;
   P.roundGain = concept.roundGain === undefined ? 1 : concept.roundGain;

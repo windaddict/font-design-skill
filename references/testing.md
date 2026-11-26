@@ -51,6 +51,7 @@ Contents
 10. The headSink guards (0.9.0)
 11. The joint guards (0.10.0)
 12. The cut-end guards (0.11.0)
+13. The lean-amount guards (0.12.0)
 
 ## 1. Why a green test proves nothing until it has failed
 
@@ -924,3 +925,39 @@ under node 20.20.2, 22.23.5 and 26.13.1, each computed twice with byte-equal out
 the run. Layer 2 was not run a second time on its own, because step 7 is layer 2. Before and after the run `shasum -a 256` of `docs/reviews/genres-2026-11-25.md` and `scripts/gen.js`
 printed the values taken after the review record was written (`ad342eef...f507` and `27ec39dd...e4c0`). After the full run, the build review's fixes changed `tests/cut_end_probe.js`, `tests/test_cut_ends.py`, `tests/test_cut_reach.py`, the review record and the CHANGELOG (also the plan, `CLAUDE.md` and this file). `tests/test_cut_ends.py` and `tests/test_cut_reach.py`, `tests/test_genres.py`, `tests/test_docs_commands.py`, `tests/test_hygiene.py` and `tests/test_versions_and_skill.py` were rerun on those bytes (step 9 of the fix run); layer 4 was not rerun, because the fixes changed no code that draws a glyph. `shasum -a 256` of `docs/reviews/genres-2026-11-25.md` is now `350b9e32...44cb`. Layer 5 (`gh workflow run ci.yml`) is the operator's
 `release-acceptance` and was not run.
+
+## 13. The lean-amount guards (0.12.0)
+
+The 0.12.0 change (`docs/plan-wonk-amount.md`) reads the lean of the `wonk` letters from the concept setting `wonkAmount` (0 to 0.2, default 0.045). Its guards read what `scripts/gen.js`, `scripts/export.js` and `scripts/build.py` produced, through `tests/wonk_amount_probe.js`, never the generator's source. `FONT_DESIGN_WONK_SCRIPTS` names a copy of the whole `scripts/` folder, with a copy of `VERSION` beside it, outside the repository, for the watches below; unset, the real folder. Each marker is the first assertion about the new behaviour and appears in no other assertion of its test.
+
+| Repo test | First assertion it fails on, 0.11.0 |
+|---|---|
+| `test_wonk_amount.py::test_wonkamount_sets_how_far_a_named_glyph_leans` | `WONK-AMOUNT-LEAN:` (`l` at 0.158 leans -0.0441, -0.15484 expected) |
+| `test_wonk_amount.py::test_wonkamount_outside_its_range_is_refused` | `WONK-AMOUNT-REFUSED:` (`params()` accepted -0.01) |
+| `test_wonk_amount.py::test_two_masters_that_differ_only_in_wonkamount_export_together_without_a_serif_end` | `WONK-EXPORT-LEAN:` |
+| `test_wonk_amount.py::test_a_serif_concept_is_refused_when_its_masters_stand_either_side_of_the_serif_threshold` | `WONK-SERIF-REFUSED:` (`export.js` exits 0, not 1) |
+| `test_wonk_amount.py::test_a_face_with_a_weight_and_a_lean_axis_builds` | `WONK-BUILD-LEAN:` (-32.0 where -145.04 is expected) |
+| `test_wonk_amount.py::test_the_font_suites_headsink_fixture_keeps_its_own_lean` | `WONK-SUITE-FACE:` (-0.0414 where -0.184 is expected) |
+| `test_wonk_default.py::test_an_unset_wonkamount_draws_what_0_11_0_drew` | passes on 0.11.0 (it compares 0.11.0 with itself); proof by mutation (W2, below) |
+
+Run on the 0.11.0 generator (`git show 4efcca7:scripts/gen.js` in a copy of `scripts/`, 2026-11-25): `6 failed, 1 passed in 15.91 s`, each of the six on its own marker, the passing one being `test_wonk_default.py`. Each of the six also failed on its own marker in the order above, with no failure on a setup assertion.
+
+**The watches** (2026-11-25, this machine, node 26.13.1). Each edit is one exact replacement that matched once, applied to a fresh copy of `scripts/` in the session scratch folder with a copy of `VERSION` beside it. Both test files ran with `FONT_DESIGN_WONK_SCRIPTS` on the copy (`.venv/bin/python3 -m pytest -p no:cacheprovider tests/test_wonk_amount.py tests/test_wonk_default.py -q`). The control, with no edit, passed: 7 passed in 18.97 s. `shasum -a 256` of the real `scripts/gen.js` printed `d47f32dc...5898` before the watches and after them. No watch stayed green.
+
+| Watch | Edit | Red on |
+|---|---|---|
+| W1, the setting ignored | `x -= P.wonkAmount * y;` to `x -= 0.045 * y;` | tests 1, 3, 4, 5 and 6 of `test_wonk_amount.py`, on `WONK-AMOUNT-LEAN:`, `WONK-EXPORT-LEAN:`, `WONK-SERIF-REFUSED:`, `WONK-BUILD-LEAN:` and `WONK-SUITE-FACE:`; test 2 and `test_wonk_default.py` stayed green (5 failed, 2 passed in 15.85 s) |
+| W2, the default moved (the mutation proof of `test_wonk_default.py`) | `var WONK_AMOUNT_DEFAULT = 0.045;` to `0.05` | `WONK-MEASURE-CONTROL:` (`l` leans -0.049, not -0.0441) and `WONK-DEFAULT:` (7552 of 7598 glyph draws differ from `4efcca7`); 2 failed, 5 passed in 18.98 s |
+| W3, the range check removed | the `if (concept.wonkAmount !== undefined && ...) { ... }` block deleted | `WONK-AMOUNT-REFUSED:` (-0.01 accepted); 1 failed, 6 passed |
+| W4, the bounds excluded | `>= 0 && concept.wonkAmount <= 0.2` to `> 0 && concept.wonkAmount < 0.2` | `WONK-AMOUNT-ALLOWED:` (0 refused), and five other tests, whose masters use the amount 0 or 0.2 (`WONK-EXPORT-EXIT:` and `WONK-BUILD-EXIT:` among them); 6 failed, 1 passed. The assertion stops at the first refused case, so the figure for 0.2 alone was not read |
+| W5, the weakest check, a value coerced | `finiteNumber(concept.wonkAmount) && concept.wonkAmount >= 0 && concept.wonkAmount <= 0.2` to `+concept.wonkAmount >= 0 && +concept.wonkAmount <= 0.2` | `WONK-AMOUNT-REFUSED:` (the string `"0.1"` accepted); 1 failed, 6 passed. The assertion stops at the first accepted case, so which of `null`, `false` and `[0.1]` also pass was not read |
+| W6, the letter test dropped | `if (P.wonk && P.wonk.indexOf(ch) >= 0)` to `if (P.wonk)` | `WONK-SCOPE:` (`o`, not named in `wonk`, differs from the same concept with `wonk` empty); 1 failed, 6 passed |
+| W7, the fixture pin removed, in the copy's `scripts/tests/test_font.py` | `wonk: "l", wonkAmount: 0.045 });` to `wonk: "l" });` | `WONK-SUITE-FIXTURE:` (the suite's headSink tests on a face whose first concept sets `wonkAmount: 0.2`: 2 failed, 1 passed); 1 failed, 6 passed |
+
+Not watched: replacing `finiteNumber(v)` by `typeof v === "number"` is an equivalent mutation, because `NaN` and the infinities fail the two comparisons that follow.
+
+**The figures the documentation states** (2026-11-25, node 26.13.1, `scripts/gen.js` with `shasum -a 256` `d47f32dc...5898`). The first-flip table in `references/generator.md` section 12 comes from drawing every key of `G` with `wonk` naming every key, at `wonkAmount` 0.001 to 0.2 in steps of 0.001, and comparing each glyph's point counts, edge runs and branch record with the same concept at 0 (a scratch script, not kept; its numbers equal the plan's prototype for every row). The exporter's own refusal (57 glyphs, `serifB=foot` against `serifB=diag`) and the clean pairs (`bine`, `tideline`, `dune`: 131 glyphs, 125 differ in coordinates, 0 folded edges, `l` top against foot -145.05, -145.00 and -165.75) are the assertions of tests 3 and 4. The build figures (108,508 bytes as woff2 with one named instance, `l` top against foot 0.0, -72.75 and -145.5 at LEAN 0, 50 and 100, advance of `l` 226, 266 and 305) come from the build of test 5. The italic `w` first differs from the unleaned one at 0.0038 on Bract `text` and 0.0189 on Driftwood `driftwood`, and not up to 0.2 on neutral `text`.
+
+**Findings about the plan, recorded here.** The plan states the Driftwood `windswept` flip as "1 glyph at 0.1 and 2 at 0.2", and that holds (first flip at 0.069, `x`; `x z` at 0.2). The plan's figure of 108,656 bytes for the four-master face is not the figure the test's build gives (108,508); the test's configuration is the one the documentation quotes. The layer 2 test count the plan expected after seven new tests was 774 (767 plus 7); `pytest --co -q` counted 775 in 32 files at the time of the full run; the difference is consistent with `tests/test_docs_commands.py`, which parametrizes one test per command the docs name (`commands()`, line 65), so the count changes whenever a doc gains or loses a command line; the earlier figures were taken on different doc bytes.
+
+**The layers** (2026-11-25, this machine): layer 4 with the Chrome steps, `bash scripts/smoke.sh --full`, run on the final bytes of every file that draws or builds a glyph: exit status 0, "smoke: every step from 1 passed.", step 5 "126 mutations, 126 RED, 0 skipped, 0 problem(s)", step 7 (layer 2) "774 passed, 7 skipped in 1702.31s (0:28:22)", steps 8 to 11 passed; 43 min 50 s wall time from `time` on the whole run. `shasum -a 256` of `scripts/gen.js` printed `d47f32dc...5898` before the watches and after the full run. The run changed nothing in the working tree outside `out/`. This section and `docs/plan-wonk-amount.md` were edited while the run was in progress or after it, and `CLAUDE.md` after it; `tests/test_docs_commands.py`, `tests/test_hygiene.py` and `tests/test_versions_and_skill.py` were rerun on those bytes. Layer 5 (`gh workflow run ci.yml`) is the operator's `release-acceptance` and was not run. The step 7 count (774 passed, 7 skipped, 781 in all) is not the 775 of `pytest --co -q`: the docs were edited between the two, and `tests/test_docs_commands.py` collects one test per documented command. On the final tree after these edits `pytest --co -q` collects 783 tests in 32 files.
