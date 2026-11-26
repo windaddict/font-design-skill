@@ -99,3 +99,9 @@ One more, met in 0.11.0 (`docs/plan-cut-end-spikes.md`):
 | # | Symptom | Cause | Guard | Where |
 |---|---|---|---|---|
 | 44 | A thin spike at one corner of every `cut` stem end; `build.py` refuses a face whose stems end in `cut` with `SELF-CHECK FAILED: ... stroke edge(s) fold back` | the cut moved the end's corner back along the edge and left the edge samples it passed where they were, so they stood beyond the cut line and the outline ran out to the old end and returned | `clipPast` pins the samples the corner moved past, bounded by how far it moved; `CUT-SPIKE`, `CUT-SPIKE-SHIPPED`, `CUT-EXPORT-FOLD` and `CUT-FACE-BUILD` in `tests/test_cut_ends.py`, `CUT-REACH` and `CUT-SCOPE` in `tests/test_cut_reach.py` | the `cut` branch of `cutEnds` and `clipPast` in `scripts/gen.js`; `references/generator.md` section 5 |
+
+One more, met in 0.12.0 (`docs/plan-wonk-amount.md`):
+
+| # | Symptom | Cause | Guard | Where |
+|---|---|---|---|---|
+| 45 | `export.js` refuses a group whose masters differ only in `wonkAmount`: `57 glyph(s) differ in structure or branch outcome between masters of group roman`, with `serifB=foot` in one master's record and `serifB=diag` in the other's | a branch decision differs between the masters. One measured cause is the lean passing the serif-kind threshold (`serifKindOf` calls an end `diag` when the leaned reference tangent has `abs(TU[0]) > 0.1`, so a plumb stem turns `diag` when `wonkAmount × xs` passes about 0.1005); another is the `curved` flip on Driftwood `windswept` (`x` and `z` at 0.2) | the exporter's refusal is the check; `tests/test_wonk_amount.py` pins both outcomes (a serif concept is refused, `bine`, `tideline` and `dune` export together) | `references/generator.md` section 12, "A lean"; a lean axis in `references/variable-font-build.md` section 10 |

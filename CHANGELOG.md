@@ -4,6 +4,22 @@ All notable changes to this skill. The format follows Keep a Changelog; the vers
 file, repeated in `SKILL.md` and the README badge and checked by the tests. Each entry states whether font
 output changes (a line starting `Font output:`), and `## Releases` at the end lists the tags.
 
+## [0.12.0] — 2026-11-25
+
+Font output: changes: a face that sets wonkAmount builds differently under 0.12.0 than under 0.11.0, which ignored the key. No concept this repository ships sets wonkAmount, and with the key absent every example rebuilds to the recorded digests (`tests/test_backward_compat.py`) and the letters a concept names in `wonk` are drawn as 0.11.0 drew them (`tests/test_wonk_default.py`).
+
+### Added
+- **`wonkAmount`, a concept parameter from 0 to 0.2 (default 0.045).** It sets how far the letters a concept names in `wonk` lean back: `x -= wonkAmount * y`, applied before `xs`. Unset, it is 0.045, the lean every earlier version drew. `params()` refuses a value that is not a number from 0 to 0.2 (a string, `null`, a boolean, `NaN`, an infinity, a negative number), and the error names the knob and the range. A concept whose `wonk` is empty or absent is not refused; the key does nothing there. The range is a design range, not a compatibility bound: see "Looked at and not changed".
+
+### Changed
+- **The font suite's headSink fixture pins its lean.** The fixture takes the project's first concept and sets `wonk: "l"`; it now also sets `wonkAmount: 0.045`, so a project whose first concept sets a steeper lean cannot turn the `l`'s head serif into a diagonal one and fail two of the suite's three headSink tests.
+
+### Looked at and not changed
+- **The serif kind flips under a lean.** `serifKindOf` calls a serif end `diag` when the tangent of the leaned reference skeleton has `abs(TU[0]) > 0.1`, so a plumb stem turns from `head` or `foot` to `diag` when `wonkAmount * xs` passes about 0.1005. Two masters that differ only in `wonkAmount` are refused by `export.js` ("differ in structure or branch outcome between masters of group roman") on every concept the three fixtures build when one master is at 0 and the other at 0.2, on 57 glyphs. The decision is not changed.
+- **`windswept` flips `curved`.** Driftwood `windswept` (cut ends, `shear` and `bend`) flips the `curved` decision on 1 glyph at an amount of 0.1 and on 2 at 0.2. Not changed.
+- **A group whose only axis is the lean does not build.** `build.py` fails its self-check "glyphs without gvar variations" on the glyphs the lean moves rigidly (`period hyphen endash emdash ellipsis bullet`). A weight axis beside the lean builds. Documented.
+- **The italic `w` already flips at the default lean.** An italic group that mixes a `wonk` master with a plain one can be refused today (`references/generator.md`, section 12).
+
 ## [0.11.0] — 2026-11-25
 
 Font output: changes: a glyph with a cut end whose corner the cut moves may be redrawn, and its advance and kerns may move with it; a corner that moved past no sample changes nothing, and a pinned sample changes spacing only where the profile read it (the measured moves are under Changed). No concept that the three examples build has a cut end, so every example rebuilds to the recorded digests (tests/test_backward_compat.py).
@@ -1047,7 +1063,8 @@ font output for the same face folder, not identical repository files: later comm
 | v0.8.0 | the merge commit of the release branch | tagged after the merge |
 | v0.9.0 | the merge commit of the release branch | tagged after the merge |
 | v0.10.0 | 1b3c2c7 | merge of PR #25 |
-| v0.11.0 | the merge commit of the release branch | tagged after the merge |
+| v0.11.0 | 14e03fc | merge of PR #28 |
+| v0.12.0 | the merge commit of the release branch | tagged after the merge |
 
 **0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and
 its `gen.js` and `export.js` differ from the tag's; it reached `main` only inside 0.7.0 (aa4b9ae), so it has no tag. A face built by it

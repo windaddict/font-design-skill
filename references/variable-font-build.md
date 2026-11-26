@@ -206,6 +206,13 @@ the smoke run builds three fixtures: two-axis roman (the neutral example), wght-
 wght-only italic (the Driftwood example). A one-axis group still needs two masters, and the
 `avar` map still applies.
 
+**A lean axis (0.12.0).** A group may carry an axis with a custom four-letter tag such as `LEAN` beside `wght`: the masters at its two ends use two concepts that differ in `wonkAmount` (and name the same letters in `wonk`), and `build.py` interpolates the lean linearly (`references/generator.md` section 6). `tests/test_wonk_amount.py` builds Driftwood `tideline` with `wght` 400 to 700 and `LEAN` 0 to 100, four masters, and passes every self-check. Four rules:
+
+- **Pair it with a weight axis.** A group whose only axis is the lean fails the self-check "glyphs without gvar variations" on `period hyphen endash emdash ellipsis bullet`: the lean moves those glyphs rigidly and the sidebearings cancel the move, so both masters are identical. A weight axis beside the lean varies every glyph.
+- **The file grows.** The four-master face above is 108,508 bytes as woff2 (measured 2026-11-25 with one named instance), over the 102,400 bytes the Driftwood example's `font.json` sets as `size_budget_bytes`; the test sets 204,800 for its own copy. Set the budget for the face you build.
+- **Advances follow the lean.** The advance of `l` is 226 at LEAN 0 and 305 at LEAN 100 (wght 400), because the spacing profile reads the leaned outline.
+- **Compatibility is checked, not guaranteed.** `export.js` refuses a master pair whose structure or branch outcome differs between the two `wonkAmount` values. Measured causes: the serif kind on a concept with serif ends (0 against 0.2 refused on 57 glyphs of neutral `text`) and `curved` on Driftwood `windswept`. `bine`, `tideline` and `dune` export 0 against 0.2 without complaint. The thresholds and the figures are in `references/generator.md` section 12, "A lean".
+
 ## 11. The export JSON contract (templates/export.schema.json)
 
 One file per group, `schema: "font-design/export/v1"`. Top level: `family`, `group`, `italic`,

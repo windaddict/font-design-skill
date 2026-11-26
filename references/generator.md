@@ -249,7 +249,8 @@ Required: `id`, `W`, `ends`. Everything else is optional; an unset numeric knob 
 | `pebble` | boolean | with `tear: false`, a flattened ellipse instead of a ball | Driftwood tried it twice; both read as lumps |
 | `shear` | tan of 0–8° | `x += shear × y`: a uniform slant that is not an italic (no `GI` skeletons, no narrowing) | used by the Windswept concept; an italic uses `params(..., italic)` instead |
 | `bend` | ~0.0002 | `x += bend × (y − 350)²` above `y = 350`: the lean grows toward the tops of tall letters | Windswept only |
-| `wonk` | string of characters | those glyphs lean back: `x −= 0.045 × y` | Driftwood's back-lean on n/h/m "read as an error"; shipped as `""` |
+| `wonk` | string of characters | those glyphs lean back: `x −= wonkAmount × y` (0.045 unless the concept sets `wonkAmount`) | Driftwood's back-lean on n/h/m "read as an error"; shipped as `""` |
+| `wonkAmount` | 0–0.2 (default 0.045) | how far the glyphs named in `wonk` lean back; applied before `xs`, so the drawn slope is `wonkAmount × xs × (1 + 0.16 × (W/W0 − 1))`, times 0.95 and less the slant in an italic; 0.045 is about 2.6° and 0.158 about 9° at `xs` 1 | read only for a glyph `wonk` names, and not refused when `wonk` is empty; unset draws what 0.11.0 drew (`tests/test_wonk_default.py`); **the range is a design range, not a compatibility bound**: a branch decision can flip between two masters that differ in `wonkAmount` (the serif kind on a concept with serif ends, `curved` on Driftwood `windswept`), and `export.js` then refuses the pair, naming the glyphs (section 12, "A lean"); advances and kerns follow the leaned outline; not echoed into the manifest |
 
 `P.W0`, `P.italic`, `P.italicAngle`, `P.key` are set by `params()`, not by the concept.
 
@@ -291,6 +292,7 @@ pin it with `avar` so `font-weight: 500` renders the reviewed mix (Bract: user 5
 normalized 0.333 → 0.6, which is `W × 1.3`). An intermediate `opsz` location is a blend of two
 cuts whose `xs`, `track`, `serifLen` and `thin` differ; the review loop samples it (wght 550,
 opsz 60) because nobody drew it.
+- **A lean axis** (`wonkAmount` differing between masters, 0.12.0) interpolates the lean of each centre line linearly: Driftwood `tideline` with a `LEAN` axis from 0 to 100 reads, for the top of `l` against its foot, 0.0 units at LEAN 0, -72.75 at LEAN 50 and -145.5 at LEAN 100 (wght 400; the generator's own figure for `wonkAmount` 0.2 is -145.04), so the middle of the axis is half the lean. The stroke edges are offsets along the normal of that line, so an instance between the masters is **not** what the generator would draw at that `wonkAmount`; how far an edge point of such an instance stands from the generator's drawing was not measured. Advances follow the lean (the advance of `l` is 226 at LEAN 0, 266 at LEAN 50 and 305 at LEAN 100), because the spacing profile reads the leaned outline.
 
 ## 7. The vertical fit
 
@@ -511,6 +513,7 @@ on:
 - `xh` that is not a number from 400 to 600, or `serifBracket` that is not a number from 0 to 1 (the
   error names the knob and the range);
 - `headSink` that is not a number from 0 to 0.7 (the error names the knob and the range; a string, `null`, a boolean and `NaN` are refused too);
+- `wonkAmount` that is not a number from 0 to 0.2 (the error names the knob and the range; a string, `null`, a boolean, `NaN` and an infinity are refused too, and so is a negative number);
 - `hzThin` or `diagThin` that is not a number strictly between 0.5 and 1.5, or `roundGain` not
   strictly between 0.8 and 1.25 (the error names the knob and the range; a string and `null` are
   refused too).
@@ -650,6 +653,24 @@ narrowing or the `w` skeleton can flip it and the exporter will refuse the itali
 until 0.6.0 the Bold's widening lifted the drawn value to 0.123 at mult 1.5 and took the Driftwood
 example's `xs` 0.86 from `head` to `diag` at mult 1.4.
 
+
+**A lean (0.12.0).** The lean of a `wonk` glyph is applied in `xf()` before every branch decision, to the reference skeleton as well as to the drawn one, so two masters that differ in `wonkAmount` can stand either side of a threshold. Compatibility is what `export.js` checks per master pair (the same structure and branch outcome for every glyph); the amount does not guarantee it, and the range 0 to 0.2 is not a compatibility bound. Two causes were measured (2026-11-25, node 26.13.1, `scripts/gen.js` of this version, every key leaning, amounts stepped by 0.001 against the same concept at 0):
+
+1. **The serif kind.** The serif-kind test (`|T[0]| > 0.1`) reads the leaned reference tangent, so a plumb stem turns from `head` or `foot` to `diag` when `wonkAmount × xs` passes about 0.1005 (the lowercase head has 15 points and the diagonal serif 26). Stems that already lean the other way flip in the opposite direction (`M` first, `W` last). Where it starts:
+
+   | concept | `xs` | first flip | 56 glyphs differ at | 57 differ at |
+   |---|---|---|---|---|
+   | neutral `text` (roman) | 0.92 | 0.081 (`M`) | 0.110 | 0.177 |
+   | Bract `text` (roman) | 0.90 | 0.084 (`M`) | 0.112 | 0.175 |
+   | Driftwood `driftwood` (roman) | 0.86 | 0.089 (`M`) | 0.117 | 0.169 |
+   | neutral `text` (italic, 10°) | 0.92 | 0.060 (`W`) | 47 glyphs differ from 0.087 | at most 47 |
+
+   At 0 against 0.2 the same 57 roman glyphs (47 italic) differ on the neutral `text`, Bract `text` and Driftwood `driftwood` concepts, measured on the generator's structure and branch record. On neutral `text` the exporter itself refuses: `export.js: 57 glyph(s) differ in structure or branch outcome between masters of group roman`, with `serifB=foot` in the 0 master's record and `serifB=diag` in the 0.2 master's. The other concepts were measured through the generator, not through `export.js`.
+2. **`curved`, on a cut-end concept.** Driftwood `windswept` (cut ends, `shear` and `bend`, no serif end) first flips `x` at 0.069, flips 1 glyph at 0.1 and 2 (`x`, `z`) at 0.2. `export.js` exits 1 on that pair, naming `x z`.
+
+Measured clean, 0 against 0.2, through `export.js`: Bract `bine` and Driftwood `tideline` and `dune`. Every glyph has the same structure and branch record in both masters (131 glyphs), 125 differ in coordinates (the six that do not are `. - – — … •`), and no edge folds in either. No other concept is claimed. This paragraph does not say that serif ends are the only cause or that a concept without them is compatible: when a pair is refused the exporter exits 1 and names the glyphs, and the fix is in the concept, as above.
+
+**The italic `w` already flips at the default lean.** The margin recorded above for the italic `w` (0.0028) is a margin on `xs`, not on `wonkAmount`: the italic `w` drawn with `wonk: "w"` differs in structure or branch record from the one drawn without a lean at a `wonkAmount` of 0.0038 on Bract `text` and 0.0189 on Driftwood `driftwood` (amounts stepped by 0.0001 to 0.2, 2026-11-25; the neutral `text` concept does not flip), so an italic group that pairs a master leaning `w` with one that does not can be refused, and the default 0.045 is past both amounts. Not changed.
 
 ## 13. Designed, not built: `apex`
 
