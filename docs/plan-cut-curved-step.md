@@ -185,7 +185,7 @@ Four edits. Line numbers are those of commit `7170554`.
    reach. This is a defined result, not a fallback to `cutSide` (that would keep 0.12.0's collapse, which this plan
    has not measured on short strokes). The figures of this plan were measured with the first draft, whose limit was 80
    steps only, so `gen-cut-on-edge` re-measures every figure the tests print; where a new figure moves a floor, the
-   item says so in the pull request and in section 14 of `references/testing.md`.
+   item says so in the pull request and in section 15 of `references/testing.md`.
 
 2. **The `cut` branch of `cutEnds` (lines 906 to 912).** Line 907 stays. Replace lines 908 to 911 (the `cutSide`
    line, the two comment lines and the `clipPast` line) by:
@@ -503,7 +503,7 @@ fail, not pass, if the fixture holds no short stroke.
   terminal meets its cut corner; `build.py` refuses a face with swelled `cut` stems for folded edges), cause (the
   corner moved along the end tangent, which is not the edge), guard (`CUT-STEP`, `CUT-STEP-SWELL`,
   `CUT-SWELL-FOLD`, `CUT-SWELL-BUILD`, `CUT-ASK`, `CUT-SHORT`, `CUT-ANGLE`, `CUT-RUN`, `CUT-RUN-ACCENT`, `CUT-RUN-FOLD`, `CUT-RUN-BUILD`), where.
-- `references/testing.md`: a new section 14, "The cut-step guards (0.13.0)", in the form of section 12: the table
+- `references/testing.md`: a new section 14 (section 15 after the merge with the Tiki Terminal example), "The cut-step guards (0.13.0)", in the form of section 12: the table
   of tests and markers, the mutation proofs and the watches with the figure each fired on as run, the layers run
   with their times. Add it to the table of contents
   (`tests/test_versions_and_skill.py::test_long_reference_files_carry_a_table_of_contents`). Section 12 gains one
@@ -517,11 +517,11 @@ fail, not pass, if the fixture holds no short stroke.
 
 ## As built
 
-Departures from the plan above, as found when the items landed. Figures are the ones the tests and watches printed (`references/testing.md` section 14).
+Departures from the plan above, as found when the items landed. Figures are the ones the tests and watches printed (`references/testing.md` section 15).
 
 - **The trap is row 46, not 45.** 0.12.0 had already taken row 45 of `references/traps.md`.
 - **The review record is `docs/reviews/genres-0.13.0.md`**, read by the implementer, at Regular, Medium and Bold, from lineup crops of the `grot` and `geometric` rows at the cropped size (no further enlargement). It saw no spike and no step at a cut corner, and the hooked terminals of `r f t J 9` remain. The verdict words did not change. The operator has not ruled on them (`genre-review-acceptance`).
-- **`CUT-RUN-ACCENT:` reads the cut accents only, and `CUT-RUN-FOLD:` was removed.** As planned, the test read every accented glyph and stayed red on the final generator: 11 circumflex contours (`Â`, `Ê`, `Ô`) fold with the same figures as on 0.12.0. The circumflex strokes draw no `cut` end; their folds come from `swell: 0.35` on a very short stroke, the circumflex problem the request put outside this change. The test now reads the acute and grave accents, which are cut: green on the final generator, red on 0.12.0 on 40 contours once the build review (F005) made its filter read the lowercase accents too. See section 14 of `references/testing.md`.
-- **The watches** W1 to W8 were run on copies of `scripts/` and all went red (section 14). The test files' floors were not re-measured here beyond that the 17 cut tests ran as listed.
+- **`CUT-RUN-ACCENT:` reads the cut accents only, and `CUT-RUN-FOLD:` was removed.** As planned, the test read every accented glyph and stayed red on the final generator: 11 circumflex contours (`Â`, `Ê`, `Ô`) fold with the same figures as on 0.12.0. The circumflex strokes draw no `cut` end; their folds come from `swell: 0.35` on a very short stroke, the circumflex problem the request put outside this change. The test now reads the acute and grave accents, which are cut: green on the final generator, red on 0.12.0 on 40 contours once the build review (F005) made its filter read the lowercase accents too. See section 15 of `references/testing.md`.
+- **The watches** W1 to W8 were run on copies of `scripts/` and all went red (section 15). The test files' floors were not re-measured here beyond that the 17 cut tests ran as listed.
 - **The test count** is 793 in 36 files, from `pytest --co -q`.
 

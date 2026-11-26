@@ -58,7 +58,7 @@ supervision between gates and stops at every gate.
      Python 3: it uses only the standard library and prints the venv command.) macOS and Linux are supported; native Windows is
      not (bash scripts, POSIX venv paths); on Windows run the whole skill inside WSL.
    - **Run `bash scripts/smoke.sh` before the first use of the skill on a machine and after every
-     update of the skill**, before starting a project: it builds the three fixtures, runs the suite
+     update of the skill**, before starting a project: it builds the four fixtures, runs the suite
      and the mutations, runs the FontBakery gate (skipped, and said so, when FontBakery is not
      installed) and builds the concept pages (`--full` adds the browser steps and the environment check).
    - For anything missing read `references/fallbacks.md` **before** going on; never skip a gate
@@ -491,6 +491,6 @@ Do not ship while any of these holds (finding F015):
 - `references/fallbacks.md` — when the strongest model, Impasse, Codex, frontend-design, Chrome, Playwright or artifacts are absent.
 - `references/examples/bract.md` — the full-process worked example; `references/examples/driftwood.md` — the earlier precedent (static union pipeline, five CFF files) whose lessons and bugs shaped the skill.
 - `templates/` — `font.example.json`, `requirements.example.json`, `concepts.example.js`, `font-record.md`, `plan.md`, the three reviewer briefs, the two Impasse instructions, the two schemas, `platform-shots.yml` (the caller a site copies; the legs live in the skill's `.github/workflows/platform-shots-reusable.yml`).
-- `examples/neutral/` — the smoke fixture ("Sampler": roman with two axes, italic with one). It is a finished sample with two concepts for speed, its floors and `opsz` ends are the fixture's rather than measured from a site, and its content JSON is sample text, audit section included; a real run writes about six round-1 concepts and sets its floors from its own measurements. `examples/bract/`, `examples/driftwood/` — the two faces' parameters and configuration under neutral name tables ("Bract Example", "Driftwood Example"), MIT like the rest of the repo, no font files; the Driftwood example also carries a `requirements.json`, so the font suite runs on it as a second face (`smoke.sh` step 4a).
+- `examples/neutral/` — the smoke fixture ("Sampler": roman with two axes, italic with one). It is a finished sample with two concepts for speed, its floors and `opsz` ends are the fixture's rather than measured from a site, and its content JSON is sample text, audit section included; a real run writes about six round-1 concepts and sets its floors from its own measurements. `examples/bract/`, `examples/driftwood/` — the two faces' parameters and configuration under neutral name tables ("Bract Example", "Driftwood Example"), MIT like the rest of the repo, no font files; the Driftwood example also carries a `requirements.json`, so the font suite runs on it as a second face (`smoke.sh` step 4a). `examples/tiki-terminal/` is the fourth: an open face (OFL font, MIT parameters) with a skeleton file, cut stem ends and a `LEAN` axis, built by the smoke run with the suite less six tests (its README).
 - `docs/plan.md` — the plan this repo was built from, with its independent review (F001–F015).
-- `scripts/smoke.sh` — the pre-publish run: build the three fixtures, run the suites and mutations, build and shoot the concept pages.
+- `scripts/smoke.sh` — the pre-publish run: build the four fixtures, run the suites and mutations, build and shoot the concept pages.

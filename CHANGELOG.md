@@ -25,7 +25,7 @@ Font output: changes: a glyph with a cut end is redrawn where the corner the cut
 
 ## [0.12.0] — 2026-11-25
 
-Font output: changes: a face that sets wonkAmount builds differently under 0.12.0 than under 0.11.0, which ignored the key. No concept this repository ships sets wonkAmount, and with the key absent every example rebuilds to the recorded digests (`tests/test_backward_compat.py`) and the letters a concept names in `wonk` are drawn as 0.11.0 drew them (`tests/test_wonk_default.py`).
+Font output: changes: a face that sets wonkAmount builds differently under 0.12.0 than under 0.11.0, which ignored the key. No concept this repository shipped at 0.12.0's release commit sets wonkAmount (a later commit adds `canelean`, which does: see "Tiki Terminal example" below), and with the key absent every example rebuilds to the recorded digests (`tests/test_backward_compat.py`) and the letters a concept names in `wonk` are drawn as 0.11.0 drew them (`tests/test_wonk_default.py`).
 
 ### Added
 - **`wonkAmount`, a concept parameter from 0 to 0.2 (default 0.045).** It sets how far the letters a concept names in `wonk` lean back: `x -= wonkAmount * y`, applied before `xs`. Unset, it is 0.045, the lean every earlier version drew. `params()` refuses a value that is not a number from 0 to 0.2 (a string, `null`, a boolean, `NaN`, an infinity, a negative number), and the error names the knob and the range. A concept whose `wonk` is empty or absent is not refused; the key does nothing there. The range is a design range, not a compatibility bound: see "Looked at and not changed".
@@ -38,6 +38,28 @@ Font output: changes: a face that sets wonkAmount builds differently under 0.12.
 - **`windswept` flips `curved`.** Driftwood `windswept` (cut ends, `shear` and `bend`) flips the `curved` decision on 1 glyph at an amount of 0.1 and on 2 at 0.2. Not changed.
 - **A group whose only axis is the lean does not build.** `build.py` fails its self-check "glyphs without gvar variations" on the glyphs the lean moves rigidly (`period hyphen endash emdash ellipsis bullet`). A weight axis beside the lean builds. Documented.
 - **The italic `w` already flips at the default lean.** An italic group that mixes a `wonk` master with a plain one can be refused today (`references/generator.md`, section 12).
+
+### Tiki Terminal example (added after the release commit, 2026-11-25)
+
+Font output: unchanged. The existing examples' outputs are unchanged and rebuild to the recorded digests (`tests/test_backward_compat.py`), and none of the font sources (`scripts/gen.js`, `scripts/export.js`, `scripts/build.py`) is touched, so `VERSION` stays 0.12.0. Tiki Terminal is a new build from three new source files (`examples/tiki-terminal/concepts.js`, `skeletons.js`, `content.json`) and the configuration beside them. `canelean` is the first shipped concept to set `wonkAmount` (0.158).
+
+#### Added
+- **`examples/tiki-terminal/`, a fourth example face.** The skill's own open example, drawn through the three concept rounds: the only fixture with a skeleton file, cut stem ends and a custom axis (`LEAN`, which tips `aeiokrAEIO` back). Four masters (`cane` and `canelean` at Regular and Bold), four named instances, 140 glyphs, 137 mapped characters, 4,660 kern pairs, 78,020 bytes as woff2. Its name table is real: family "Tiki Terminal", designer John M. P. Knox, vendor id `JMPK`, `fs_type` 0, licence the SIL Open Font License 1.1 (`OFL.txt` travels with a built font). The parameters stay MIT. No font file is tracked.
+- **`kerning.hand` holds 663 zero pairs.** Each suppresses the automatic kern for a pair whose outlines came closer than 16 units at any of five locations; `r|r` (-90) and `E|O` (-60) carry real values. See "Looked at and not changed".
+- **`tests/pair_gap.py` and `tests/test_tiki_terminal.py`.** The helper measures the contour distance between the outlines HarfBuzz would place, at five locations. The eight tests hold the approved design, the concept and font facts, a 12-unit floor for every pair, 30 units for `rr ro er RE EO` at weight 700, the zero list against a build without it (a 1-unit band either side of 16), the font suite on the face, and the outlines the `LEAN` axis moves. `references/testing.md` section 14 records the watches.
+- **Smoke steps for the fourth fixture.** `scripts/smoke.sh` exports it (step 1), builds it (step 2), checks its reproducibility (step 2b) and runs the FontBakery gate on it (step 4c). The font suite runs on it from `tests/test_tiki_terminal.py`, inside step 7. `ci.yml` names four fixtures.
+
+#### Changed
+- **The font suite's `d` bowl bound is 5 units for the folder named `tiki-terminal` and 1 for every other face.** The example's first concept, `phosphor` (a 144-unit monoline stroke at mult 1.5), measures 2.58 at `xh` 600 and 4.04 at `xh` 400 against 0.45 at most on the other three examples. The bound is keyed by folder name (`D_BOWL_BOUND_BY_FOLDER`). On that first concept only, a bowl shift of 1 to 5 units now passes.
+- **`tests/test_weight_decisions.py` counts six concept files and 264,096 comparisons** (was five and 220,080; the new file adds 44,016, with 0 flips).
+- **`tests/test_r_leg_join.py` leaves out a taper sample the T-join cut pinned.** Five drawings of the new file failed at sample 20, which sits on a pinned point or one past it, where the distance across is the cut's geometry and not a pen width. The test keeps at least three compared samples per drawing.
+
+### Looked at and not changed (Tiki Terminal)
+- **The spacing profile reads polygon points, so a square stroke end is seen at two heights.** The clearance clamp in the automatic kern reads the same profile, so it does not stop a bar end. Measured on this face over 5 locations: 367 two-character pairs cross, 531 come under 12 units and 624 under 16 (the neutral example has 122 pairs under 10 units on its TextBold master, Driftwood 143 on its Bold and Tiki Terminal 431 on its Bold). `references/generator.md` no longer says the clamp stops every pair. The fix changes font output for every face, so it needs its own version.
+- **`build.py` names a one-character ASCII key outside its name table after the key.** The two glyphs `skeletons.js` adds are named `>` and `_`, which FontBakery's `valid_glyphnames` refuses. The finding is accepted in `examples/tiki-terminal/requirements.json`.
+- **FontBakery's `case_mapping` finds lowercase accented letters without capitals** on this face, as on the neutral example. Accepted with a reason.
+- **Six font-suite tests assume the first concept of the face's file** has flare or serif ends and leaves `hzThin`, `xh` and `crotch` unset. They are left out of this face's suite run (`dropamt`, `optical_corrections`, `open_curve_extremes`, `unbracketed_serif`, `unset_crotch`) and run in full on the neutral and Driftwood fixtures.
+- **No compatibility baseline holds this face's outlines.** `tests/fixtures/baseline.json` records the commit `6302b8a` build, which predates the face.
 
 ## [0.11.0] — 2026-11-25
 
@@ -1083,7 +1105,7 @@ font output for the same face folder, not identical repository files: later comm
 | v0.9.0 | the merge commit of the release branch | tagged after the merge |
 | v0.10.0 | 1b3c2c7 | merge of PR #25 |
 | v0.11.0 | 14e03fc | merge of PR #28 |
-| v0.12.0 | 7713ddd | merge of PR #29 |
+| v0.12.0 | 7713ddd | merge of PR #29; the later commit that adds the Tiki Terminal example changed none of the three font sources |
 | v0.13.0 | the merge commit of the release branch | tagged after the merge |
 
 **0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and

@@ -108,7 +108,7 @@ concepts in round 1 and sets its floors from its own measurements.
 | `scripts/` | Generator, exporter, builder, review tools, concept-page builder and templates, the test templates |
 | `references/` | The face-folder contract, the process in detail, the traps, the generator parameters, the build, the review loop, testing, fallbacks, the Bract worked example and the Driftwood precedent |
 | `templates/` | `font.json` and `requirements.json` examples, the `font.json` and manifest schemas, `concepts.js` skeleton, record and plan templates, reviewer briefs, Impasse instructions, `platform-shots.yml` (the short caller of the cross-platform rendering workflow a site copies) |
-| `examples/` | `neutral/` (the smoke fixture), `bract/`, `driftwood/` (parameters and configuration only, under neutral name tables; MIT like the rest of the repo) |
+| `examples/` | `neutral/` (the smoke fixture), `bract/`, `driftwood/` (parameters and configuration only, under neutral name tables; MIT like the rest of the repo), `tiki-terminal/` (an open face with its own name table: a skeleton file, cut stem ends and a `LEAN` axis; its font is under the OFL 1.1) |
 | `tests/` | The repo's own tests: hygiene, versions, schemas and concepts, the review tools on fixtures (`shoot.py`'s server and sentinel in real Chrome where one is found), a face folder inside a sample site served by the skill's scripts, the site-wiring template filled against that site, every documented command's flags, a smoke build |
 | `docs/plan.md` | The plan this repo was built from and its independent review |
 
@@ -135,4 +135,4 @@ MIT, Copyright (c) 2026 John Knox — the code, the documentation and the parame
 licence you put in its name table. One exception: the names **Bract** and **Driftwood MA** identify
 the original sites' faces and are not licensed for reuse as font names. The example files build
 under the neutral family names "Bract Example" and "Driftwood Example"; the shipped fonts are
-licensed to their sites only and are not in this repo. `NOTICE.md` has the provenance.
+licensed to their sites only and are not in this repo. A font built from the Tiki Terminal parameters in `examples/tiki-terminal/` is under the SIL Open Font License 1.1 (its name table says so, and `examples/tiki-terminal/OFL.txt` is its licence text); the parameters themselves stay MIT. `NOTICE.md` has the provenance.
