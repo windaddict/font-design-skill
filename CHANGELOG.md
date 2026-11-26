@@ -6,7 +6,7 @@ output changes (a line starting `Font output:`), and `## Releases` at the end li
 
 ## [0.13.0] — 2026-11-25
 
-Font output: changes: a glyph with a cut end is redrawn where the corner the cut shortens stood off the stroke's edge (a curved terminal, or a stroke with a swell), and its advance and kerns move with it. No concept that the three examples build has a cut end, so every example rebuilds to the recorded digests (`tests/test_backward_compat.py`).
+Font output: changes: a glyph with a cut end is redrawn where the corner the cut shortens stood off the stroke's edge (a curved terminal, or a stroke with a swell), and its advance and kerns move with it. No concept that the three examples build has a cut end, so every example rebuilds to the recorded digests (`tests/test_backward_compat.py`). The Tiki Terminal example, added to `main` while this change was under way, builds `cane` and `canelean`, which have `cut` stem ends and `swell` 0.35: its font changes (77,592 bytes, was 78,020; 4,766 kern pairs, was 4,660).
 
 ### Fixed
 - **The step where a curved terminal meets its cut corner (issue #27).** `gen.js` moved both corners of a `cut` end along the end tangent. That line is the stroke's edge only on a straight stroke of even width, so on a curved terminal, or on a straight stroke whose edges a large `swell` curves, the corner the cut shortens stood off the edge and the outline ran from the edge to the corner as a step. A copy of `examples/neutral` with `cut` stem ends and `swell: 0.35` exported with folded edges in every master and `build.py` refused it (`SELF-CHECK FAILED: TextRegular: 7 stroke edge(s) fold back`). The corner the cut shortens is now placed on the edge itself (`cutBack`): where the edge crosses the cut line, or at the cut's reach when it does not cross it there. The tests print the measured figures (`tests/test_cut_step.py`, `tests/test_cut_ask.py`, `tests/test_cut_angle.py`, `tests/test_cut_short.py`).
@@ -14,7 +14,9 @@ Font output: changes: a glyph with a cut end is redrawn where the corner the cut
 ### Changed
 - **The cut line moves to the corner when the edge does not reach it.** The other corner then runs out along the end tangent to the parallel line through the corner the edge got, so the cut keeps its angle.
 - **A stroke shorter than its cut's reach pins only the near half of its edge.** The walk of `cutBack` stays inside the near half, so the pins at the two ends of one stroke never meet. The corner that runs out is still placed by `clipPast`, which has no such bound.
-- **Spacing follows the new outline.** A `cut` end carries no `prof`, so advances and kerns of a concept with `cut` ends move with the outline. No font this repository builds has a `cut` end.
+- **Spacing follows the new outline.** A `cut` end carries no `prof`, so advances and kerns of a concept with `cut` ends move with the outline. Of the fonts this repository builds, only Tiki Terminal has a `cut` end.
+- **Tiki Terminal's zero-kern list was re-measured** by the README's own recipe (`tests/pair_gap.py --under 16` on a build without the zero pairs): 666 zero pairs, was 663 (7 dropped, 10 added), so `TIKI-ZERO-LIST` holds on the new outlines. The worst decimated fold at Bold falls from 2.33 (`u`) to 0.7 (`Ñ`).
+- **`tests/r_leg_junction.js` reads the `R` leg's foot on its centre line.** A cut foot whose corner moved back pins samples and moves the cut line, so the midpoint of the foot's corners is no longer the skeleton's end (0.2 to 0.8 units off on Tiki Terminal's `cane` and `totem`). The probe now reads the centre line on samples no pin reached and extends it to the foot.
 - **The genre verdicts for `grot` and `geometric` were re-read** after the redraw.
 
 ### Looked at and not changed

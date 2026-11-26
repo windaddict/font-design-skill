@@ -73,17 +73,17 @@ six tests (see "Known limits"). `tests/test_tiki_terminal.py` holds the same exp
 
 ## Numbers
 
-From the build that wrote the face (`out/manifest.json`, 2026-11-25, node 26.13.1):
+From the build that wrote the face (`out/manifest.json`, 2026-11-26, skill 0.13.0, node 26.13.1; the glyph and cmap counts and the vertical metrics and word space are from the 0.12.0 build of 2026-11-25, which 0.13.0 does not change):
 
 | Quantity | Value |
 |---|---|
 | Glyphs, cmap entries | 140, 137 |
-| Kern pairs written | 4,660 (5,323 before the zero pairs below) |
-| Points per master | 154,282 raw, 21,727 after decimation (the same in all four masters) |
+| Kern pairs written | 4,766 (5,432 before the zero pairs below) |
+| Points per master | 154,282 raw, 21,503 after decimation (the same in all four masters) |
 | Minimum stroke, Regular and Lean | 78.78 units (floor 78), at `_` |
 | Minimum stroke, Bold and Bold Lean | 118.18 units (floor 118), at `ë` |
-| Worst fold after decimation | 4.13 units (Regular, `1`) and 2.33 (Bold, `u`) |
-| woff2 size | 78,020 bytes (budget 102,400) |
+| Worst fold after decimation | 4.13 units (Regular, `1`) and 0.7 (Bold, `Ñ`) |
+| woff2 size | 77,592 bytes (budget 102,400) |
 | Vertical metrics | ascender 1010, descender -293, line gap 0 (`line-height: normal` reads 1.303 em) |
 | Word space | 256 (Regular), 273 (Bold) |
 
@@ -97,10 +97,10 @@ This face has square ends on most strokes, so its automatic kerns pull some pair
 outlines touch.
 
 Measured at the five locations of `tests/pair_gap.py` (Regular, Bold, Lean, Bold Lean and the middle at
-550 and 50): 367 two-character pairs cross, 531 come under 12 units and 624 come under 16, before any
+550 and 50), on the 0.12.0 build: 367 two-character pairs cross, 531 come under 12 units and 624 come under 16, before any
 suppression.
 
-What the face does about it: `kerning.hand` holds 663 zero pairs. A zero hand pair makes `export.js` skip
+What the face does about it: `kerning.hand` holds 666 zero pairs (re-measured for 0.13.0, which moves the cut corners of the `cane` and `totem` strokes onto their edges). A zero hand pair makes `export.js` skip
 the automatic kern for that pair, so the two glyphs sit on their sidebearings (8 units or more each). The
 list holds every pair of kern-set keys, with the three ligature keys, whose outlines came closer than 16
 units at any of the five locations. Two pairs have a real value because zero is too loose for them:

@@ -87,7 +87,11 @@ def test_the_r_leg_is_buried_in_its_bowl_in_every_concept(measured, f):
     bar's half-thickness of the midpoint of its edges), buried by at least 0.4 of the half-thickness (measured minimum 0.54), and,
     on the straight roman leg, w / sin(phi) apart with phi the leg's angle to the level bar (the whole cut, 1.24 w at 54 degrees;
     0.62 w is the reach per side); the roman leg's direction is the skeleton's, atan2(-340, 250 xs_eff), and its foot sits on the
-    baseline; and the tee token names the same partner stroke and sample at both weights.
+    baseline; and the tee token names the same partner stroke and sample at both weights. The direction and the foot are read on
+    the leg's centre line over samples the foot's cut did not pin, extended to the last sample (tests/r_leg_junction.js): since
+    0.13.0 a cut foot whose corner moved back onto a swelled edge moves its cut line, so the midpoint of the foot's corners sits
+    0.2 to 0.8 units off the skeleton's end (Tiki Terminal's `cane` and `totem`). Watched red on that reading (2026-11-26): the
+    roman leg's foot at y 2 (`foot`) and at x 580 (`angle`), each on all six concept files, `cane` included.
     Red on 0.4.0: the nub is 14.97 on Bract text at mult 1 (95 of 134 drawings over 1 unit), with the disk present."""
     recs = drawings_of(measured, f)
     bad = []
