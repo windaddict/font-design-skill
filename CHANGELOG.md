@@ -1064,7 +1064,7 @@ font output for the same face folder, not identical repository files: later comm
 | v0.9.0 | the merge commit of the release branch | tagged after the merge |
 | v0.10.0 | 1b3c2c7 | merge of PR #25 |
 | v0.11.0 | 14e03fc | merge of PR #28 |
-| v0.12.0 | the merge commit of the release branch | tagged after the merge |
+| v0.12.0 | 7713ddd | merge of PR #29 |
 
 **0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and
 its `gen.js` and `export.js` differ from the tag's; it reached `main` only inside 0.7.0 (aa4b9ae), so it has no tag. A face built by it
