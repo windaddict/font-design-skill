@@ -13,3 +13,7 @@ WHAT IT'S FOR: the record of the before and after drawings the operator rules on
 ## Implementer's reading
 
 The implementer did not view the rendered page; this record states what was measured, not what was seen. Measured with `tests/test_cut_step.py::all_rows()` on the final generator: 92 edge rows of the acute and grave accents of `grot` and `geometric` (multipliers 1.3 to 1.65) belong to a stroke shorter than its cut's reach (`exhausted`). None of them stops more than 0.05 units short of its cut line (`pastLine`), so on the shipped accents the measure finds no flat-topped terminal that stops short. The operator's reading of those terminals is `design-acceptance` part 2.
+
+## Operator ruling
+
+`design-acceptance` part 2: accepted on 2026-11-26, in the session that opened PR #31. The operator accepted the 0.13.0 cut terminals of `grot` and `geometric`, roman and italic at 1, 1.5 and 1.65, and the short acute and grave accents.

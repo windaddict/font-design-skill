@@ -29,7 +29,7 @@ what was concluded per recipe, and the digests of the outlines as drawn now.
 - Limits of the reading: one reviewer, who is the implementer; one pass at the cropped size. The page sets no italic and no multiplier 1.65.
   `docs/reviews/comparison-0.13.0.md` names the page that sets roman and italic at 1, 1.5 and 1.65, which the operator reads under `design-acceptance`. The lineup text sets every one of the 53 keys per recipe named in the plan, and each was read in the same line at all three weights, with no per-key enlargement.
 - The reading changed no verdict word. `grot` stays **partly** and `geometric` stays **no**; both take the date of this reading and a sentence about the cut terminals.
-- Operator ruling: not yet given (`genre-review-acceptance`).
+- Operator ruling (`genre-review-acceptance`): accepted on 2026-11-26, in the session that opened PR #31. `grot` stays **partly** and `geometric` stays **no**.
 
 ## Verdicts
 
