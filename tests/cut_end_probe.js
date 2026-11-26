@@ -12,7 +12,8 @@
 // SCRIPTS_DIR holds gen.js (the real scripts/ folder, or a scratch copy carrying one mutation).
 //
 // SPEC (one JSON object): files (concept files), inline (concept objects, for a concept that has no file), only (draw only the concept
-// with this id), mults, styles ("roman" | "italic"; italic is drawn at 10 degrees and only for a concept that maps the "x" end), and
+// with this id), patch (an object assigned over every concept drawn, in every mode and for both generators of mode `glyphs`: a fixture
+// that is a shipped concept with some parameters changed, so it cannot drift from the concept it copies), mults, styles ("roman" | "italic"; italic is drawn at 10 degrees and only for a concept that maps the "x" end), and
 // for mode `glyphs` old (the path of another gen.js).
 //
 // Rules shared by every mode (they follow tests/joint_probe.js):
@@ -44,11 +45,39 @@
 //                  cut corner, does the outline continue beyond the cut.
 //   beyond         from the first sample outside the reach to the middle of the stroke, how many samples differ from the uncut drawing
 //                  by more than 1e-6; beyondMax is the largest difference.
+//   C, U0, u(j), n, out, Dv   in the entries below: C is the edge's end corner in the cut drawing, U0 the same corner in the uncut
+//                  drawing, u(j) the uncut edge's samples counted in from the end, n the stroke's sample count, out the stroke's
+//                  outward direction (unit) and Dv the cut direction.
+//   back           the cut moved the corner back along the stroke: (C - U0) . out < -1e-6.
+//   off            the distance from C to the uncut edge, the polyline u(0) ... u(n-1) (the whole edge). 0 means the corner lies on the
+//                  edge the uncut stroke draws. This is the step of issue #27.
+//   at             the distance along that polyline from U0 to the point nearest C (the first such point).
+//   pastLine       the signed distance of C past the cut line through the middle of the uncut end (the midpoint of the two uncut
+//                  corners), positive on the side the stroke points to. Negative: the corner stops short of the line, on the stroke's side of it (the cut took
+//                  more than the line asks). A corner that stops before reaching the line from outside is positive.
+//   beyondSpan, beyondSpanMax   as beyond and beyondMax, but counted from the first sample farther along the uncut edge than
+//                  max(reach, at) + 1e-6. reach is a straight-line distance, and a corner on a curved edge sits farther along the edge.
+//   lim            min(80, floor((n - 2) / 2)): the bound of the corner walk in the generator.
+//   pinRun         the number of samples in the run counted in from the end, starting at the end sample, whose cut position equals C
+//                  within 1e-9, not counting a sample whose UNCUT position also equals C (a stack the fold pin already made in the
+//                  uncut drawing is not a pin the cut made; the run goes on through it). At least 1: the corner itself.
+//   Per end, the same value on both rows:
+//   exhausted      the first lim segments of the uncut edge, from U0, are together shorter than ask - 1e-6 (and ask > 0), on either edge
+//                  of the end. Computed from the uncut drawing alone.
+//   exhaustedEdge  the same measure for this row's own edge alone (a row's value, not the end's): the first lim segments of this uncut edge
+//                  are together shorter than ask - 1e-6 (and ask > 0). tests/test_cut_short.py reads it, because an end can be exhausted
+//                  on one edge only, and the other edge's walk then ends normally.
+//   width          the distance between the two uncut corners.
+//   ask            how far a straight stroke of this end's width and direction is shortened on one edge by a cut line through the middle
+//                  of its end. With e the unit vector from the uncut R corner to the uncut L corner: 0 when |e . Dv| < 0.25, else
+//                  min(width, width / 2 * |e x Dv| / |e . Dv|).
+//   stacked        an uncut end sample equals its neighbour on the same edge within 1e-9 (the fold pin moved the end), on either edge.
+//   tilt           the angle in degrees, 0 to 90, between the segment from the cut L corner to the cut R corner and Dv.
 //
 // MODES
 //   cutconcepts  one row {file, concept} per concept of spec.files that maps an end to `cut`; with spec.all, one row per concept.
 //   ends         the rows defined above: file, concept, style, mult, key, stroke, end, edge, n, reach, inReach, spike, run, beyond,
-//                beyondMax.
+//                beyondMax, back, off, at, pastLine, beyondSpan, beyondSpanMax, lim, pinRun, exhausted, exhaustedEdge, width, ask, stacked, tilt.
 //   glyphs       one row per drawn glyph of every concept of spec.files and spec.inline, cut end or not: file, concept, style, mult, key,
 //                same (polygons, advance and both spacing profiles equal those of the generator at spec.old, exactly) and movedCut (the
 //                glyph has an edge with reach > 1e-6, measured as above with the generator under test), adv (the advance drawn by the generator under test) and oldAdv (the advance drawn by the generator at spec.old).
@@ -141,8 +170,43 @@ function edgeRowsOf(cr, ur, cutAngle, key) {
       const mIn = midOf(uL(4), uR(4)), mEnd = midOf(uL(0), uR(0));
       const out = [mEnd[0] - mIn[0], mEnd[1] - mIn[1]];
       const nrm = [-Dv[1], Dv[0]], sgn = (nrm[0] * out[0] + nrm[1] * out[1]) >= 0 ? 1 : -1;
+      // per end, from the uncut drawing alone (and the two cut corners for `tilt`)
+      const outLen = Math.hypot(out[0], out[1]), outU = [out[0] / outLen, out[1] / outLen];
+      const lim = Math.min(80, Math.floor((n - 2) / 2));
+      const e0 = [uL(0)[0] - uR(0)[0], uL(0)[1] - uR(0)[1]], width = Math.hypot(e0[0], e0[1]), eU = [e0[0] / width, e0[1] / width];
+      const eDot = eU[0] * Dv[0] + eU[1] * Dv[1], eCross = eU[0] * Dv[1] - eU[1] * Dv[0];
+      const ask = Math.abs(eDot) < 0.25 ? 0 : Math.min(width, width / 2 * Math.abs(eCross) / Math.abs(eDot));
+      const walked = (u) => { let s = 0; for (let j = 0; j < lim && j + 1 < n; j++) s += dist(u(j), u(j + 1)); return s; };
+      const exhausted = ask > 0 && (walked(uL) < ask - 1e-6 || walked(uR) < ask - 1e-6);
+      const stacked = n > 1 && (dist(uL(0), uL(1)) < 1e-9 || dist(uR(0), uR(1)) < 1e-9);
+      const seg = [cR(0)[0] - cL(0)[0], cR(0)[1] - cL(0)[1]], segLen = Math.hypot(seg[0], seg[1]);
+      const tilt = segLen > 0 ? Math.acos(Math.min(1, Math.abs((seg[0] * Dv[0] + seg[1] * Dv[1]) / segLen))) * 180 / Math.PI : 0;
+      const endMid = midOf(uL(0), uR(0));
       [["L", cL, uL], ["R", cR, uR]].forEach(([edge, c, u]) => {
         const C = c(0), U0 = u(0), reach = dist(C, U0);
+        // the uncut edge as a polyline, counted in from the end: the corner's distance to it, and where along it the nearest point is
+        let off = Infinity, at = 0, cum = 0;
+        const alongU = [0];
+        for (let j = 0; j + 1 < n; j++) {
+          const a = u(j), b = u(j + 1), l = dist(a, b);
+          let t = 0;
+          if (l > 0) t = Math.max(0, Math.min(1, ((C[0] - a[0]) * (b[0] - a[0]) + (C[1] - a[1]) * (b[1] - a[1])) / (l * l)));
+          const d = Math.hypot(C[0] - (a[0] + (b[0] - a[0]) * t), C[1] - (a[1] + (b[1] - a[1]) * t));
+          if (d < off - 1e-12) { off = d; at = cum + t * l; }
+          cum += l; alongU.push(cum);
+        }
+        if (n === 1) off = dist(C, u(0));
+        const exhaustedEdge = ask > 0 && walked(u) < ask - 1e-6;
+        const back = ((C[0] - U0[0]) * outU[0] + (C[1] - U0[1]) * outU[1]) < -1e-6;
+        const pastLine = sgn * (nrm[0] * (C[0] - endMid[0]) + nrm[1] * (C[1] - endMid[1]));
+        let pinRun = 1;
+        for (let j = 1; j < n && dist(c(j), C) < 1e-9; j++) if (dist(u(j), C) > 1e-9) pinRun++;
+        let beyondSpan = 0, beyondSpanMax = 0;
+        for (let j = 1; j <= half; j++) {
+          if (!(alongU[j] > Math.max(reach, at) + TINY)) continue;
+          const d = dist(c(j), u(j));
+          if (d > TINY) { beyondSpan++; beyondSpanMax = Math.max(beyondSpanMax, d); }
+        }
         let along = 0, prev = U0, inReach = 0;
         for (let j = 1; j <= half; j++) {
           along += dist(prev, u(j)); prev = u(j);
@@ -162,7 +226,7 @@ function edgeRowsOf(cr, ur, cutAngle, key) {
           const d = dist(c(j), u(j));
           if (d > TINY) { beyond++; beyondMax = Math.max(beyondMax, d); }
         }
-        rows.push({ key, stroke: cb.stroke, end: which, edge, n, reach, inReach, spike, run, beyond, beyondMax });
+        rows.push({ key, stroke: cb.stroke, end: which, edge, n, reach, inReach, spike, run, beyond, beyondMax, back, off, at, pastLine, beyondSpan, beyondSpanMax, lim, pinRun, exhausted, exhaustedEdge, width, ask, stacked, tilt });
       });
     });
   });
@@ -183,6 +247,7 @@ function sweep(fn) {
       for (const style of spec.styles) {
         const m = load(); // a fresh generator, and so a fresh glyph cache, for each concept and style
         const c = src.path ? m.loadConcepts(src.path).filter((x) => x.id === id)[0] : JSON.parse(JSON.stringify(src.concept));
+        if (spec.patch) Object.assign(c, JSON.parse(JSON.stringify(spec.patch)));
         if (style === "italic" && !(c.ends && c.ends.x)) continue;
         fn(m, c, style, { file: src.file, concept: id, style, src });
       }
@@ -213,6 +278,7 @@ function glyphRows() {
   sweep((m, c, style, meta) => {
     const o = loadAt(oldPath);
     const oc = meta.src.path ? o.loadConcepts(meta.src.path).filter((x) => x.id === c.id)[0] : JSON.parse(JSON.stringify(meta.src.concept));
+    if (spec.patch) Object.assign(oc, JSON.parse(JSON.stringify(spec.patch)));
     for (const mult of spec.mults) {
       const deg = style === "italic" ? 10 : false, P = m.params(c, mult, deg), PO = o.params(oc, mult, deg);
       const PB = hasCut(c) ? m.params(buttOf(c), mult, deg) : null;

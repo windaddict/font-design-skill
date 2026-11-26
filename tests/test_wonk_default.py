@@ -9,7 +9,10 @@ How the measure works. The previous release is `git show 4efcca7:scripts/gen.js`
 before 0.12.0 (`git log -1 --format=%h -- scripts/gen.js`, 2026-11-25), written to a temporary folder. tests/wonk_amount_probe.js
 (mode `old`) loads both generators afresh for each concept and style and reports, per glyph draw, whether polys, adv, L, R, sig and
 runs are exactly equal, and whether the old drawing leans at all (differs from the old drawing of the same concept with wonk empty).
-The floors keep the test from passing on nothing: it compares at least 7000 draws, and at least 6800 of them are of letters that lean.
+The concepts with a `cut` end are left out (found per file with tests/cut_end_probe.js `cutconcepts`, and asserted to be exactly
+`field` of bract and `windswept` of driftwood, so a new `cut` concept is noticed): 0.13.0 redraws their `cut` ends, so their drawing
+differs from 0.11.0's for a reason that is not the lean, and nothing here compares their lean with 0.11.0's.
+The floors keep the test from passing on nothing: it compares at least 6500 draws, and at least 6500 of them are of letters that lean.
 The amount 0.045 is restated nowhere in this file; the old generator is the reference.
 
 FONT_DESIGN_WONK_SCRIPTS names another copy of the whole scripts/ folder (see tests/test_wonk_amount.py); unset, the real one.
@@ -34,10 +37,12 @@ run = _mod.run
 SCRIPTS = pathlib.Path(os.environ.get("FONT_DESIGN_WONK_SCRIPTS", REPO / "scripts"))
 GEN = SCRIPTS / "gen.js"
 PROBE = REPO / "tests" / "wonk_amount_probe.js"
+CUT_PROBE = REPO / "tests" / "cut_end_probe.js"
 GEN_0_11_0 = "4efcca7"  # the last commit that changed scripts/gen.js before 0.12.0
 CONCEPT_FILES = [REPO / "examples" / e / "concepts.js" for e in ("neutral", "bract", "driftwood")]
-DRAWS_FLOOR = 7000  # measured 7598 draws on 2026-11-25
-LEANING_FLOOR = 6800  # measured 7565 of them leaning on 2026-11-25
+DRAWS_FLOOR = 6500  # measured 6812 draws without the two cut concepts on 2026-11-25
+LEANING_FLOOR = 6500  # measured 6781 of them leaning on 2026-11-25
+CUT_CONCEPTS = {("bract", "field"), ("driftwood", "windswept")}  # the concepts with a `cut` end, left out
 
 
 def test_an_unset_wonkamount_draws_what_0_11_0_drew(tmp_path):
@@ -49,11 +54,18 @@ def test_an_unset_wonkamount_draws_what_0_11_0_drew(tmp_path):
     old.parent.mkdir()
     old.write_text(r.stdout, encoding="utf-8")
     draws = []
+    found = set()
     for f in CONCEPT_FILES:
+        q = run([node(), str(CUT_PROBE), "cutconcepts", str(SCRIPTS), json.dumps({"files": [str(f)]})])
+        assert q.returncode == 0, f"cut_end_probe.js cutconcepts exited {q.returncode} on {f}:\n{q.stderr[-2000:]}"
+        cut = {r["concept"] for r in json.loads(q.stdout)}
+        found |= {(f.parent.name, c) for c in cut}
         spec = {"file": str(f), "styles": ["roman", "italic"], "mults": [1, 1.65], "old": str(old)}
         p = run([node(), str(PROBE), str(GEN), "old", json.dumps(spec)])
         assert p.returncode == 0, f"wonk_amount_probe.js old exited {p.returncode} on {f}:\n{p.stderr[-2000:]}"
-        draws += json.loads(p.stdout)
+        draws += [d for d in json.loads(p.stdout) if d["concept"] not in cut]
+    assert found == CUT_CONCEPTS, (f"the concepts with a cut end are {sorted(found)}, expected {sorted(CUT_CONCEPTS)}; "
+                                   "a new one is left out of this comparison only after it is named here")
     assert len(draws) >= DRAWS_FLOOR, f"only {len(draws)} glyph draws were compared, expected at least {DRAWS_FLOOR}"
     leaning = [d for d in draws if d["leaning"]]
     assert len(leaning) >= LEANING_FLOOR, f"only {len(leaning)} of {len(draws)} compared draws are of a letter that leans, expected at least {LEANING_FLOOR}"

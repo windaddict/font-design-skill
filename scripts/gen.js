@@ -52,6 +52,11 @@
  *      refuses a master pair whose structure or branch outcome differs, naming the glyphs. Two measured causes: the serif kind on
  *      a concept with serif ends (head or foot becomes diag), and the curved decision on a cut-end concept (Driftwood
  *      windswept). Compatibility is what export.js checks per pair; the amount does not guarantee it.
+ *  13. Cut ends on curved edges (0.13.0). The corner of a `cut` end that the cut shortens is placed on the stroke's own edge, where
+ *      the edge crosses the cut line, or at the cut's reach when the edge does not cross it there; the other corner then runs out
+ *      to the parallel line through that corner. Before, both corners moved along the end tangent, so on a curved terminal or a
+ *      swelled stroke the shortened corner stood off the edge as a step, and export.js counted the step of a swelled stem as a
+ *      folded edge (issue #27).
  */
 /* ---------- Skeletons: centre lines in font units (1000/em, baseline 0, y up) ----------
    Each stroke: d = path (M/L/C absolute), a/b = start/end type.
@@ -683,7 +688,8 @@ function serifKind(TU) {
    back along the edge, and the samples it passed would otherwise stay beyond the cut, so the outline would run out to the old end
    and return as a spike. The count of points is unchanged, so masters stay compatible. The walk skips a sample that is not past
    the line during its first seven steps, stops at the first such sample after them, and takes 80 steps at most.
-   X0, when given, is the corner before the cut moved it (a `cut` end): the walk also stops at the first sample farther from X0,
+   X0, when given, is the corner before the cut moved it (a `cut` end; since 0.13.0 only the corner of a `cut` end that runs OUT to
+   the cut line takes this path; the corner the cut shortens is placed by cutBack): the walk also stops at the first sample farther from X0,
    measured along the edge, than the corner moved. A `cut` moves its corner by the stroke width at most (cutSide's clamp), and on
    a curved terminal the body of the stroke lies past the infinite cut line, so an unbounded walk replaced up to 80 samples of the
    inner edge by one chord (r, f, t, 9 of a sans concept at mult 1.5). An end the cut did not move has a reach of 0 and keeps
@@ -696,6 +702,49 @@ function clipPast(arr, k, sg, T, Dv, X0) {
     if (side * ref > 1e-6) { arr[j] = [C[0], C[1]]; pinned++; } else if (steps > 6) break;
   }
   return pinned;
+}
+/* cutBack: the corner of a `cut` end on the edge the cut SHORTENS, placed on the edge itself. WHAT IT'S FOR: cutSide moves a
+   corner along the end tangent, which is the edge only on a straight stroke of even width. On a curved terminal, or on a straight
+   stroke whose edges a `swell` curves, the corner it gives stands off the edge, and the outline ran from the edge to that corner
+   as a step (issue #27). p is the end point of the centre line and Dv the cut direction; the cut line passes through p along Dv.
+   Returns null, and changes nothing, when the end runs within 14.5 degrees of the cut direction (cutSide's own threshold: no
+   cut) or when the uncut corner arr[k] is not past the cut line (that corner runs OUT to the line: cutSide). Otherwise the walk
+   goes back from the end along the edge, measuring the distance along it, as far as the reach: the distance cutSide would have
+   moved the corner along the tangent, at most w. The corner is the first point where the edge crosses the cut line (onLine
+   true), or, when the edge does not cross it within the reach, the point of the edge at the reach (onLine false: on a curved
+   terminal the edge can run beside the cut line for a long way, and following it there cut the counter open). Every sample
+   between the end and the corner is pinned to the corner, so the count of points is unchanged and masters stay compatible, and no
+   sample beyond the corner moves. The walk takes at most lim steps: 80, or fewer on a short edge, so that it stays inside the
+   near half of the edge (indices 0 to lim from this end) and the pins cutBack makes at the two ends of one stroke never meet;
+   cutBack never pins a middle sample. (The clipPast of the corner that runs out has no such bound.) When the edge ends before it has crossed the line or reached the reach (a stroke shorter than its cut's reach,
+   such as an accent at a heavy multiplier), the corner is the last sample of the walk, onLine false: the near half of the edge is
+   pinned to that sample, and the far half and the middle keep their points. A run of samples the fold pin stacked has no length
+   and adds nothing to the distance walked, but each of its samples still counts as one of the lim steps, because lim bounds sample
+   indices, not length: on a short edge that opens with a stacked run, the walk can end inside that run, and the corner is then the
+   stacked sample, onLine false (build review F003; not measured on a shipped concept). Returns { C: the corner, onLine }. */
+function cutBack(arr, k, sg, T, p, Dv, w) {
+  var cr = T[0] * Dv[1] - T[1] * Dv[0];
+  if (Math.abs(cr) < 0.25) return null;
+  var X0 = arr[k], t = ((p[0] - X0[0]) * Dv[1] - (p[1] - X0[1]) * Dv[0]) / cr;
+  if (!(t < 0)) return null;
+  var reach = Math.min(-t, w), a = X0, along = 0, C = null, onLine = false, j, steps;
+  var lim = Math.min(80, Math.floor((arr.length - 2) / 2)); // the walk stays in the near half: cutBack's pins at the two ends never meet
+  // past(q) > 0 when q lies beyond the cut line, on the side the outward tangent points to
+  function past(q) { return -cr * (Dv[0] * (q[1] - p[1]) - Dv[1] * (q[0] - p[0])); }
+  var sa = past(a);
+  for (j = k - sg, steps = 0; j >= 0 && j < arr.length && steps < lim; j -= sg, steps++) {
+    var b = arr[j], l = dist(a, b), sb = past(b);
+    if (l > 0) {
+      var f = sb <= 0 ? sa / (sa - sb) : 2;
+      if (f <= 1 && along + l * f <= reach) { C = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; onLine = true; break; }
+      if (along + l >= reach) { f = (reach - along) / l; C = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; break; }
+    }
+    along += l; a = b; sa = sb;
+  }
+  // the edge ended inside the near half before the line or the reach: stop on the last sample walked, never on the far end of the edge
+  if (!C) C = [a[0], a[1]];
+  for (var i = k; i !== j; i -= sg) arr[i] = [C[0], C[1]];
+  return { C: C, onLine: onLine };
 }
 function beakPoly(p, T, w, P, yU) {
   // yU: the end's y on the unmapped skeleton, which decides the beak's side (the thresholds are skeleton coordinates)
@@ -905,10 +954,14 @@ function strokePolys(pts, closed, flags, P, ch, out, joins, trace, joinIds, U, t
     if (mode === "tee") { teeCut(Lp, Rp, k, sg, T, pts, Ws, tees[sg < 0 ? 0 : 1], ch); return; }
     if (mode === "cut") {
       var Dv = [Math.cos(P.cut), Math.sin(P.cut)], Lu = Lp[k], Ru = Rp[k];
-      Lp[k] = cutSide(Lp[k], T, pts[k], Dv, Ws[k]); Rp[k] = cutSide(Rp[k], T, pts[k], Dv, Ws[k]);
-      // the samples each corner moved past are pinned to it (0.11.0): they stood beyond the cut and drew a spike. The same in the
-      // `legacy` pass, so the spacing profile of a cut end follows the outline (references/generator.md, section 8)
-      clipPast(Lp, k, sg, T, Dv, Lu); clipPast(Rp, k, sg, T, Dv, Ru);
+      // the edge the cut shortens is cut on the edge itself (0.13.0, cutBack), so its corner never stands off a curved or swelled
+      // edge. The other corner runs out along the end tangent to the cut line: the line through the end point, or, when the
+      // shortened edge did not reach that line within its reach, the parallel line through the corner it got (`through`). The same in
+      // the `legacy` pass, so the spacing profile of a cut end follows the outline (references/generator.md, section 8)
+      var bL = cutBack(Lp, k, sg, T, pts[k], Dv, Ws[k]), bR = cutBack(Rp, k, sg, T, pts[k], Dv, Ws[k]);
+      var through = bL && !bL.onLine ? bL.C : bR && !bR.onLine ? bR.C : pts[k];
+      if (!bL) { Lp[k] = cutSide(Lu, T, through, Dv, Ws[k]); clipPast(Lp, k, sg, T, Dv, Lu); }
+      if (!bR) { Rp[k] = cutSide(Ru, T, through, Dv, Ws[k]); clipPast(Rp, k, sg, T, Dv, Ru); }
     }
     // a serifed diagonal ends level with the baseline or cap line, not square to the stroke
     // only the serifed concept gets level joints; the others keep their own round or cut ends

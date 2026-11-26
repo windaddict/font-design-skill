@@ -18,7 +18,7 @@
 //                                                                   own concept copy so no case reads another's cache
 //
 // Coordinates are the generator's drawn ones (after the sidebearing shift); a drawing's bowl and stem polygons are
-// compared with another generator's after aligning on the stem body's first point.
+// compared with another generator's after aligning on the middle sample of the stem's first edge run, a point no end construction moves.
 // Copyright 2026 John Knox. MIT licence.
 "use strict";
 const path = require("path");
@@ -117,7 +117,17 @@ function measureR(g, P) {
   const margin = Math.min(marginOf(c0), marginOf(c1));
   // the leg's width well past any pinned sample, and its direction and foot from the centre line
   const mid = j => [(E.L(j)[0] + E.R(j)[0]) / 2, (E.L(j)[1] + E.R(j)[1]) / 2];
-  const w = dist(E.L(Math.min(40, n - 1)), E.R(Math.min(40, n - 1))), foot = mid(n - 1), back = mid(Math.max(0, n - 31));
+  // A cut foot can pin a run of samples to a corner it moved back onto the edge (cutBack in gen.js, 0.13.0) and move the cut line
+  // parallel to itself, so the midpoint of the foot's two corners is off the centre line. The centre line is read on samples no
+  // pin reached (u, one short of the last unpinned sample, so a corner moved by less than one sample is not read either) and
+  // extended to the last sample: the samples are evenly spaced along the straight roman leg. With no pin this is the line
+  // through the last samples, which ends where the foot's corners' midpoint did before 0.13.0.
+  const same = (a, b) => Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+  const pinsAt = f => { let k = 0; while (k < n - 2 && same(f(n - 2 - k), f(n - 1))) k++; return k; };
+  const footPins = Math.max(pinsAt(E.L), pinsAt(E.R)), u = Math.max(30, n - 2 - footPins), bu = u - 30;
+  const mu = mid(u), mb = mid(bu), ext = (n - 1 - u) / (u - bu);
+  const w = dist(E.L(Math.min(40, n - 1)), E.R(Math.min(40, n - 1))), back = mb,
+    foot = [mu[0] + ext * (mu[0] - mb[0]), mu[1] + ext * (mu[1] - mb[1])];
   const legAngle = Math.atan2(foot[1] - back[1], foot[0] - back[0]) * 180 / Math.PI;
   // a 64-point polygon of the leg's centred within one width of the root is a disk at the root (a ball at the other end is not)
   const root = [(c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2];
@@ -136,7 +146,7 @@ function measureR(g, P) {
     nub: +nub.toFixed(4), below: +below.toFixed(4), nubAt: at, overlap, bodies: bodies.length, legBody,
     corners: [c0, c1].map(c => c.map(v => +v.toFixed(3))), tilt: +Math.abs(c0[1] - c1[1]).toFixed(4),
     centreOffset: centreOffset === null ? null : +centreOffset.toFixed(4), halfBar: halfBar === null ? null : +halfBar.toFixed(3),
-    margin: +margin.toFixed(3), cutLen: +dist(c0, c1).toFixed(3), w: +w.toFixed(3), legAngle: +legAngle.toFixed(3), footY: +foot[1].toFixed(3),
+    margin: +margin.toFixed(3), cutLen: +dist(c0, c1).toFixed(3), w: +w.toFixed(3), legAngle: +legAngle.toFixed(3), footY: +foot[1].toFixed(3), footPins,
     diskAtRoot, legPolys: leg.length, polys: g.polys.length, points: g.polys.reduce((t, p) => t + p.length, 0),
     adv: +g.adv.toFixed(3), tee, legSig, pinned: [pinnedL, pinnedR], profile: prof.map(r => ({ j: r.j, width: +r.width.toFixed(4), theta: +r.theta.toFixed(6), s: +r.s.toFixed(3) })),
     total: +s[n - 1].toFixed(3), W: P.W, W0: P.W0, thin: P.thin, nib: P.nib, pow: P.pow, swell: P.swell || 0, italic: P.italic, xs: P.xs || 1, shear: P.shear || 0, optical: !!P.optical,
@@ -156,7 +166,9 @@ function drawings(cb) {
 if (mode === "measure") {
   console.log(JSON.stringify(drawings(measureR)));
 } else if (mode === "dump") {
-  console.log(JSON.stringify(drawings(g => { const { bodies } = parts(g); const sh = g.polys[0][0][0]; return { bodies, polys: g.polys.map(p => p.map(q => [+(q[0] - sh).toFixed(4), +q[1].toFixed(4)])) }; })));
+  // the x of the middle sample of the stem edge that polygon 0 starts with (the edge run whose first index is 0)
+  const stemMid = g => { const r = g.runs[0].find(q => q[0] === 0); return g.polys[0][Math.floor((r[0] + r[1]) / 2)][0]; };
+  console.log(JSON.stringify(drawings(g => { const { bodies } = parts(g); const sh = stemMid(g); return { bodies, polys: g.polys.map(p => p.map(q => [+(q[0] - sh).toFixed(4), +q[1].toFixed(4)])) }; })));
 } else if (mode === "control") {
   // the 0.4.0 skeleton, installed before any draw (FD_R_CONTROL_WARM=1 draws the R first, the mutation that shows why)
   const c = m.loadConcepts(files[0])[0], P = m.params(c, 1, false);
