@@ -112,11 +112,12 @@ def test_no_branch_or_structure_changes_with_weight(weight_flips, f):
 
 
 def test_the_weight_comparison_covers_the_concept_files(weight_flips):
-    """The five files together give exactly 220,080 comparisons (measured on 2026-11-19: 131 keys x 24 multipliers per concept and
-    slant), so a loop that silently dropped a file, a slant, a concept or one multiplier would fail here (review F004, diff review:
+    """The six files together give exactly 264,096 comparisons (220,080 on the first five files, measured on 2026-11-19:
+    131 keys x 24 multipliers per concept and slant; Tiki Terminal's seven concepts add 44,016), so a loop that silently
+    dropped a file, a slant, a concept or one multiplier would fail here (review F004, diff review:
     a floor of 200,000 let two multipliers go). A new concept or glyph changes the count and this number with it, on purpose."""
     total = sum(r["compared"] for r in weight_flips.values())
-    assert len(weight_flips) == 5 and total == 220080, f"{len(weight_flips)} files, {total} comparisons"
+    assert len(weight_flips) == 6 and total == 264096, f"{len(weight_flips)} files, {total} comparisons"
 
 
 # --- b: an italic group takes a Bold master -------------------------------------------------------------------------

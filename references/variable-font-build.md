@@ -202,11 +202,11 @@ not advertised in the CSS.
 
 A group's `axes` may hold one axis (`wght` only). `build.py` derives axes and masters from the
 config (plan finding F003 found Bract's builder hard-coded `axes[1] == opsz` and four names), and
-the smoke run builds three fixtures: two-axis roman (the neutral example), wght-only roman and
-wght-only italic (the Driftwood example). A one-axis group still needs two masters, and the
+the smoke run builds four fixtures: two-axis roman (the neutral example), wght-only roman and
+wght-only italic (the Driftwood example), and a `wght` plus `LEAN` roman (Tiki Terminal, 78,020 bytes as woff2, measured 2026-11-25). A one-axis group still needs two masters, and the
 `avar` map still applies.
 
-**A lean axis (0.12.0).** A group may carry an axis with a custom four-letter tag such as `LEAN` beside `wght`: the masters at its two ends use two concepts that differ in `wonkAmount` (and name the same letters in `wonk`), and `build.py` interpolates the lean linearly (`references/generator.md` section 6). `tests/test_wonk_amount.py` builds Driftwood `tideline` with `wght` 400 to 700 and `LEAN` 0 to 100, four masters, and passes every self-check. Four rules:
+**A lean axis (0.12.0).** A group may carry an axis with a custom four-letter tag such as `LEAN` beside `wght`: the masters at its two ends use two concepts that differ in `wonkAmount` (and name the same letters in `wonk`), and `build.py` interpolates the lean linearly (`references/generator.md` section 6). `tests/test_wonk_amount.py` builds Driftwood `tideline` with `wght` 400 to 700 and `LEAN` 0 to 100, four masters, and passes every self-check. The Tiki Terminal example (`examples/tiki-terminal/`) is the example face with a `LEAN` axis beside `wght`: four masters, 78,020 bytes as woff2, built by the smoke run. Four rules:
 
 - **Pair it with a weight axis.** A group whose only axis is the lean fails the self-check "glyphs without gvar variations" on `period hyphen endash emdash ellipsis bullet`: the lean moves those glyphs rigidly and the sidebearings cancel the move, so both masters are identical. A weight axis beside the lean varies every glyph.
 - **The file grows.** The four-master face above is 108,508 bytes as woff2 (measured 2026-11-25 with one named instance), over the 102,400 bytes the Driftwood example's `font.json` sets as `size_budget_bytes`; the test sets 204,800 for its own copy. Set the budget for the face you build.
