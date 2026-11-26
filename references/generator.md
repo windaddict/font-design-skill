@@ -394,8 +394,7 @@ roman `Z`'s tooth).
 
 **Cut ends (0.11.0).** A `cut` end carries no `prof`, and the clip runs in the `legacy` pass too, so the spacing profile of a glyph with a
 `cut` end follows the clipped outline: the spike points no longer count as ink. The advances and kerns of a concept with `cut` ends therefore
-move (CHANGELOG 0.11.0 lists the measured moves). No font this repository builds has a `cut` end, so no shipped face moves; the three examples
-rebuild to the recorded digests (`tests/test_backward_compat.py`).
+move (CHANGELOG 0.11.0 lists the measured moves). No font the three compatibility examples build has a `cut` end, so they rebuild to the recorded digests (`tests/test_backward_compat.py`); the Tiki Terminal example (0.12.0, `examples/tiki-terminal/`) does draw `cut` stem ends, and its outlines are in no baseline.
 
 **Automatic kerning** (`kern(a, b)`): the pair's mean gap over the shared band is compared with
 the reference pair's (`H|H` for two uppers, else `n|n`), over the same band: 700 when either glyph is `UPPERISH`, else `xh`; when it exceeds the reference by more
@@ -406,11 +405,21 @@ at one height only and runs away (the hyphen before `S` in "Eighty-Seventh" hit 
 S in a cold dry run of this skill; trap 34). Bract sets `null`: its kerning was reviewed before the
 cap existed (`.|Y` −102 at Regular and −149 at Bold), and taking the cap would change its reviewed
 spacing, which is a design change and not a build fix; then
-`k ≥ minClear − minRaw` with `minClear = 14 + 0.05·W` so no pair closes under the clearance; then
+`k ≥ minClear − minRaw` with `minClear = 14 + 0.05·W`, which keeps a pair from closing under the clearance **where the profile has a point to read**; then
 clamped at **+80**. Pairs of two figures are skipped (figures keep their own spacing). The automatic
 pass never sees the word space, so a letter whose ink sits far left of its advance at the baseline
 (`f`, whose arm sets the advance) leaves a wide gap before the next word; that is a `kerning.space`
 pair (`["f", " ", -25]` in the neutral example; trap 35), not a generator change.
+
+**The clamp's exact limit (found on Tiki Terminal, 2026-11-25).** The spacing profile (`profs` in `glyph()`, 54 bins of 20 units) is built from
+polygon points only, and the clamp reads the same profile. A square stroke end (`j`, `butt` or `cut`) is one straight segment with two points, so
+the bins between its corners read whatever lies behind the end: the left profile of Tiki Terminal's Bold `z` reads 8 units in one bin of its bottom
+bar and 278 to 334 in the bar's other bins. The mean rule then pulls the pair together and the clamp does not stop it, so "no pair closes under the
+clearance" holds only where the profile has a point. Measured on the built face (contour distance at five locations, `tests/pair_gap.py`): 367
+two-character pairs cross, 531 come under 12 units and 624 under 16, and on the exported masters 431 pairs of the 5,929 in the kern set come under
+10 units at Bold, against 122 on the neutral example's TextBold and 143 on the Driftwood example's Bold. A serif end has many points, which is why
+the serif examples show less. The face works around it with zero hand pairs and does not change `gen.js` (`examples/tiki-terminal/README.md`,
+"Spacing"). Reading stroke edges instead of points would change font output for every face, so it needs an opt-in or a version.
 
 **What the exporter emits.** `kerning.set` in font.json is a regex over single-character keys
 (ligatures always join). A pair enters the list when `|auto| ≥ kerning.threshold` (12 in Bract,
@@ -630,8 +639,8 @@ said `diag` (inspected 2026-11-19 on a before/after picture kept outside the rep
 body). `test_xh_does_not_change_any_branch_record` and `test_weight_does_not_change_any_branch_record`
 draw every key of every master of the project's groups, and a variant of each master with every end a
 curl, at `xh` 500, 400 and 600 and at mult 0.8, 1, 1.25, 1.5, 1.65 and 2, and compare the records;
-`tests/test_weight_decisions.py` does the same for every concept of the five concept files at 24
-multipliers (220,080 comparisons on 2026-11-19, 0 flips).
+`tests/test_weight_decisions.py` does the same for every concept of the six concept files (five until the Tiki Terminal example) at 24
+multipliers (264,096 comparisons, 0 flips; 220,080 on the five files on 2026-11-19).
 
 The first version recovered the unmapped points by applying the inverse map to the drawn ones. It is
 exact for a curve whose control points lie in one band and approximate for one that straddles the

@@ -290,7 +290,10 @@ def test_the_italic_leg_keeps_its_join_taper(measured):
     20, 23 and 26 (inside the taper's reach) the leg's width is W f(theta) m(s) (1 + swell (0.5 - sin(pi s / total))) with
     f = thin + (1 - thin) |sin(theta - nib)|^pow, m = 1 - 0.3 (1 - s / 0.9 W0)^1.5, within 3 %, and at sample 60 (past the
     reach) m is 1. The roman leg is straight and untapered: m is 1 at every sample. Concepts with an optical knob are left out
-    (their width law has more factors than this restates)."""
+    (their width law has more factors than this restates). A sample j with j <= max(pinned) + 1 is left out too, where pinned is
+    the count of root samples the T-join cut pinned on each edge: there one edge point is the cut's corner, or the first point
+    after it, so the distance across is not a pen width. Every drawing must keep at least three compared samples, so the skip
+    cannot empty a drawing."""
     checked = 0
     bad = []
     for fkey, recs in measured.items():
@@ -298,7 +301,10 @@ def test_the_italic_leg_keeps_its_join_taper(measured):
             if "error" in r or r.get("optical"):
                 continue
             tapl = 0.9 * r["W0"]
+            kept = 0
             for p in r["profile"]:
+                if p["j"] <= max(r["pinned"]) + 1:
+                    continue
                 f = r["thin"] + (1 - r["thin"]) * abs(math.sin(p["theta"] - r["nib"])) ** r["pow"]
                 mm = (1 - 0.3 * (1 - p["s"] / tapl) ** 1.5) if (not roman(key) and p["s"] < tapl) else 1.0
                 sw = 1 + r["swell"] * (0.5 - math.sin(math.pi * p["s"] / r["total"]))
@@ -306,6 +312,9 @@ def test_the_italic_leg_keeps_its_join_taper(measured):
                 if abs(p["width"] / want - 1) > 0.03:
                     bad.append(f"{key} sample {p['j']}: width {p['width']:.2f}, expected {want:.2f} (taper factor {mm:.3f})")
                 checked += 1
+                kept += 1
+            if kept < 3:
+                bad.append(f"{key}: only {kept} samples compared after the pinned ones are left out")
     assert checked > 100, f"only {checked} samples checked"
     assert not bad, "\n".join(bad[:20])
 

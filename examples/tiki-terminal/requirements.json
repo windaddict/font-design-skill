@@ -1,0 +1,139 @@
+{
+  "$comment": "The expectations for the Tiki Terminal build. Axes, instances, names and required characters are the operator's decisions (2026-11-26). The hairline floors, vertical metrics, word space and cmap are measured from the face's first build and rounded down where a floor. hand_kerns lists the pairs given a real kern. scripts/tests/test_font.py runs against this file with six tests excluded (README.md). Accepted FontBakery findings are listed with the reason each is accepted.",
+  "family": "Tiki Terminal",
+  "groups": {
+    "roman": {
+      "axes": {
+        "wght": [
+          400,
+          400,
+          700
+        ],
+        "LEAN": [
+          0,
+          0,
+          100
+        ]
+      },
+      "masters": {
+        "Reg": {
+          "wght": 400,
+          "LEAN": 0
+        },
+        "Bold": {
+          "wght": 700,
+          "LEAN": 0
+        },
+        "RegLean": {
+          "wght": 400,
+          "LEAN": 100
+        },
+        "BoldLean": {
+          "wght": 700,
+          "LEAN": 100
+        }
+      },
+      "instances": {
+        "Regular": {
+          "wght": 400,
+          "LEAN": 0
+        },
+        "Bold": {
+          "wght": 700,
+          "LEAN": 0
+        },
+        "Lean": {
+          "wght": 400,
+          "LEAN": 100
+        },
+        "Bold Lean": {
+          "wght": 700,
+          "LEAN": 100
+        }
+      },
+      "hairline_floors": {
+        "Reg": 78,
+        "Bold": 118,
+        "RegLean": 78,
+        "BoldLean": 118
+      },
+      "vertical_metrics": {
+        "ascender": 1010,
+        "descender": -293,
+        "line_gap": 0
+      },
+      "interpolated_check": {
+        "location": {
+          "wght": 550,
+          "LEAN": 0
+        },
+        "between": [
+          "Reg",
+          "Bold"
+        ],
+        "t": 0.5
+      },
+      "word_space": {
+        "Reg": 256,
+        "Bold": 273,
+        "RegLean": 256,
+        "BoldLean": 273
+      }
+    }
+  },
+  "cmap": " !\"#$%&'()*+,-./0123456789:;>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz ©ÀÁÂÄÇÈÉÊËÍÏÑÓÔÖÚÜàáâäçèéêëìíîïñòóôöùúûüāš–—‘’“”•…™",
+  "required_characters": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&#+*%$\"“”‘’ >_",
+  "hand_kerns": {
+    "r|r": -90,
+    "E|O": -60,
+    " |A": -45
+  },
+  "titles": [
+    "Give your website a typeface no other site has",
+    "LAST CALL AT THE LAGOON LOUNGE",
+    "$ pour mai-tai --strong",
+    "Six Concepts, Three Rounds & One Name",
+    "Grog Log: 04:00, Bay #7",
+    "Tiki Terminal",
+    "C:>_"
+  ],
+  "size_budget_bytes": 102400,
+  "fold_units": {
+    "raw": 4,
+    "decimated": 10
+  },
+  "names": {
+    "family": "Tiki Terminal",
+    "copyright": "Copyright 2026 John M. P. Knox",
+    "manufacturer": "John M. P. Knox",
+    "designer": "John M. P. Knox",
+    "vendor_id": "JMPK",
+    "vendor_url": "https://github.com/windaddict/font-design-skill",
+    "licence_contains": "SIL Open Font License, Version 1.1",
+    "fs_type": 0
+  },
+  "gasp": {
+    "65535": 15
+  },
+  "tables": {
+    "code_page_range1": 1,
+    "prep_hex": "B801FF85B0048D",
+    "mac_names": false
+  },
+  "accepted_qa_findings": [
+    {
+      "id": "case_mapping",
+      "codes": [
+        "missing-case-counterparts"
+      ],
+      "reason": "the generator's glyph set has the lowercase ì î ò ù û ā š and not Ì Î Ò Ù Û Ā Š (seven pairs, listed in FontBakery's message); the face's titles need none of them, and a capital is a new skeleton, which is a generator change"
+    },
+    {
+      "id": "valid_glyphnames",
+      "codes": [
+        "found-invalid-names"
+      ],
+      "reason": "build.py names a one-character ASCII key outside its name table after the key itself, so the glyph skeletons.js adds for > is named '>' (the only name FontBakery's message lists; '_' is a valid glyph name); renaming it changes font output and is a build.py change with a version"
+    }
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "_doc": "Round-1 content for Tiki Terminal, the skill's own open example face. There is no site: the face sets the repository's README hero and its social images (marketing/), so the 'site' fields below describe that use. Titles use only characters the generator draws today (no > _ < @ backslash).",
+  "site": {
+    "name": "font-design",
+    "wordmark": "Tiki Terminal",
+    "lede": "The example face of the font-design skill: a tiki-bar sign crossed with an old console font, drawn by the skill's own generator for its README and social images.",
+    "nav": [
+      "README",
+      "Examples",
+      "References",
+      "Releases"
+    ],
+    "kicker": "Tiki Terminal"
+  },
+  "round": {
+    "title": "Six concepts for Tiki Terminal, round 1b",
+    "intro": [
+      "Six parameter sets for the skill's generator, ordered from a console font to a carved tiki sign. Round 1b follows the round-1 review: no ball terminals, no free end cut at 0 degrees, and two stick-built concepts (Cane, Totem) that reach for the tiki half.",
+      "This page caps its sizes at 80px. The hero is 136px, so judge the terminals on the strip page (strip.html, beside this page), which sets every concept at 136px and 40px, Regular and Bold. They are sketches, not fonts: judge the voice, not the polish."
+    ]
+  },
+  "colours": {
+    "paper": "#f3e7d3",
+    "plate": "#fbf4e8",
+    "ink": "#2a1a10",
+    "pencil": "#6f5a48",
+    "accent": "#b5542b",
+    "accent-lift": "#cc6a3d",
+    "cloth": "#10201a",
+    "cloth-deep": "#0a1511",
+    "cloth-ink": "#9be7a8",
+    "stamp": "#c9b48f",
+    "desk": "#e6d6bc",
+    "rule": "rgba(42, 26, 16, 0.18)",
+    "placeholder": "#a1937f"
+  },
+  "fonts": {
+    "body": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "label": "ui-monospace, Menlo, Consolas, monospace"
+  },
+  "comparison": {
+    "name": "Sampler (the skill's current example face)",
+    "family": "Sampler",
+    "font_url": "fonts/Sampler-VF.woff2",
+    "weights": [
+      400,
+      700
+    ],
+    "note": "The neutral fixture face that the README images would use today, on the same specimens, so each concept is judged against what it would replace."
+  },
+  "weights": [
+    {
+      "label": "Regular",
+      "mult": 1
+    },
+    {
+      "label": "Medium",
+      "mult": 1.25
+    },
+    {
+      "label": "Bold",
+      "mult": 1.5
+    }
+  ],
+  "bold_mult": 1.5,
+  "medium_mult": 1.25,
+  "storage_key": "tiki-terminal-face",
+  "lineup_text": "Tiki Terminal: Last Call at 04:00",
+  "titles": [
+    "Give your website a typeface no other site has",
+    "LAST CALL AT THE LAGOON LOUNGE",
+    "$ pour mai-tai --strong",
+    "Six Concepts, Three Rounds & One Name",
+    "Grog Log: 04:00, Bay #7",
+    "Tiki Terminal"
+  ],
+  "audit": [
+    {
+      "first": true,
+      "finding": "There is no site to audit.",
+      "fix": "Phase 1 does not apply. The face sets a 1280 × 640 README hero and social card, which are drawn fresh for it.",
+      "font_effect": "The face is judged at display sizes only, 40 to 140px, on a warm paper ground and a dark console ground."
+    },
+    {
+      "first": true,
+      "finding": "The images today would use Sampler, the neutral fixture.",
+      "fix": "Sampler's lowercase t ends in a separate-looking ball at every size, so 'Quiet' and 'Wet' read as if followed by a full stop.",
+      "font_effect": "Tiki Terminal replaces Sampler in the marketing images, so its free terminals must read as part of the letter at 140px."
+    },
+    {
+      "first": false,
+      "finding": "A terminal face is fixed-width; this generator is not.",
+      "fix": "None in round 1. A fixed-width mode would be a generator change with its own VERSION bump.",
+      "font_effect": "The console concepts carry the terminal through stroke, slab serifs, tall x-height and loose fit."
+    },
+    {
+      "first": false,
+      "finding": "The prompt characters > and _ have no skeleton.",
+      "fix": "Round-1 titles avoid them. Whether to draw them in a per-face skeletons.js is the operator's decision at the shortlist.",
+      "font_effect": "A prompt like '$ pour mai-tai' works today; 'C:>_' does not."
+    }
+  ],
+  "guidelines": [
+    {
+      "lead": "Differ from the body face in at least two ways",
+      "text": "out of contrast, stress angle, serif shape and width. The README's body is GitHub's system sans, so slabs, texture or a tilted stress all separate the face from it."
+    },
+    {
+      "lead": "Work from 40px to 140px:",
+      "text": "the hero headline at about 136px, the weight ramp at 30px to 40px, a kicker line in the label face. Nothing smaller is set in it."
+    },
+    {
+      "lead": "Two weights,",
+      "text": "Regular and a clearly heavier Bold, on a weight axis with an optical-size axis. No italic: Sampler already exercises the italic code paths."
+    },
+    {
+      "lead": "Free terminals must read as part of the letter",
+      "text": "at 140px, the size where Sampler's t-foot ball fails. Look at t, f, r, a and y in every concept first."
+    }
+  ],
+  "concepts": {
+    "phosphor": {
+      "pick": false,
+      "cost": "Low",
+      "desc": "A monoline sans, narrow and tall in the lowercase, set loose: the console control. Free ends now cut at 30 degrees.",
+      "risk": "The reviewer read it as humanist and the closest of the six to GitHub's body sans. It carries no tiki."
+    },
+    "teletype": {
+      "pick": true,
+      "cost": "Low",
+      "desc": "A light slab at typewriter weight with free ends cut at 30 degrees, where round 1 had balls.",
+      "risk": "The clearest console reference; on its own it reads as a stock typewriter slab."
+    },
+    "cane": {
+      "pick": true,
+      "cost": "Medium",
+      "desc": "Heavy near-monoline sticks, every end (stems too) cut at 32 degrees, swelling toward the ends: canes lashed into a bar sign. The reviewer's set A.",
+      "risk": "The lower terminal of e draws a separate-looking shard, and the T bar ends in a thin sliver at 136px Bold."
+    },
+    "carvedslab": {
+      "pick": true,
+      "cost": "Medium",
+      "desc": "Mainframe's heavy slabs with a tilted pen and tapered free ends: a bar's name routed into a plank. The reviewer's set B.",
+      "risk": "The tapers draw spiky shards on e, r and a at 136px; a slab and a taper may read as two styles."
+    },
+    "carved": {
+      "pick": false,
+      "cost": "Medium",
+      "desc": "A tilted broad nib, rippled stroke, ends cut at 22 degrees, small wedge serifs: letters chiselled into a post.",
+      "risk": "The reviewer found it the closest to Sampler in colour; the ripple does not show at 1x."
+    },
+    "totem": {
+      "pick": true,
+      "cost": "Medium",
+      "desc": "Cane at full width with the vowels and a few letters leaning back, so a word bounces like hand-cut sign letters.",
+      "risk": "The back-lean is barely visible at 136px; it shares Cane's e and T defects."
+    }
+  },
+  "specimen": {
+    "heading": "On the menu",
+    "chapters": [
+      {
+        "num": "I",
+        "name": "Rum",
+        "blurb": "Three of them, poured in one glass."
+      },
+      {
+        "num": "II",
+        "name": "Lime",
+        "blurb": "Fresh, never from the bottle."
+      },
+      {
+        "num": "III",
+        "name": "Orgeat",
+        "blurb": null
+      },
+      {
+        "num": "IV",
+        "name": "Mint",
+        "blurb": null
+      }
+    ],
+    "essay": {
+      "title": "Give Your Website a Typeface No Other Site Has",
+      "date": "24 November 2026",
+      "paragraph": "The skill draws about six candidate faces, sets each one on your real titles and lets you choose a shortlist, then a finalist, then a name. Then it builds the font, tests it and waits for your word before it ships."
+    },
+    "plateline": "Round 1 · 24 November 2026",
+    "tiles": [
+      {
+        "title": "Last Call at the Lagoon Lounge",
+        "date": "Round 1",
+        "colour": "#b5542b"
+      },
+      {
+        "title": "$ pour mai-tai --strong",
+        "date": "Round 1",
+        "colour": "#10201a"
+      },
+      {
+        "title": "Grog Log: 04:00, Bay #7",
+        "date": "Round 1",
+        "colour": "#7a8b4e"
+      },
+      {
+        "title": "Six Concepts, Three Rounds",
+        "date": "Round 1",
+        "colour": "#c9b48f"
+      },
+      {
+        "title": "VOLCANO BOWL FOR FOUR",
+        "date": "Round 1",
+        "colour": "#8a3b22"
+      },
+      {
+        "title": "Tiki Terminal",
+        "date": "Round 1",
+        "colour": "#2f6b4f"
+      }
+    ],
+    "tiles_note": "Swatches stand in for the images. Titles are set at the grid's 16.8px, below this face's 40px floor, so read them as a stress test only.",
+    "chars": "ABCDEFGHIJKLM NOPQRSTUVWXYZ abcdefghijklm nopqrstuvwxyz 0123456789 & ( ) ' : ? . - ! , $ # %"
+  },
+  "recommendation": {
+    "heading": "Recommendation",
+    "paragraphs": [
+      "Author's view after round 1b: shortlist Cane, Carved Slab and Teletype, with Totem only if you want the bounce pushed further. Cane is the first concept that reads as tiki and console at once; its e and T defects are skeleton and terminal fixes for round 2.",
+      "The lineup text box and the weight select above redraw every concept; the specimens below are fixed."
+    ]
+  }
+}

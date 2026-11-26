@@ -3,9 +3,9 @@ name: ci
 # WHAT IT'S FOR: proves the skill's scripts run on a machine that is not the author's. Three jobs:
 #   test   - the matrix, two operating systems because the raster self-checks depend on the FreeType
 #            build inside the Pillow wheel, and a difference should be visible, not hidden. No browser.
-#            It runs scripts/smoke.sh steps 1-7: every group of the three fixtures exported and built
-#            (the Bract and Driftwood configurations included), the reproducibility check, the font suite
-#            and EVERY mutation of scripts/tests/mutate.py on the neutral example, the FontBakery gate (step 4b;
+#            It runs scripts/smoke.sh steps 1-7: every group of the four fixtures exported and built
+#            (the Bract, Driftwood and Tiki Terminal configurations included), the reproducibility check, the font suite
+#            and EVERY mutation of scripts/tests/mutate.py on the neutral example, the FontBakery gate on the neutral fixture and the Tiki Terminal example (steps 4b and 4c;
 #            fontbakery comes from requirements-dev.txt), the concept pages, the repo tests. The first version built the neutral fixture alone and never ran the mutation
 #            harness in CI (independent re-review, code-b F010); tests/test_ci_workflow.py reads this
 #            file for the smoke line.
@@ -95,7 +95,7 @@ jobs:
         run: |
           ruff check scripts/ tests/
           npm run check
-      - name: smoke.sh steps 1-7 - export and build the three fixtures (statics for the neutral one), --check, the font suite, every mutation, the concept pages, the repo tests
+      - name: smoke.sh steps 1-7 - export and build the four fixtures (statics for the neutral one), --check, the font suite, every mutation, the concept pages, the repo tests
         run: FD_PY="$(command -v python)" bash scripts/smoke.sh --out out/smoke
       - uses: actions/upload-artifact@v4
         with:

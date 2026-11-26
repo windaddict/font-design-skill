@@ -1,7 +1,8 @@
 # NOTICE: provenance, and what the MIT licence does and does not cover
 
 WHAT IT'S FOR: this repository publishes code that was first written for two private websites,
-and it publishes the parameters of two typefaces that are not themselves public. This file records
+and it publishes the parameters of two typefaces that are not themselves public, and the parameters of
+a third face, Tiki Terminal, whose font is open. This file records
 where each part came from, what licence it carries here, and what is deliberately **not** in the
 repository, so a reader can tell the open code from the two sites' property. It answers review
 finding F010 of the skill's plan.
@@ -30,9 +31,10 @@ generators under MIT. That confirmation is recorded here:
 
 ## What is not here, and is not MIT
 
-- **The fonts.** No `.woff2`, `.ttf` or `.otf` from Bract or Driftwood is in this repository, and
-  none may be added. Bract is licensed for use on hopsafari.com only; Driftwood MA is proprietary to
-  Moving Average Inc. The repository's tests fail if a font binary is tracked.
+- **The fonts.** No `.woff2`, `.ttf` or `.otf` of any face, Tiki Terminal's included, is in this
+  repository, and none may be added. Bract is licensed for use on hopsafari.com only; Driftwood MA is
+  proprietary to Moving Average Inc.; a font built from the Tiki Terminal parameters is under the SIL Open
+  Font License 1.1, not MIT (see below). The repository's tests fail if a font binary is tracked.
 - **The sites' content.** No essay text, photograph, photograph title or built page from either
   site. `examples/bract/font.json` and `examples/driftwood/font.json` quote a few **public page
   titles** as character-set illustrations (the `titles` arrays), with the sites' owner's permission
@@ -60,6 +62,15 @@ and are not licensed for reuse as font names: a font built from these parameters
 family name except those two. The example READMEs and `references/examples/` describe the shipped
 fonts' real name tables (copyright, maker, licence) as history — what shipped on the sites, not
 what these files build.
+
+**Tiki Terminal** (`examples/tiki-terminal/`) is the exception to "neutral": the face is the skill's own
+open example, so its name table is real. The family is "Tiki Terminal", the copyright, manufacturer and
+designer strings are John M. P. Knox, the vendor id is `JMPK`, and the licence string and name ID 13 say the
+SIL Open Font License, Version 1.1. Its parameters (`concepts.js`, `skeletons.js`, `font.json`,
+`requirements.json`, `content.json`) are MIT like the rest of the repository. A font built from them is
+under the OFL 1.1 and travels with `examples/tiki-terminal/OFL.txt`; no Reserved Font Name is declared.
+The name was searched for and no typeface of that name was found; no hit is not proof that it is free.
+The font itself is not tracked, like every other face.
 
 ## Third-party tools
 

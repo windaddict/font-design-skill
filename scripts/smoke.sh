@@ -2,7 +2,8 @@
 # smoke.sh: the pre-publish run for this skill, and the manual check after any change to scripts/.
 #
 # WHAT IT'S FOR: proves the whole pipeline runs on the neutral fixture and that the two precedent
-# configurations still export and build, so a change to the generator, exporter or builder cannot
+# configurations and the Tiki Terminal example (the fourth fixture: the only one with a skeleton file,
+# cut stem ends and a custom LEAN axis) still export and build, so a change to the generator, exporter or builder cannot
 # ship silently broken. Default: no browser (what the CI matrix job runs). --full adds the Chrome
 # steps (what the CI chrome job runs from step 6 on): the three concept rounds built and executed in
 # Chrome with a face switch, a font-load assertion and the comparison face proved visibly set in
@@ -52,8 +53,8 @@ node --version
 if [ "$FULL" = 1 ]; then "$PY" "$HERE/check-env.py"; fi
 
 if want 1; then
-  step "1. export every group of the three fixtures (compatibility, folds, hairlines)"
-  for ex in neutral bract driftwood; do
+  step "1. export every group of the four fixtures (compatibility, folds, hairlines)"
+  for ex in neutral bract driftwood tiki-terminal; do
     for g in $("$PY" -c "import json,sys; print(' '.join(json.load(open(sys.argv[1]))['groups']))" "$ROOT/examples/$ex/font.json"); do
       REQ=(); [ -f "$ROOT/examples/$ex/requirements.json" ] && REQ=(--requirements "$ROOT/examples/$ex/requirements.json")
       # expanded as ${REQ[@]+"${REQ[@]}"}: an empty array is "unbound" to bash 3.2 (macOS /bin/bash) under set -u
@@ -63,17 +64,20 @@ if want 1; then
 fi
 
 if want 2; then
-  step "2. build the three fixtures with every self-check; statics for the neutral one"
+  step "2. build the four fixtures with every self-check; statics for the neutral one"
   "$PY" "$HERE/build.py" --font "$NEUTRAL/font.json" --static "$NEUTRAL/out/static"
   # Bract's example carries no requirements.json (its site's reviewed expectations live in the site's own
   # test files), so the required-character check is declined explicitly (C6). The Driftwood example has one
   # since 0.7.1, so the font suite runs on a second face (step 4)
   "$PY" "$HERE/build.py" --font "$ROOT/examples/bract/font.json" --no-requirements
   "$PY" "$HERE/build.py" --font "$ROOT/examples/driftwood/font.json"
-  # 2b. diff.py on all three fixtures: each build against a copy of itself must report no change, by render and by value (a
+  # Tiki Terminal is the only fixture built with skeletons.js, cut stem ends and a custom axis (LEAN); its requirements.json
+  # is read by the build, and the font suite runs on it from tests/test_tiki_terminal.py inside step 7
+  "$PY" "$HERE/build.py" --font "$ROOT/examples/tiki-terminal/font.json"
+  # 2b. diff.py on all four fixtures: each build against a copy of itself must report no change, by render and by value (a
   # renderer that differs between two loads of one file would make every round's "what changed" noise, and the by-value section
-  # must see no difference in any group: neutral has two groups, bract one, driftwood two, with one- and two-axis, avar-mapped locations)
-  for ex in neutral bract driftwood; do
+  # must see no difference in any group: neutral has two groups, bract one, driftwood two, with one- and two-axis, avar-mapped locations; tiki-terminal one group, two axes, no avar)
+  for ex in neutral bract driftwood tiki-terminal; do
     mkdir -p "$OUT/diff-before-$ex" && cp -R "$ROOT/examples/$ex/out/." "$OUT/diff-before-$ex/"
     "$PY" "$HERE/diff.py" "$OUT/diff-$ex" --font "$ROOT/examples/$ex/font.json" --before "$OUT/diff-before-$ex" --sizes 16 40
     grep -Eq '^\*\*0 of [0-9]+ renders changed\*\*' "$OUT/diff-$ex/diff.md" || { echo "diff.py reported a render change between the $ex build and its copy" >&2; exit 1; }
@@ -101,6 +105,11 @@ if want 4; then
   rc=0
   "$PY" "$HERE/fontbakery-gate.py" --font "$NEUTRAL/font.json" --requirements "$NEUTRAL/requirements.json" || rc=$?
   if [ "$rc" -eq 3 ]; then echo "smoke: the FontBakery gate was SKIPPED, NOT PASSED (install requirements-dev.txt to run it)"; elif [ "$rc" -ne 0 ]; then exit "$rc"; fi
+  # 4c. the same gate on the Tiki Terminal example; its accepted findings are in its requirements.json
+  step "4c. the FontBakery gate on the Tiki Terminal example (skipped, loudly, when fontbakery is not installed)"
+  rc=0
+  "$PY" "$HERE/fontbakery-gate.py" --font "$ROOT/examples/tiki-terminal/font.json" --requirements "$ROOT/examples/tiki-terminal/requirements.json" || rc=$?
+  if [ "$rc" -eq 3 ]; then echo "smoke: the FontBakery gate on Tiki Terminal was SKIPPED, NOT PASSED (install requirements-dev.txt to run it)"; elif [ "$rc" -ne 0 ]; then exit "$rc"; fi
 fi
 
 if want 5; then
