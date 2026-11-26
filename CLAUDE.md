@@ -8,13 +8,13 @@ designing a face are in `SKILL.md`; this file is about developing the skill itse
 The checks here are slow, so pick the smallest set that can see the change, and say which set you ran
 and why in the commit or pull request. Running less than the full set is a decision you state, not an
 omission. Durations recorded so far (this machine, 2026-11-22, one run of each): `scripts/smoke.sh` steps 1 to 5 took
-14 min 46 s, and step 7 (layer 2 inside the smoke run) took 27 min 34 s. On 2026-11-25 `scripts/smoke.sh --full` took at most 59 min 12 s (launch to the check that found it done), and its step 7 took 28 min 5 s. On the 0.12.0 tree (2026-11-25, `time` on the whole run) it took 43 min 50 s, and its step 7 took 28 min 22 s. No duration is recorded for the other layers; when
+14 min 46 s, and step 7 (layer 2 inside the smoke run) took 27 min 34 s. On 2026-11-25 `scripts/smoke.sh --full` took at most 59 min 12 s (launch to the check that found it done), and its step 7 took 28 min 5 s. On the 0.12.0 tree (2026-11-25, `time` on the whole run) it took 43 min 50 s, and its step 7 took 28 min 22 s. On the 0.13.0 tree (2026-11-25, `time` on the whole run) `scripts/smoke.sh --full` stopped at step 7 with one failure (`CUT-RUN-ACCENT:`, `references/testing.md` section 14) after 44 min 36 s, so steps 8 to 11 did not run; its step 7 took 29 min 27 s (layer 2: 1 failed, 791 passed, 7 skipped). On 2026-11-26, after that failure was settled, `scripts/smoke.sh --full` passed in 44 min 6 s (`time`), its step 7 in 28 min 43 s (794 passed, 7 skipped). No duration is recorded for the other layers; when
 you time one, add the figure and the date here.
 
 The layers, from cheapest to most expensive:
 
 1. **One or a few repo test files.** `.venv/bin/python3 -m pytest tests/test_<area>.py -q`.
-2. **The repo tests.** `.venv/bin/python3 -m pytest -q` (783 tests in 32 files on 2026-11-25, from `pytest --co -q`; `tests/test_docs_commands.py` adds one test per documented command, so the count moves when a doc gains or loses a command). Most
+2. **The repo tests.** `.venv/bin/python3 -m pytest -q` (793 tests in 36 files on 2026-11-25, from `pytest --co -q`; `tests/test_docs_commands.py` adds one test per documented command, so the count moves when a doc gains or loses a command). Most
    files start subprocesses (Node, the font build or Chrome).
 3. **The font suite on a fixture.** `scripts/tests/test_font.py`, run by path with `--font` and
    `--requirements` (see `pytest.ini`). It is not part of layer 2.

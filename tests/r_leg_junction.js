@@ -18,7 +18,7 @@
 //                                                                   own concept copy so no case reads another's cache
 //
 // Coordinates are the generator's drawn ones (after the sidebearing shift); a drawing's bowl and stem polygons are
-// compared with another generator's after aligning on the stem body's first point.
+// compared with another generator's after aligning on the middle sample of the stem's first edge run, a point no end construction moves.
 // Copyright 2026 John Knox. MIT licence.
 "use strict";
 const path = require("path");
@@ -156,7 +156,9 @@ function drawings(cb) {
 if (mode === "measure") {
   console.log(JSON.stringify(drawings(measureR)));
 } else if (mode === "dump") {
-  console.log(JSON.stringify(drawings(g => { const { bodies } = parts(g); const sh = g.polys[0][0][0]; return { bodies, polys: g.polys.map(p => p.map(q => [+(q[0] - sh).toFixed(4), +q[1].toFixed(4)])) }; })));
+  // the x of the middle sample of the stem edge that polygon 0 starts with (the edge run whose first index is 0)
+  const stemMid = g => { const r = g.runs[0].find(q => q[0] === 0); return g.polys[0][Math.floor((r[0] + r[1]) / 2)][0]; };
+  console.log(JSON.stringify(drawings(g => { const { bodies } = parts(g); const sh = stemMid(g); return { bodies, polys: g.polys.map(p => p.map(q => [+(q[0] - sh).toFixed(4), +q[1].toFixed(4)])) }; })));
 } else if (mode === "control") {
   // the 0.4.0 skeleton, installed before any draw (FD_R_CONTROL_WARM=1 draws the R first, the mutation that shows why)
   const c = m.loadConcepts(files[0])[0], P = m.params(c, 1, false);

@@ -10,7 +10,10 @@ clip: that is the mutation proof in the plan's Verification section.
 How the measures work. tests/cut_end_probe.js (its header defines every figure) draws each glyph with its `cut` ends and with every
 `cut` end replaced by `butt`:
   reach     how far the cut moved an edge's end corner. 0 means the cut did not move it.
-  beyond    how many samples past the first one outside the reach differ between the two drawings, up to the middle of the stroke.
+  beyondSpan  how many samples farther along the uncut edge than max(reach, at) differ between the two drawings, up to the middle of
+            the stroke. `at` is the corner's place along the uncut edge. Reach is a straight-line distance, and on a curved edge a
+            corner that moved by `reach` sits farther along the edge, so the samples between the two are the cut's own, not beyond it.
+            (The earlier measure, `beyond`, counted from the first sample outside the straight-line reach and read those as beyond.)
 The second test compares the whole generator with the previous release's, glyph by glyph.
 
 FONT_DESIGN_CUT_SCRIPTS names another copy of the whole scripts/ folder (see tests/test_cut_ends.py); unset, the real one.
@@ -29,14 +32,15 @@ SPACED_FLOOR = 161  # measured 179 of those with an advance different from 0.10.
 def test_a_cut_moves_no_sample_beyond_its_own_reach():
     """Across functions: the `cut` and the `butt` drawing of one stroke, through params(), strokePolys() and cutEnds(). The Cane
     concept and the six shipped concepts with a cut end, roman and italic, four multipliers: no edge differs between the two drawings
-    at any sample beyond the first one outside the corner's reach (1e-6 units), including the edges of ends the cut did not move."""
+    at any sample farther along the uncut edge than the corner's place along it, or its reach if that is larger (1e-6 units),
+    including the edges of ends the cut did not move."""
     rows = ce.cane_rows() + ce.shipped_rows()
     assert len(rows) >= 11000, f"only {len(rows)} edge rows were measured"
     still = [r for r in rows if r["reach"] <= 1e-6]
     assert len(still) >= 1500, f"only {len(still)} edges have a cut that did not move the corner, so ends the cut leaves alone are not measured"
-    over = [r for r in rows if r["beyond"] > 0]
-    assert not over, (f"CUT-REACH: {len(over)} of {len(rows)} cut-end edges differ from the uncut stroke beyond the cut's reach, "
-                      f"{len([r for r in over if r['reach'] <= 1e-6])} of them on an end the cut did not move; worst {ce.worst(over, 'beyondMax')}")
+    over = [r for r in rows if r["beyondSpan"] > 0]
+    assert not over, (f"CUT-REACH: {len(over)} of {len(rows)} cut-end edges differ from the uncut stroke beyond the cut's reach along the edge, "
+                      f"{len([r for r in over if r['reach'] <= 1e-6])} of them on an end the cut did not move; worst {ce.worst(over, 'beyondSpanMax')}")
 
 
 def _old_generator(tmp_path):

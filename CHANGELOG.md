@@ -4,6 +4,25 @@ All notable changes to this skill. The format follows Keep a Changelog; the vers
 file, repeated in `SKILL.md` and the README badge and checked by the tests. Each entry states whether font
 output changes (a line starting `Font output:`), and `## Releases` at the end lists the tags.
 
+## [0.13.0] — 2026-11-25
+
+Font output: changes: a glyph with a cut end is redrawn where the corner the cut shortens stood off the stroke's edge (a curved terminal, or a stroke with a swell), and its advance and kerns move with it. No concept that the three examples build has a cut end, so every example rebuilds to the recorded digests (`tests/test_backward_compat.py`).
+
+### Fixed
+- **The step where a curved terminal meets its cut corner (issue #27).** `gen.js` moved both corners of a `cut` end along the end tangent. That line is the stroke's edge only on a straight stroke of even width, so on a curved terminal, or on a straight stroke whose edges a large `swell` curves, the corner the cut shortens stood off the edge and the outline ran from the edge to the corner as a step. A copy of `examples/neutral` with `cut` stem ends and `swell: 0.35` exported with folded edges in every master and `build.py` refused it (`SELF-CHECK FAILED: TextRegular: 7 stroke edge(s) fold back`). The corner the cut shortens is now placed on the edge itself (`cutBack`): where the edge crosses the cut line, or at the cut's reach when it does not cross it there. The tests print the measured figures (`tests/test_cut_step.py`, `tests/test_cut_ask.py`, `tests/test_cut_angle.py`, `tests/test_cut_short.py`).
+
+### Changed
+- **The cut line moves to the corner when the edge does not reach it.** The other corner then runs out along the end tangent to the parallel line through the corner the edge got, so the cut keeps its angle.
+- **A stroke shorter than its cut's reach pins only the near half of its edge.** The walk of `cutBack` stays inside the near half, so the pins at the two ends of one stroke never meet. The corner that runs out is still placed by `clipPast`, which has no such bound.
+- **Spacing follows the new outline.** A `cut` end carries no `prof`, so advances and kerns of a concept with `cut` ends move with the outline. No font this repository builds has a `cut` end.
+- **The genre verdicts for `grot` and `geometric` were re-read** after the redraw.
+
+### Looked at and not changed
+- **The alternative: leave the other corner on the old line.** The cut edge then tilts off the cut angle (872 of 5,717 measured ends, by up to 25.8 degrees on the prototype). Not taken.
+- **The issue's smooth path.** Spreading the pinned samples along a path from the curve to the corner `cutSide` gives would start farther back than the cut reaches. The corner moves instead.
+- **The corner that runs out.** It still runs along the end tangent.
+- **Tight hooks.** `r f t 9 J` end in a hooked flag in the shared skeletons (`references/genres.md`, section 7); a clean terminal needs skeleton work.
+
 ## [0.12.0] — 2026-11-25
 
 Font output: changes: a face that sets wonkAmount builds differently under 0.12.0 than under 0.11.0, which ignored the key. No concept this repository ships sets wonkAmount, and with the key absent every example rebuilds to the recorded digests (`tests/test_backward_compat.py`) and the letters a concept names in `wonk` are drawn as 0.11.0 drew them (`tests/test_wonk_default.py`).
@@ -1065,6 +1084,7 @@ font output for the same face folder, not identical repository files: later comm
 | v0.10.0 | 1b3c2c7 | merge of PR #25 |
 | v0.11.0 | 14e03fc | merge of PR #28 |
 | v0.12.0 | 7713ddd | merge of PR #29 |
+| v0.13.0 | the merge commit of the release branch | tagged after the merge |
 
 **0.6.0 is ambiguous.** Tag v0.6.0 is 1c032ad. The unreleased commit c5b4abb, on the 0.7.0 branch, also set `VERSION` to 0.6.0, and
 its `gen.js` and `export.js` differ from the tag's; it reached `main` only inside 0.7.0 (aa4b9ae), so it has no tag. A face built by it

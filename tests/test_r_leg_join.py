@@ -495,7 +495,9 @@ def test_the_filled_union_near_the_join_is_the_old_outline_plus_the_leg(dumps, f
     bar (the new cut's left corner, the old disk's left extreme), above the bar's centre line, the two unions' boundaries coincide
     both ways within 0.05 (measured 0.000): no step on the bar's top edge. The window starts at the stem, not at the root: a
     step left of the root would be missed by a window that started there. Red on 0.4.0 (the disk's arc is on the boundary) and
-    under the flush-cut mutation (the cut's corners sit on the bar's edge and skia keeps them as boundary vertices)."""
+    under the flush-cut mutation (the cut's corners sit on the bar's edge and skia keeps them as boundary vertices).
+    The two drawings are brought into one frame on the middle sample of the stem's first edge run (tests/r_leg_junction.js dump), a
+    point no end construction moves; the stem's end corner is not used, because a cut stem end moves it and the frame would move with it."""
     pytest.importorskip("pathops", reason="skia-pathops is in requirements.txt; the union check needs it")
     old_all, new_all = dumps[f.parent.name + "/" + f.name]
     bad = []
