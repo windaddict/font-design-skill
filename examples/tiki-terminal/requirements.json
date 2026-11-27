@@ -84,7 +84,7 @@
   "cmap": " !\"#$%&'()*+,-./0123456789:;>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz ©ÀÁÂÄÇÈÉÊËÍÏÑÓÔÖÚÜàáâäçèéêëìíîïñòóôöùúûüāš–—‘’“”•…™",
   "required_characters": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,':;!?-–—…()[]/&#+*%$\"“”‘’ >_",
   "hand_kerns": {
-    "r|r": -90,
+    "r|r": -80,
     "E|O": -60,
     " |A": -45
   },

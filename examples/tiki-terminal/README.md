@@ -14,7 +14,10 @@ Stated exactly, because a rounded-up status would mislead:
 
 - The operator approved the design on 2026-11-26: the concept `cane`, and `canelean` (Cane with the
   letters `aeiokrAEIO` leaning back) at the far end of the `LEAN` axis, the accent design of round 3 and
-  the slashed zero.
+  the slashed zero. During the design review (2026-11-27) the operator chose a zero whose slash crosses the
+  counter and ends in the bowl (a short bar inside it read as a theta at Bold; round 5 widened its bowl by
+  60 units so its two counters stay open at 40 px), and an `I` with bars, so
+  "Il1" reads as three glyphs.
 - This folder builds and passes its self-checks (`build.py`, including `--check`), the eight tests of
   `tests/test_tiki_terminal.py` (the approved design, the lean, the gap floors and the font suite less six
   tests) and the FontBakery gate with two accepted findings.
@@ -63,7 +66,7 @@ node scripts/export.js --font examples/tiki-terminal/font.json --group roman --r
 .venv/bin/python3 scripts/build.py --font examples/tiki-terminal/font.json --check
 .venv/bin/python3 -m pytest scripts/tests/test_font.py -q --font examples/tiki-terminal/font.json --requirements examples/tiki-terminal/requirements.json --static-dir none -k "not dropamt and not optical_corrections and not unbracketed_serif and not open_curve_extremes and not unset_crotch"
 .venv/bin/python3 scripts/fontbakery-gate.py --font examples/tiki-terminal/font.json --requirements examples/tiki-terminal/requirements.json
-.venv/bin/python3 tests/pair_gap.py --font examples/tiki-terminal/font.json --under 16
+.venv/bin/python3 tests/pair_gap.py --font examples/tiki-terminal/font.json --under 30
 node scripts/concepts/build-page.js --template round1 --concepts examples/tiki-terminal/concepts.js --content examples/tiki-terminal/content.json --skeletons examples/tiki-terminal/skeletons.js out/tiki-round1.html
 ```
 
@@ -73,17 +76,17 @@ six tests (see "Known limits"). `tests/test_tiki_terminal.py` holds the same exp
 
 ## Numbers
 
-From the build that wrote the face (`out/manifest.json`, 2026-11-26, skill 0.13.0, node 26.13.1; the glyph and cmap counts and the vertical metrics and word space are from the 0.12.0 build of 2026-11-25, which 0.13.0 does not change):
+From the build that wrote the face (`out/manifest.json`, 2026-11-27 after round 5 of the design review, skill 0.13.0, node 26.13.1; the glyph and cmap counts and the vertical metrics and word space are from the 0.12.0 build of 2026-11-25, which 0.13.0 does not change):
 
 | Quantity | Value |
 |---|---|
 | Glyphs, cmap entries | 140, 137 |
-| Kern pairs written | 4,766 (5,432 before the zero pairs below) |
-| Points per master | 154,282 raw, 21,503 after decimation (the same in all four masters) |
+| Kern pairs written | 2,822 (5,499 before the zero pairs below) |
+| Points per master | 156,010 raw, 21,826 after decimation (the same in all four masters) |
 | Minimum stroke, Regular and Lean | 78.78 units (floor 78), at `_` |
 | Minimum stroke, Bold and Bold Lean | 118.18 units (floor 118), at `ë` |
 | Worst fold after decimation | 4.13 units (Regular, `1`) and 0.7 (Bold, `Ñ`) |
-| woff2 size | 77,592 bytes (budget 102,400) |
+| woff2 size | 71,060 bytes (budget 102,400) |
 | Vertical metrics | ascender 1010, descender -293, line gap 0 (`line-height: normal` reads 1.303 em) |
 | Word space | 256 (Regular), 273 (Bold) |
 
@@ -100,26 +103,48 @@ Measured at the five locations of `tests/pair_gap.py` (Regular, Bold, Lean, Bold
 550 and 50), on the 0.12.0 build: 367 two-character pairs cross, 531 come under 12 units and 624 come under 16, before any
 suppression.
 
-What the face does about it: `kerning.hand` holds 666 zero pairs (re-measured for 0.13.0, which moves the cut corners of the `cane` and `totem` strokes onto their edges). A zero hand pair makes `export.js` skip
+What the face does about it: `kerning.hand` holds 2,711 zero pairs (re-measured for 0.13.0, which moves the cut corners of the `cane` and `totem` strokes onto their edges, after round 1 of the design review redrew the `t` foot, after round 2 raised the limit to 30 units, after round 3 redrew the brackets, after round 4 redrew the zero, the `I` and the accents, and after round 5 widened the zero). A zero hand pair makes `export.js` skip
 the automatic kern for that pair, so the two glyphs sit on their sidebearings (8 units or more each). The
-list holds every pair of kern-set keys, with the three ligature keys, whose outlines came closer than 16
-units at any of the five locations. Two pairs have a real value because zero is too loose for them:
-`r|r` -90 and `E|O` -60. One number serves all four masters, so Regular is looser than Bold needs.
+list holds every pair of kern-set keys, with the three ligature keys, whose outlines came closer than 30
+units at any of the five locations. The limit was 16 units until round 2 of the design review
+(2026-11-27): pairs between 16 and 30 units still drew as touching at 40 to 48 px (`c|o` at -113, `E|C`,
+`5|s`), and the operator raised it to 30, about 1.2 px at 40 px. Two pairs have a real value because zero is too loose for them:
+`r|r` -80 (-90 until round 2, which came within 25 units at Lean) and `E|O` -60. One number serves all four masters, so Regular is looser than Bold needs.
+Fourteen more have a real value from round 1 of the design review (2026-11-26), where the automatic kern
+did not make the outlines touch but drew the pair wrong on the page: `c|l`, `c|b`, `c|h`, `c|k` and `c|i`
+at -30 (the automatic -99 tucked the stem into the `c`, so "cl" read as "d"); `C|:` -15, `$|1` -15,
+`v|1` -30, `s|t` -25 and `r|)` -60, which touched at 40 px; and
+`1|2` +20, where the `1` met the `2` with no kern at all. Round 1 also set `(|1` -25; round 2 found it
+under 30 units and it is now a zero pair. Round 1 also set `[|y`, `n|]` and `]|?`; round 3 lengthened the
+bracket arms and left those pairs to the 30-unit rule. Round 3 set `t|'` -15 (the automatic -50 put the
+apostrophe on the `t` crossbar in "Tonight's"). `tests/test_tiki_terminal.py` lists all fourteen as
+`NONZERO_HAND`.
+
+Four zero pairs come from round 3 of the design review, not from the measurement: `2|.`, `2|,`, `D|S` and
+`R|D`. Their outlines are 30 units or more apart, yet they drew as one shape at 40 to 51 px ("$12.00",
+"RECORDS"). The test lists them as `REVIEW_ZEROS` and keeps them in the list by name; regenerating the list
+must carry them over. A hand pair must name kern-set keys: `>` is not one, and a pair naming it
+fails the build in `feaLib` (`build.py`'s `gname` has no glyph name for it).
 
 Regenerate the list after a change to the glyphs, the concepts or the track: build with `"hand": {}`
-(keeping the two real values and the word-space pairs), run `tests/pair_gap.py --under 16`, and put its
-output in `kerning.hand`. The list exists because of the generator limit above. When the generator reads
+(keeping the fourteen real values and the word-space pairs), run `tests/pair_gap.py --under 30`, and put its
+output in `kerning.hand` with the four review zeros. The list exists because of the generator limit above. When the generator reads
 stroke edges instead of polygon points, drop it.
 
 What the tests hold (all contour distance at the five named locations):
 
 - no pair of mapped characters comes closer than 12 units;
 - `rr`, `ro`, `er`, `RE` and `EO` keep 30 units at weight 700, at LEAN 0 and 100;
-- every zero pair is one the unsuppressed build puts under 17 units, and every pair under 15 units is a
-  zero pair. The 1-unit band either side of 16 is an operator ruling, not a measurement of how far
-  outlines move between platforms.
+- every zero pair is one the unsuppressed build puts under 31 units (the four review zeros excepted), and
+  every pair under 29 units is a zero pair or one of the fourteen real values. The 1-unit band either side
+  of 30 is an operator ruling, not a measurement of how far outlines move between platforms;
+- the four review zeros and the fourteen real values are in `kerning.hand` with those values.
 
 ## Known limits and open items
+
+- **Line height.** The `i` and `j` dots stand at y 760 (Bold dot top 862) and the Bold `p` and `q` reach
+  -292, so at Bold a `p` over an `i` needs 1,154 units: set the face at `line-height: 1.16` or more where a
+  title can wrap. At 1.1 a Bold descender meets the dot on the next line (design review round 3).
 
 - **The gap tests see contour distance at five locations.** A glyph that lies wholly inside another's
   counter without crossing it is not seen. An axis setting between the five locations is not seen. A pair
