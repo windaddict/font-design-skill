@@ -418,7 +418,9 @@ def _union_scan(woff2, limit, kern_set):
 
 
 def test_every_suppressed_pair_is_one_the_measurement_found(face, built):
-    expected = {"zero_pairs_at_least_400": True, "not_found_under_31": [], "under_29_not_suppressed": [], "not_kern_set_keys": [], "kern_pairs_at_least_2500": True, "review_zeros_missing": [], "hand_values_differ": {}}
+    expected = {"zero_pairs_at_least_400": True, "not_found_under_31": [], "under_29_not_suppressed": [],
+                "not_kern_set_keys": [], "kern_pairs_at_least_2500": True, "review_zeros_missing": [],
+                "hand_values_differ": {}}
     font = face["font"]
     if _bad(font):
         observed = font
