@@ -6,6 +6,9 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
+# Node
+node_modules/
+
 # Build output: fonts are never tracked in this repo (see NOTICE.md)
 out/
 *.woff2
@@ -20,6 +23,9 @@ out/
 /runs/
 /.impasse-runs/
 *.jsonl
+
+# Claude Code's local session folder (plans, requests, worktrees of /feature runs)
+.claude/
 
 # OS
 .DS_Store

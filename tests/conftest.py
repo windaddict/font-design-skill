@@ -13,7 +13,8 @@ import sys
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".venv", "venv", "out", "__pycache__", ".pytest_cache", ".ruff_cache", "node_modules"}
+# Each name here is a folder git ignores (`.gitignore`), so nothing in it can be published.
+SKIP_DIRS = {".git", ".venv", "venv", "out", "__pycache__", ".pytest_cache", ".ruff_cache", "node_modules", ".claude"}
 
 
 def tree_files():
