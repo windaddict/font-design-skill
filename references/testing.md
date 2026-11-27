@@ -1004,6 +1004,27 @@ The Tiki Terminal example (`examples/tiki-terminal/`, plan `docs/plan-tiki-termi
 | M8 | `font.json`: the `RegLean` and `BoldLean` masters use `cane`, the rest unchanged | with `-k lean_axis_tips`, `TIKI-LEAN-GEOMETRY:` red by itself, all ten wonk letters under `wonk_not_tipped` and `wonk_only_shifted` at both weights |
 | M8b | `concepts.js`: the `wonk` of `canelean` gains `n` | with `-k lean_axis_tips`, `TIKI-LEAN-GEOMETRY:` red: see the findings |
 
+**Round 2 of the design review (2026-11-27).** The operator raised the zero-list limit from 16 to 30 units, so `BAND_HIGH` is 31,
+`BAND_LOW` is 29 and the kern floor is 2,500 pairs (2,828 written). M3 to M3c above name the old bands. The two band watches were
+repeated on the new list, the same way (49 s per run unmutated, 8 passed; each restore matched its `shasum -a 256`):
+
+| Watch | Edit | Red on |
+|---|---|---|
+| M3b (30) | `font.json`: a zero entry for `(|H`, in the `--under 34` list and not the `--under 31` list (33.0 units) | `TIKI-ZERO-LIST:` alone, `not_found_under_31: ["(|H"]` |
+| M3c (30) | `font.json`: the zero entry of `!|3` deleted, in the `--under 29` list and not the `--under 12` list (19.1 units) | `TIKI-ZERO-LIST:` alone, `under_29_not_suppressed: ["!|3"]`; `TIKI-PAIR-GAP:` stays green |
+
+Round 3 (2026-11-27) added `REVIEW_ZEROS`, four zero pairs the review set by eye, and two checks that the review zeros and the
+`NONZERO_HAND` values are in `font.json`. Watches, the same way (47 s per run unmutated, 8 passed; every restore matched):
+
+| Watch | Edit | Red on |
+|---|---|---|
+| W1 | `tests/test_tiki_terminal.py`: `2|.` removed from `REVIEW_ZEROS` | `TIKI-ZERO-LIST:` alone, `not_found_under_31: ["2|."]` |
+| W2 | `font.json`: the zero entry of `2|.` deleted | `TIKI-ZERO-LIST:` alone, `review_zeros_missing: ["2|."]` |
+| W3 | `font.json`: `t|'` -15 to -50 | `TIKI-ZERO-LIST:` alone, `hand_values_differ: {"t|'": -50}` |
+
+No test holds the round-2 and round-3 glyph fixes (the dots, the zero bar, the brackets) (the Bold `i`/`j`/`!` dot clearance and the zero slash): they were measured by hand on the
+build and are judged by the design review.
+
 **Findings about the tests**, from the watches, not repaired here:
 
 - **M7b survived the whole `xh-*` set.** With the bound's default at 5, all 14 `xh-*` mutations of `mutate.py` still print RED on the neutral fixture, so no mutation sees a 1 to 5 unit bowl shift on an existing face. The per-face bound's default of 1 is not guarded, and is not counted as guarded.

@@ -69,12 +69,26 @@ GEN_JS = REPO / "scripts" / "gen.js"
 #   unset_crotch         every master of the face sets crotch, so the fixture reads 0 records and its floor of 1,000 fails.
 SUITE_EXCLUSIONS = "not dropamt and not optical_corrections and not unbracketed_serif and not open_curve_extremes and not unset_crotch"
 
-# The two hand pairs with a real (non-zero) value: they are kerned in the second build of test 6 as in the face, so they do not appear
-# in its measurement and are the one named exception to "every pair under 15 units is a zero pair".
-NONZERO_HAND = {"r|r": -90, "E|O": -60}
+# The hand pairs with a real (non-zero) value: they are kerned in the second build of test 6 as in the face, so they do not appear
+# in its measurement and are the one named exception to "every pair under 29 units is a zero pair".
+NONZERO_HAND = {
+    "r|r": -80, "E|O": -60,
+    # design review round 1 (2026-11-26): the automatic kern tucked these together on the page. Round 2 (2026-11-27) dropped (|1 to
+    # the zero list and eased r|r from -90 to -80, which came within 25 units at Lean.
+    "c|l": -30, "c|b": -30, "c|h": -30, "c|k": -30, "c|i": -30, "C|:": -15, "$|1": -15, "v|1": -30,
+    "1|2": 20, "s|t": -25, "r|)": -60,
+    # round 3 (2026-11-27): the apostrophe sat on the t crossbar in "Tonight's". The bracket pairs [|y, n|] and ]|? went back to
+    # the 30-unit rule when the brackets were redrawn.
+    "t|'": -15,
+}
 
-BAND_HIGH = 17  # every zero pair measures under this many units without its zero entry
-BAND_LOW = 15  # every pair under this many units without the zero list is a zero pair
+# Zero pairs set by the design review (round 3, 2026-11-27), not by the measurement: their outlines are 30 units or more apart, yet they
+# drew as one shape on the page ("$12.00", "RECORDS"). They are the one named exception to "every zero pair is one the measurement
+# found".
+REVIEW_ZEROS = {"2|.", "2|,", "D|S", "R|D"}
+
+BAND_HIGH = 31  # every zero pair measures under this many units without its zero entry
+BAND_LOW = 29  # every pair under this many units without the zero list is a zero pair
 
 # Set from the first build of the face at half the smallest value measured over the ten wonk letters and the two weights (plan, test 8).
 # PROVISIONAL until that build is measured: the lean is 0.158 x height in units, so a lowercase letter tips by about 80, and these
@@ -354,7 +368,7 @@ def test_the_built_font_carries_the_approved_axes_names_and_characters(built):
 # 4. 5. the minimum gap
 # ---------------------------------------------------------------------------------------------------------------------------------
 
-UNDER_16_COMMAND = ".venv/bin/python3 tests/pair_gap.py --font examples/tiki-terminal/font.json --under 16"
+UNDER_30_COMMAND = ".venv/bin/python3 tests/pair_gap.py --font examples/tiki-terminal/font.json --under 30"
 
 
 def test_no_two_mapped_characters_come_closer_than_12_units(built):
@@ -372,7 +386,7 @@ def test_no_two_mapped_characters_come_closer_than_12_units(built):
     worst = sorted(close_all.items(), key=lambda kv: kv[1])[:40]
     assert observed == expected, (
         "TIKI-PAIR-GAP: outlines come closer than 12 units (contour distance at the five named locations, not containment; worst first, "
-        f"at most 40 of {len(close_all)}): {worst}; the pairs to suppress are listed by `{UNDER_16_COMMAND}`; observed {json.dumps(observed, default=str)[:600]}"
+        f"at most 40 of {len(close_all)}): {worst}; the pairs to suppress are listed by `{UNDER_30_COMMAND}`; observed {json.dumps(observed, default=str)[:600]}"
     )
 
 
@@ -404,7 +418,7 @@ def _union_scan(woff2, limit, kern_set):
 
 
 def test_every_suppressed_pair_is_one_the_measurement_found(face, built):
-    expected = {"zero_pairs_at_least_400": True, "not_found_under_17": [], "under_15_not_suppressed": [], "not_kern_set_keys": [], "kern_pairs_at_least_4000": True}
+    expected = {"zero_pairs_at_least_400": True, "not_found_under_31": [], "under_29_not_suppressed": [], "not_kern_set_keys": [], "kern_pairs_at_least_2500": True, "review_zeros_missing": [], "hand_values_differ": {}}
     font = face["font"]
     if _bad(font):
         observed = font
@@ -427,12 +441,14 @@ def test_every_suppressed_pair_is_one_the_measurement_found(face, built):
             rx_ok = pair_gap.kern_set_filter({z: 0 for z in zero}, kern_set)
             observed = {
                 "zero_pairs_at_least_400": len(zero) >= 400,
-                "not_found_under_17": sorted(z for z in zero if z not in high),
-                "under_15_not_suppressed": sorted(p for p in low if p not in zero and p not in NONZERO_HAND),
+                "not_found_under_31": sorted(z for z in zero if z not in high and z not in REVIEW_ZEROS),
+                "under_29_not_suppressed": sorted(p for p in low if p not in zero and p not in NONZERO_HAND),
                 "not_kern_set_keys": sorted(z for z in zero if z not in rx_ok),
-                "kern_pairs_at_least_4000": built["manifest"]["groups"]["roman"]["kern_pairs"] >= 4000,
+                "kern_pairs_at_least_2500": built["manifest"]["groups"]["roman"]["kern_pairs"] >= 2500,
+                "review_zeros_missing": sorted(z for z in REVIEW_ZEROS if hand.get(z) != 0),
+                "hand_values_differ": {k: hand.get(k) for k, v in NONZERO_HAND.items() if hand.get(k) != v},
             }
-    assert observed == expected, "TIKI-ZERO-LIST: the zero hand pairs must be pairs the unsuppressed build puts under 17 units, and cover every pair under 15: " + _fmt(observed, expected)  # noqa: E501
+    assert observed == expected, "TIKI-ZERO-LIST: the zero hand pairs must be pairs the unsuppressed build puts under 31 units, and cover every pair under 29: " + _fmt(observed, expected)  # noqa: E501
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------

@@ -16,7 +16,7 @@ shapes to the glyph of a alone followed by the glyph of b alone (otherwise a lig
 gap is the smallest distance between a segment of a and a segment of b, with b moved right by a's shaped advance (plus b's own x
 offset); 0 when two segments cross.
 
-    .venv/bin/python3 tests/pair_gap.py --font examples/tiki-terminal/font.json --under 16
+    .venv/bin/python3 tests/pair_gap.py --font examples/tiki-terminal/font.json --under 30
 """
 import argparse
 import io
