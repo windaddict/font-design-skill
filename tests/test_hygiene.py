@@ -102,3 +102,33 @@ def test_the_tree_walk_leaves_out_a_git_pointer_file(tmp_path, monkeypatch):
     assert names == ["a.md", "sub/b.md"], (
         f"HYGIENE-GIT-POINTER: tree_files() returned {names}, expected ['a.md', 'sub/b.md']: a file named .git is a pointer, not publishable content"
     )
+
+
+def test_the_tree_walk_leaves_out_the_claude_session_folder(tmp_path, monkeypatch):
+    """Claude Code keeps a contributor's local session files in `.claude/` (plans, requests and worktrees of `/feature`
+    runs), which hold machine paths by nature. `.gitignore` names the folder, so it cannot be published, and the walk skips
+    it; without the skip the hygiene tests fail on any machine that has run a session here. The tree below holds one file in
+    `.claude/` beside an ordinary file, which the walk must still return."""
+    conftest = _mod
+
+    (tmp_path / ".claude" / "plans").mkdir(parents=True)
+    (tmp_path / ".claude" / "plans" / "p.md").write_text("plan\n", encoding="utf-8")
+    (tmp_path / "a.md").write_text("a\n", encoding="utf-8")
+    monkeypatch.setattr(conftest, "REPO", tmp_path)
+    names = sorted(p.relative_to(tmp_path).as_posix() for p in conftest.tree_files())
+    assert names == ["a.md"], (
+        f"HYGIENE-CLAUDE-DIR: tree_files() returned {names}, expected ['a.md']: .claude/ is a local session folder"
+    )
+
+
+def test_every_skipped_folder_is_one_git_ignores():
+    """The walk may skip a folder only because git will not publish it. This asks git itself, for a file inside each
+    skipped folder, so a name added to SKIP_DIRS without a `.gitignore` line fails here. `.git` is git's own folder and is
+    never ignored by a pattern, so it is left out of the question."""
+    import subprocess
+    probes = [f"{d}/probe.txt" for d in sorted(_mod.SKIP_DIRS - {".git"})]
+    r = subprocess.run(["git", "check-ignore", "--no-index", "--stdin"], cwd=REPO, input="\n".join(probes) + "\n",
+                       capture_output=True, text=True)
+    ignored = set(r.stdout.split())
+    missing = [p.split("/")[0] for p in probes if p not in ignored]
+    assert missing == [], f"HYGIENE-SKIP-NOT-IGNORED: SKIP_DIRS names {missing}, which .gitignore does not ignore"
